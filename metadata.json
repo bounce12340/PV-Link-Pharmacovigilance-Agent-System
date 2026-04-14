@@ -1,0 +1,8 @@
+{
+  "name": "PV-Link: Pharmacovigilance Agent System",
+  "description": "A professional PV tool providing Adverse Event (AE) literature and web monitoring, automated scoring, MedDRA alignment, and CIOMS draft generation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
