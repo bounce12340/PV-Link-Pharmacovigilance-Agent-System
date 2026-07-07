@@ -4,7 +4,7 @@
 
 # PV-Link: 药品安全监测代理系统 (Pharmacovigilance Agent System)
 
-![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![Gemini AI](https://img.shields.io/badge/AI-Google_Gemini-orange.svg)
+![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![OpenAI-compatible](https://img.shields.io/badge/AI-OpenAI--compatible-green.svg)
 
 **PV-Link** 是一个专为药品安全监视 (Pharmacovigilance, PV) 打造的专业自动化代理系统。本系统旨在解决传统人工文献审查耗时且容易遗漏的问题，透过串接官方文献数据库与大型语言模型 (LLM)，提供从检索、评分、摘要到结构化数据抽取的一站式解决方案。
 
@@ -15,7 +15,7 @@
     *   支持**复数目标成分**同时检索（例如：`Fenofibrate, Aspirin`），自动转换为精确的 PubMed 查询语法。
     *   支持自定义监测日期区间。
 *   🤖 **AI 智能评分与摘要 (AI Scoring & Summarization)**
-    *   整合 **Google Gemini 3 Flash** 模型，以极高的速度对新进文献进行 PV 关联性评分 (0-100分)。
+    *   可串接任何 **OpenAI 兼容的 Chat Completions 端点**（OpenAI、Azure OpenAI、Ollama、OpenRouter、Kimi…），对新进文献进行 PV 关联性评分 (0-100分)。
     *   自动将生硬的英文医学摘要，转化为易读的**中文摘要**。
     *   独立提炼出对药安监测最重要的**“临床结论 (Key Conclusion)”**，并支持一键复制。
 *   📊 **结构化数据抽取 (Structured Data Extraction)**
@@ -29,7 +29,7 @@
 
 *   **前端框架**: React 19, TypeScript, Vite
 *   **UI 样式**: Tailwind CSS, Heroicons
-*   **AI 引擎**: Google Gen AI SDK (`@google/genai`)
+*   **AI 引擎**: 任何 OpenAI 兼容的 Chat Completions API（provider 无关，不绑定任何厂商 SDK）
 *   **数据来源**: NCBI PubMed E-utilities API
 
 ## 🚀 快速开始 (Getting Started)
@@ -41,10 +41,13 @@ npm install
 ```
 
 ### 2. 环境变量设定
-在项目根目录建立一个 `.env.local` 文件，并填入您的 Google Gemini API Key：
+将 `.env.example` 复制为 `.env.local`。**本机开发**时可让前端直接指向任一 OpenAI 兼容端点：
 ```env
-GEMINI_API_KEY=your_api_key_here
+VITE_LLM_BASE_URL=https://api.openai.com/v1
+VITE_LLM_API_KEY=sk-xxxx
+VITE_LLM_MODEL=gpt-4o-mini
 ```
+> ⚠️ `VITE_` 开头的变量会被打包进前端 bundle——本机自用没问题，但**不适合公开部署**。要公开/多人使用，请改用后端 proxy（见下方「部署」），前端只设 `VITE_PV_PROXY_ENDPOINT`，密钥留在服务器端。
 
 ### 3. 启动开发服务器
 ```bash
@@ -60,34 +63,28 @@ npm run dev
 4.  **确认导入**: 确认文献内容具备 PV 价值后，点击“确认导入正式库”。
 5.  **正式库管理**: 在“正式库”标签页中，您可以搜索历史纪录，并点击右上角的“导出 CSV 报表”来下载数据。
 
-## 🔌 多模型 AI 来源串接指南 (Multi-LLM Integration Guide)
+## 🔌 LLM 供应商（OpenAI 兼容）
 
-本系统目前默认使用 Google Gemini API。若您希望扩充或替换为其他 AI 来源（如 OpenAI, Claude, xAI, Ollama, OpenRouter 等），建议采用以下两种架构策略来进行修改：
+AI 层（`services/llmService.ts`）是 provider 无关的：它走标准 **OpenAI Chat Completions** 格式，因此 OpenAI、Azure OpenAI、Ollama、OpenRouter、Kimi、LiteLLM 或任何兼容网关都能接——只改环境变量，不用动代码。
 
-### 策略一：使用统一 API 网关 (最快速推荐)
-如果您想快速支持各种模型，最简单的方式是使用支持“OpenAI 兼容格式 (OpenAI-compatible API)”的代理服务，例如 **OpenRouter** 或是本地端的 **Ollama** / **LiteLLM**。
-1. 安装 OpenAI 官方 SDK：`npm install openai`
-2. 在 `services/` 下建立新的 Service，并将 Base URL 指向目标服务：
-   ```typescript
-   import OpenAI from 'openai';
-   
-   const openai = new OpenAI({
-     baseURL: "https://openrouter.ai/api/v1", // 或 http://localhost:11434/v1 (Ollama)
-     apiKey: process.env.OPENROUTER_API_KEY,
-   });
-   
-   // 调用时只需抽换 model 名称即可
-   // model: "anthropic/claude-3-opus" 或 "xai/grok-1" 或 "llama3"
-   ```
+要换供应商，把 `VITE_LLM_BASE_URL` / `VITE_LLM_MODEL`（本机）或 Worker 的 `LLM_BASE_URL` / `LLM_MODEL`（proxy）指向你的服务即可。示例：
 
-### 策略二：实现 Adapter 设计模式 (适合深度定制化)
-若需要针对不同模型进行深度定制化（例如特定模型的 Function Calling 或 JSON Schema 格式不同），请在 `services/` 目录下实现抽象层：
-1. **定义接口 (Interface)**: 建立 `IAIService` 接口，定义 `scoreRelevance`, `generateSummaries`, `extractPVData` 等核心方法。
-2. **实现服务 (Implementations)**: 
-   - 保留现有的 `PVGeminiService.ts`
-   - 新增 `OpenAIService.ts` (使用 `openai` 套件)
-   - 新增 `ClaudeService.ts` (使用 `@anthropic-ai/sdk`)
-3. **依赖注入 (DI) / 工厂模式 (Factory)**: 在 `App.tsx` 中，根据用户的设定 (环境变量或 UI 下拉菜单) 动态实例化对应的 Service。例如：`const aiService = AIFactory.create(process.env.AI_PROVIDER);`
+| 供应商 | Base URL | 示例模型 |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `moonshotai/kimi-k2` |
+| Ollama（本地） | `http://localhost:11434/v1` | `llama3.1` |
+
+## 🚀 部署（公开 / 多人使用）
+
+为避免把任何 API 密钥送进浏览器，请部署 `worker/` 内的薄 proxy（Cloudflare Worker）——密钥留在服务器端，由它把 prompt 转发给你选用的 OpenAI 兼容端点。
+
+```bash
+cd worker
+npx wrangler secret put LLM_API_KEY   # 将上游密钥存成 secret
+npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL 于 wrangler.toml 设定
+```
+接着在前端把 `VITE_PV_PROXY_ENDPOINT` 设为部署后的 Worker URL 并重新 build。此时前端**不含**任何 LLM 密钥。
 
 ## 📄 授权条款 (License)
 MIT License

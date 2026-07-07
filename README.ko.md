@@ -4,7 +4,7 @@
 
 # PV-Link: 약물감시 에이전트 시스템 (Pharmacovigilance Agent System)
 
-![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![Gemini AI](https://img.shields.io/badge/AI-Google_Gemini-orange.svg)
+![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![OpenAI-compatible](https://img.shields.io/badge/AI-OpenAI--compatible-green.svg)
 
 **PV-Link**는 약물감시(Pharmacovigilance, PV)를 위해 특별히 구축된 전문 자동화 에이전트 시스템입니다. 이 시스템은 기존의 수동 문헌 검토가 시간이 많이 걸리고 누락되기 쉬운 문제를 해결하는 것을 목표로 합니다. 공식 문헌 데이터베이스와 대형 언어 모델(LLM)을 통합하여 검색, 스코어링, 요약부터 구조화된 데이터 추출까지 올인원 솔루션을 제공합니다.
 
@@ -15,7 +15,7 @@
     *   **복수 대상 성분** 동시 검색 지원(예: `Fenofibrate, Aspirin`), 정확한 PubMed 쿼리 구문으로 자동 변환됩니다.
     *   사용자 지정 모니터링 날짜 범위 설정을 지원합니다.
 *   🤖 **AI 스코어링 및 요약 (AI Scoring & Summarization)**
-    *   **Google Gemini 3 Flash** 모델을 통합하여 신규 문헌의 PV 관련성 점수(0~100점)를 초고속으로 평가합니다.
+    *   임의의 **OpenAI 호환 Chat Completions 엔드포인트**(OpenAI, Azure OpenAI, Ollama, OpenRouter, Kimi 등)와 연동하여 신규 문헌의 PV 관련성 점수(0~100점)를 평가합니다.
     *   어려운 영문 의학 요약을 읽기 쉬운 언어로 자동 번역합니다.
     *   약물 안전성 모니터링에 가장 중요한 **"임상적 결론 (Key Conclusion)"**을 독립적으로 추출하며, 원클릭 복사를 지원합니다.
 *   📊 **구조화된 데이터 추출 (Structured Data Extraction)**
@@ -29,7 +29,7 @@
 
 *   **프론트엔드 프레임워크**: React 19, TypeScript, Vite
 *   **UI 스타일링**: Tailwind CSS, Heroicons
-*   **AI 엔진**: Google Gen AI SDK (`@google/genai`)
+*   **AI 엔진**: 임의의 OpenAI 호환 Chat Completions API(provider 독립적, 특정 벤더 SDK에 종속되지 않음)
 *   **데이터 소스**: NCBI PubMed E-utilities API
 
 ## 🚀 시작하기 (Getting Started)
@@ -41,10 +41,13 @@ npm install
 ```
 
 ### 2. 환경 변수 설정
-프로젝트 루트 디렉토리에 `.env.local` 파일을 만들고 Google Gemini API 키를 입력합니다.
+`.env.example`을 `.env.local`로 복사합니다. **로컬 개발**에서는 프런트엔드를 임의의 OpenAI 호환 엔드포인트에 직접 연결할 수 있습니다.
 ```env
-GEMINI_API_KEY=your_api_key_here
+VITE_LLM_BASE_URL=https://api.openai.com/v1
+VITE_LLM_API_KEY=sk-xxxx
+VITE_LLM_MODEL=gpt-4o-mini
 ```
+> ⚠️ `VITE_`로 시작하는 변수는 프런트엔드 번들에 포함됩니다——로컬 사용에는 문제없지만 **공개 배포에는 적합하지 않습니다**. 공개/다중 사용자 배포 시에는 백엔드 프록시를 사용하고(아래 "배포" 참고), 프런트엔드에는 `VITE_PV_PROXY_ENDPOINT`만 설정하여 키를 서버 측에 보관하세요.
 
 ### 3. 개발 서버 시작
 ```bash
@@ -60,34 +63,28 @@ npm run dev
 4.  **가져오기 확인**: 문헌 내용에 PV 가치가 있는지 확인한 후 "마스터 데이터베이스로 가져오기 확인"을 클릭합니다.
 5.  **마스터 데이터베이스 관리**: "마스터 데이터베이스" 탭에서 기록을 검색하고 오른쪽 상단의 "CSV 보고서 내보내기"를 클릭하여 데이터를 다운로드할 수 있습니다.
 
-## 🔌 다중 LLM 통합 가이드 (Multi-LLM Integration Guide)
+## 🔌 LLM 공급자 (OpenAI 호환)
 
-이 시스템은 현재 기본적으로 Google Gemini API를 사용합니다. 다른 AI 소스(OpenAI, Claude, xAI, Ollama, OpenRouter 등)로 확장하거나 교체하려면 다음 두 가지 아키텍처 전략을 사용하는 것이 좋습니다.
+AI 레이어(`services/llmService.ts`)는 provider에 독립적입니다. 표준 **OpenAI Chat Completions** 형식을 사용하므로 OpenAI, Azure OpenAI, Ollama, OpenRouter, Kimi, LiteLLM 또는 호환되는 모든 게이트웨이에서 작동합니다——환경 변수만 변경하면 되고 코드 변경은 필요 없습니다.
 
-### 전략 1: 통합 API 게이트웨이 사용 (가장 빠름, 권장)
-다양한 모델을 빠르게 지원하려면 **OpenRouter** 또는 로컬 **Ollama** / **LiteLLM**과 같이 "OpenAI 호환 API" 형식을 지원하는 프록시 서비스를 사용하는 것이 가장 간단한 방법입니다.
-1. OpenAI 공식 SDK 설치: `npm install openai`
-2. `services/` 아래에 새 Service를 만들고 Base URL을 대상 서비스로 지정합니다.
-   ```typescript
-   import OpenAI from 'openai';
-   
-   const openai = new OpenAI({
-     baseURL: "https://openrouter.ai/api/v1", // 또는 http://localhost:11434/v1 (Ollama)
-     apiKey: process.env.OPENROUTER_API_KEY,
-   });
-   
-   // 호출 시 모델 이름만 바꾸면 됩니다.
-   // model: "anthropic/claude-3-opus" 또는 "xai/grok-1" 또는 "llama3"
-   ```
+공급자를 전환하려면 `VITE_LLM_BASE_URL` / `VITE_LLM_MODEL`(로컬) 또는 Worker의 `LLM_BASE_URL` / `LLM_MODEL`(프록시)을 원하는 서비스로 지정하세요. 예시:
 
-### 전략 2: Adapter 패턴 구현 (심층 사용자 정의용)
-다른 모델에 대한 심층적인 사용자 정의가 필요한 경우(예: 특정 모델의 Function Calling 또는 JSON Schema 형식이 다른 경우) `services/` 디렉토리 아래에 추상화 계층을 구현합니다.
-1. **인터페이스 정의 (Interface)**: `scoreRelevance`, `generateSummaries`, `extractPVData` 등 핵심 메서드를 정의하는 `IAIService` 인터페이스를 만듭니다.
-2. **서비스 구현 (Implementations)**: 
-   - 기존 `PVGeminiService.ts` 유지
-   - `OpenAIService.ts` 추가 (`openai` 패키지 사용)
-   - `ClaudeService.ts` 추가 (`@anthropic-ai/sdk` 사용)
-3. **의존성 주입 (DI) / Factory 패턴**: `App.tsx`에서 사용자 설정(환경 변수 또는 UI 드롭다운)에 따라 해당 Service를 동적으로 인스턴스화합니다. 예: `const aiService = AIFactory.create(process.env.AI_PROVIDER);`
+| 공급자 | Base URL | 예시 모델 |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `moonshotai/kimi-k2` |
+| Ollama(로컬) | `http://localhost:11434/v1` | `llama3.1` |
+
+## 🚀 배포 (공개 / 다중 사용자)
+
+브라우저로 API 키가 전달되지 않도록, `worker/`에 있는 얇은 프록시(Cloudflare Worker)를 배포하세요——키는 서버 측에 보관되며 선택한 OpenAI 호환 엔드포인트로 프롬프트를 전달합니다.
+
+```bash
+cd worker
+npx wrangler secret put LLM_API_KEY   # 업스트림 키를 secret으로 저장
+npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL은 wrangler.toml에서 설정
+```
+그런 다음 프런트엔드의 `VITE_PV_PROXY_ENDPOINT`를 배포된 Worker URL로 설정하고 다시 빌드합니다. 이제 프런트엔드에는 LLM 키가 **전혀** 포함되지 않습니다.
 
 ## 📄 라이선스 (License)
 MIT License

@@ -4,7 +4,7 @@
 
 # PV-Link: ファーマコビジランス・エージェント・システム (Pharmacovigilance Agent System)
 
-![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![Gemini AI](https://img.shields.io/badge/AI-Google_Gemini-orange.svg)
+![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![OpenAI-compatible](https://img.shields.io/badge/AI-OpenAI--compatible-green.svg)
 
 **PV-Link** は、ファーマコビジランス (Pharmacovigilance, PV) のために構築された専門的な自動化エージェントシステムです。従来の手動による文献レビューの時間の浪費と見落としの問題を解決することを目的としています。公式の文献データベースと大規模言語モデル (LLM) を統合することで、検索、スコアリング、要約から構造化データの抽出まで、オールインワンのソリューションを提供します。
 
@@ -15,7 +15,7 @@
     *   **複数の対象成分**の同時検索をサポート（例：`Fenofibrate, Aspirin`）。正確な PubMed クエリ構文に自動変換されます。
     *   カスタム監視期間の設定をサポート。
 *   🤖 **AI スコアリングと要約 (AI Scoring & Summarization)**
-    *   **Google Gemini 3 Flash** モデルを統合し、新規文献の PV 関連性スコア (0〜100) を超高速で評価します。
+    *   任意の **OpenAI 互換 Chat Completions エンドポイント**(OpenAI、Azure OpenAI、Ollama、OpenRouter、Kimi など)と連携し、新規文献の PV 関連性スコア (0〜100) を評価します。
     *   難解な英語の医学要約を読みやすい言語に自動翻訳します。
     *   医薬品安全性監視に最も重要な **「臨床的結論 (Key Conclusion)」** を独自に抽出し、ワンクリックコピーをサポートします。
 *   📊 **構造化データ抽出 (Structured Data Extraction)**
@@ -29,7 +29,7 @@
 
 *   **フロントエンド**: React 19, TypeScript, Vite
 *   **UI スタイリング**: Tailwind CSS, Heroicons
-*   **AI エンジン**: Google Gen AI SDK (`@google/genai`)
+*   **AI エンジン**: 任意の OpenAI 互換 Chat Completions API(プロバイダー非依存、特定ベンダーの SDK に依存しない)
 *   **データソース**: NCBI PubMed E-utilities API
 
 ## 🚀 クイックスタート (Getting Started)
@@ -41,10 +41,13 @@ npm install
 ```
 
 ### 2. 環境変数の設定
-プロジェクトのルートディレクトリに `.env.local` ファイルを作成し、Google Gemini API キーを入力します。
+`.env.example` を `.env.local` にコピーします。**ローカル開発**では、フロントエンドを任意の OpenAI 互換エンドポイントに直接向けることができます。
 ```env
-GEMINI_API_KEY=your_api_key_here
+VITE_LLM_BASE_URL=https://api.openai.com/v1
+VITE_LLM_API_KEY=sk-xxxx
+VITE_LLM_MODEL=gpt-4o-mini
 ```
+> ⚠️ `VITE_` で始まる変数はフロントエンドのバンドルに含まれます——ローカル利用では問題ありませんが、**公開デプロイには適しません**。公開/複数ユーザー向けにデプロイする場合は、バックエンドプロキシを使用し(下記「デプロイ」参照)、フロントエンドには `VITE_PV_PROXY_ENDPOINT` のみを設定して、キーはサーバー側に保持してください。
 
 ### 3. 開発サーバーの起動
 ```bash
@@ -60,34 +63,28 @@ npm run dev
 4.  **インポートの確認**: 文献の内容に PV 価値があることを確認したら、「マスターデータベースへのインポートを確認」をクリックします。
 5.  **マスターデータベース管理**: 「マスターデータベース」タブでは、履歴レコードを検索し、右上の「CSV レポートをエクスポート」をクリックしてデータをダウンロードできます。
 
-## 🔌 マルチ LLM 統合ガイド (Multi-LLM Integration Guide)
+## 🔌 LLM プロバイダー (OpenAI 互換)
 
-このシステムは現在、デフォルトで Google Gemini API を使用しています。他の AI ソース（OpenAI、Claude、xAI、Ollama、OpenRouter など）に拡張または置換する場合は、次の 2 つのアーキテクチャ戦略をお勧めします。
+AI レイヤー(`services/llmService.ts`)はプロバイダー非依存です。標準の **OpenAI Chat Completions** 形式を使用するため、OpenAI、Azure OpenAI、Ollama、OpenRouter、Kimi、LiteLLM、その他互換ゲートウェイであれば、環境変数を変更するだけで動作し、コードの変更は不要です。
 
-### 戦略 1: 統合 API ゲートウェイの使用 (最速・推奨)
-さまざまなモデルをすばやくサポートしたい場合、最も簡単な方法は、**OpenRouter** やローカルの **Ollama** / **LiteLLM** など、「OpenAI 互換 API」形式をサポートするプロキシサービスを使用することです。
-1. OpenAI 公式 SDK をインストールします: `npm install openai`
-2. `services/` の下に新しい Service を作成し、Base URL をターゲットサービスに向けます。
-   ```typescript
-   import OpenAI from 'openai';
-   
-   const openai = new OpenAI({
-     baseURL: "https://openrouter.ai/api/v1", // または http://localhost:11434/v1 (Ollama)
-     apiKey: process.env.OPENROUTER_API_KEY,
-   });
-   
-   // 呼び出し時にモデル名を変更するだけです
-   // model: "anthropic/claude-3-opus" または "xai/grok-1" または "llama3"
-   ```
+プロバイダーを切り替えるには、`VITE_LLM_BASE_URL` / `VITE_LLM_MODEL`(ローカル)または Worker の `LLM_BASE_URL` / `LLM_MODEL`(プロキシ)を対象サービスに向けてください。例:
 
-### 戦略 2: Adapter パターンの実装 (詳細なカスタマイズ向け)
-異なるモデルに対して詳細なカスタマイズが必要な場合（特定のモデルで Function Calling や JSON Schema の形式が異なる場合など）、`services/` ディレクトリの下に抽象化レイヤーを実装します。
-1. **インターフェースの定義 (Interface)**: `scoreRelevance`、`generateSummaries`、`extractPVData` などのコアメソッドを定義する `IAIService` インターフェースを作成します。
-2. **サービスの実装 (Implementations)**: 
-   - 既存の `PVGeminiService.ts` を保持します。
-   - `OpenAIService.ts` を追加します (`openai` パッケージを使用)。
-   - `ClaudeService.ts` を追加します (`@anthropic-ai/sdk` を使用)。
-3. **依存性の注入 (DI) / Factory パターン**: `App.tsx` で、ユーザー設定（環境変数または UI ドロップダウン）に基づいて、対応する Service を動的にインスタンス化します。例: `const aiService = AIFactory.create(process.env.AI_PROVIDER);`
+| プロバイダー | Base URL | モデル例 |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `moonshotai/kimi-k2` |
+| Ollama(ローカル) | `http://localhost:11434/v1` | `llama3.1` |
+
+## 🚀 デプロイ (公開 / 複数ユーザー向け)
+
+API キーをブラウザに一切送らないようにするため、`worker/` 内の薄いプロキシ(Cloudflare Worker)をデプロイしてください——キーはサーバー側に保持され、選択した OpenAI 互換エンドポイントにプロンプトを転送します。
+
+```bash
+cd worker
+npx wrangler secret put LLM_API_KEY   # 上流のキーを secret として保存
+npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL は wrangler.toml で設定
+```
+続いてフロントエンドの `VITE_PV_PROXY_ENDPOINT` をデプロイ済みの Worker URL に設定し、再ビルドします。これでフロントエンドには LLM キーが**一切含まれません**。
 
 ## 📄 ライセンス (License)
 MIT License
