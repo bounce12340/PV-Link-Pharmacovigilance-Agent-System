@@ -8,9 +8,14 @@
 //   2) 未設定 → 前端直連 VITE_LLM_BASE_URL（僅供本機開發，金鑰會進前端）。
 const env = (import.meta as any).env || {};
 const PROXY_ENDPOINT: string = env.VITE_PV_PROXY_ENDPOINT || '';
+// 選填：與後端 proxy 共享的密鑰，隨每次請求送出，避免 proxy 成為開放式代理
+const PROXY_TOKEN: string = env.VITE_PV_PROXY_TOKEN || '';
 const LLM_BASE_URL: string = (env.VITE_LLM_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
 const LLM_API_KEY: string = env.VITE_LLM_API_KEY || '';
 const LLM_MODEL: string = env.VITE_LLM_MODEL || 'gpt-4o-mini';
+// 部分 OpenAI 相容服務（某些 Ollama/OpenRouter 模型）不支援 response_format，
+// 設 VITE_LLM_JSON_MODE=0 可關閉，改由 parseJsonLoose 容錯解析。
+const JSON_MODE: boolean = env.VITE_LLM_JSON_MODE !== '0';
 
 // NCBI E-utilities API key（可選）。設定後可放寬速率限制至 10 req/s。
 const NCBI_API_KEY: string = env.VITE_NCBI_API_KEY || '';
@@ -31,7 +36,10 @@ export class PVLLMService {
   private async viaProxy(prompt: string): Promise<string> {
     const res = await fetch(PROXY_ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(PROXY_TOKEN ? { 'X-PV-Token': PROXY_TOKEN } : {})
+      },
       body: JSON.stringify({ prompt })
     });
     if (!res.ok) throw new Error(`Proxy 回應 ${res.status}`);
@@ -50,7 +58,7 @@ export class PVLLMService {
         model: LLM_MODEL,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
-        response_format: { type: 'json_object' }
+        ...(JSON_MODE ? { response_format: { type: 'json_object' } } : {})
       })
     });
     if (!res.ok) throw new Error(`LLM 端點回應 ${res.status}`);
@@ -58,11 +66,16 @@ export class PVLLMService {
     return data.choices?.[0]?.message?.content ?? '';
   }
 
-  /** 將 items 切成固定大小的批次序列處理，回傳攤平後的結果。 */
+  /** 將 items 切成固定大小的批次序列處理，回傳攤平後的結果。
+   *  單一批次失敗不影響其他批次；缺漏的 pmid 由上層 reconcile 補上。 */
   private async runBatched<T>(items: any[], fn: (batch: any[]) => Promise<T[]>): Promise<T[]> {
     const out: T[] = [];
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      out.push(...await fn(items.slice(i, i + BATCH_SIZE)));
+      try {
+        out.push(...await fn(items.slice(i, i + BATCH_SIZE)));
+      } catch {
+        // 該批失敗，略過；reconcile 會以 fallback 補齊
+      }
     }
     return out;
   }

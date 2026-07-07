@@ -7,7 +7,9 @@ compatibility_date = "2024-11-01"
 [vars]
 LLM_BASE_URL = "https://api.openai.com/v1"
 LLM_MODEL = "gpt-4o-mini"
-# ALLOW_ORIGIN = "https://your-frontend.pages.dev"   # 正式環境建議鎖定前端網域
+# LLM_JSON_MODE = "0"                                 # 上游不支援 response_format 時設 0
+# ALLOW_ORIGIN = "https://your-frontend.pages.dev"    # 正式環境務必鎖定前端網域
 
-# 金鑰請用 secret，勿寫在這裡：
+# 機密請用 secret，勿寫在這裡：
 #   npx wrangler secret put LLM_API_KEY
+#   npx wrangler secret put PROXY_TOKEN   # 與前端 VITE_PV_PROXY_TOKEN 同值，防開放式代理

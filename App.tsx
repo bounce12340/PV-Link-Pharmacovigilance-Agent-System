@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   PVInput, 
   PVRecord, 
@@ -39,8 +39,12 @@ const scoreBadgeClass = (score: number) =>
   : score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-300'
   : 'bg-slate-100 text-slate-500 border-slate-300';
 
-// CSV 欄位轉義：一律以雙引號包覆，並將內部雙引號加倍
-const csvCell = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+// CSV 欄位轉義：以雙引號包覆並加倍內部引號；前導 = + - @ 加單引號，防 Excel 公式注入
+const csvCell = (v: any) => {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return `"${s.replace(/"/g, '""')}"`;
+};
 
 const App: React.FC = () => {
   const [input, setInput] = useState<PVInput>({
@@ -58,8 +62,12 @@ const App: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [records, setRecords] = useState<PVRecord[]>([]);
   const [masterDatabase, setMasterDatabase] = useState<PVRecord[]>(() => {
-    const saved = localStorage.getItem(DB_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem(DB_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return []; // 儲存資料損毀時不讓 App 掛掉
+    }
   });
   const [activeTab, setActiveTab] = useState<'input' | 'review' | 'database' | 'logs'>('input');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -141,11 +149,12 @@ const App: React.FC = () => {
         ]);
         
         const finalized = freshRecords.map(m => {
-          const s = scores.find((sc: any) => sc.pmid === m.pmid);
-          const sum = summaries.find((su: any) => su.pmid === m.pmid);
-          return { 
-            ...m, 
-            relevance_score: s?.score || 50, 
+          // pmid 以字串比對（模型常回數字型 pmid）；分數用 ?? 保留合法的 0 分
+          const s = scores.find((sc: any) => String(sc.pmid) === String(m.pmid));
+          const sum = summaries.find((su: any) => String(su.pmid) === String(m.pmid));
+          return {
+            ...m,
+            relevance_score: s?.score ?? 50,
             relevance_reason: s?.reason || '分析完成',
             summary_zh: sum?.summary_zh || m.abstract,
             conclusion_zh: sum?.conclusion_zh || '結論分析中'
@@ -206,28 +215,32 @@ const App: React.FC = () => {
   , [records, minScore]);
 
   const [isExtracting, setIsExtracting] = useState(false);
+  // 以 record id 追蹤「抽取中/已抽過」，避免切換文獻時的競態與重複呼叫
+  const extractingIds = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const triggerExtraction = async () => {
-      if (selectedRecord && !selectedRecord.pv_data?.ae_verbatim && !isExtracting && !selectedRecord.is_excluded) {
-        setIsExtracting(true);
-        const data = await llm.extractPVData(selectedRecord);
-        const updateFn = (r: PVRecord) => {
-          if (r.id !== selectedRecord.id) return r;
-          return { 
-            ...r, 
-            pv_data: { 
-              ...data,
-              // 如果 AI 沒抽到成分，絕不覆蓋原始成分
-              ingredient: data.ingredient && data.ingredient !== 'N/A' ? data.ingredient : r.original_search_term 
-            } 
-          };
+    const rec = selectedRecord;
+    // 守衛以「是否已有 pv_data」判斷，而非某個欄位是否有值（無 AE 的文獻 ae_verbatim 可能為空）
+    if (!rec || rec.pv_data || rec.is_excluded || extractingIds.current.has(rec.id)) return;
+    extractingIds.current.add(rec.id);
+    setIsExtracting(true);
+    llm.extractPVData(rec).then(data => {
+      const updateFn = (r: PVRecord) => {
+        if (r.id !== rec.id) return r;
+        return {
+          ...r,
+          pv_data: {
+            ...data,
+            // 如果 AI 沒抽到成分，絕不覆蓋原始成分
+            ingredient: data.ingredient && data.ingredient !== 'N/A' ? data.ingredient : r.original_search_term
+          }
         };
-        setRecords(prev => prev.map(updateFn));
-        setMasterDatabase(prev => prev.map(updateFn));
-        setIsExtracting(false);
-      }
-    };
-    triggerExtraction();
+      };
+      setRecords(prev => prev.map(updateFn));
+      setMasterDatabase(prev => prev.map(updateFn));
+    }).finally(() => {
+      extractingIds.current.delete(rec.id);
+      setIsExtracting(false);
+    });
   }, [selectedRecordId]);
 
   // 超強模糊檢索邏輯
@@ -447,7 +460,7 @@ const App: React.FC = () => {
                               ['成分 (Ingredient)', selectedRecord.pv_data.ingredient],
                               ['產品 (Product)', selectedRecord.pv_data.product],
                               ['不良事件原文 (AE Verbatim)', selectedRecord.pv_data.ae_verbatim],
-                              ['MedDRA PT 候選', selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}` : ''],
+                              ['MedDRA PT 候選', selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence != null ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}` : ''],
                               ['嚴重性 (Seriousness)', selectedRecord.pv_data.seriousness],
                               ['因果關係 (Causality)', selectedRecord.pv_data.causality],
                               ['族群 (Population)', selectedRecord.pv_data.population],
