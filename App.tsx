@@ -6,11 +6,8 @@ import {
   WorkflowStep, 
   PVStructuredData
 } from './types';
-import { 
-  db_upsert, 
-  now 
-} from './services/tools';
-import { PVGeminiService } from './services/geminiService';
+import { now } from './services/tools';
+import { PVLLMService } from './services/llmService';
 import { 
   ClipboardDocumentCheckIcon, 
   ArrowPathIcon,
@@ -33,8 +30,17 @@ import {
   CheckIcon
 } from '@heroicons/react/24/outline';
 
-const gemini = new PVGeminiService();
+const llm = new PVLLMService();
 const DB_STORAGE_KEY = 'PV_AUDITOR_MASTER_DB';
+
+// 相關性分數的顏色分級：高(綠) / 中(琥珀) / 低(灰)
+const scoreBadgeClass = (score: number) =>
+  score >= 70 ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+  : score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-300'
+  : 'bg-slate-100 text-slate-500 border-slate-300';
+
+// CSV 欄位轉義：一律以雙引號包覆，並將內部雙引號加倍
+const csvCell = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
 const App: React.FC = () => {
   const [input, setInput] = useState<PVInput>({
@@ -59,6 +65,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [copiedConclusion, setCopiedConclusion] = useState(false);
+  const [minScore, setMinScore] = useState(0);
 
   const [dbFilter, setDbFilter] = useState({
     keyword: '',
@@ -92,12 +99,19 @@ const App: React.FC = () => {
       }
       // 將多個成分用 OR 連接，並修正 PubMed 邏輯運算子的優先級
       const ingredientsQuery = ingredients.map(i => `("${i}")`).join(' OR ');
-      const pubmedQuery = `(${ingredientsQuery}) AND ("Adverse drug reactions" OR "Adverse Event Reporting System" OR pharmacovigilance*)`;
+      // AE 關鍵字與排除詞改由使用者設定驅動，不再寫死
+      const aeTerms = input.ae_strings.map(s => s.trim()).filter(Boolean);
+      const aeClause = aeTerms.length > 0
+        ? ` AND (${aeTerms.map(t => (/[*"]/.test(t) ? t : `"${t}"`)).join(' OR ')})`
+        : '';
+      const exclusionTerms = input.exclusions.map(s => s.trim()).filter(Boolean);
+      const exclusionClause = exclusionTerms.map(t => ` NOT (${/[*"]/.test(t) ? t : `"${t}"`})`).join('');
+      const pubmedQuery = `(${ingredientsQuery})${aeClause}${exclusionClause}`;
       const ingredientLabel = ingredients.join(', ');
       addLog(`[稽核] 啟動監測任務，成分：${ingredientLabel}`);
 
       setStep(WorkflowStep.RSS_FETCH);
-      const realResults = await gemini.performPubMedSearch(pubmedQuery, ingredientLabel, input.date_window);
+      const realResults = await llm.performPubMedSearch(pubmedQuery, ingredientLabel, input.date_window);
       
       const rawRecords: PVRecord[] = realResults.map((r: any) => ({
         id: r.pmid || `tmp-${Math.random()}`,
@@ -122,8 +136,8 @@ const App: React.FC = () => {
       if (freshRecords.length > 0) {
         setStep(WorkflowStep.RELEVANCE_SCORING);
         const [scores, summaries] = await Promise.all([
-          gemini.scoreRelevance(freshRecords),
-          gemini.generateSummaries(freshRecords)
+          llm.scoreRelevance(freshRecords),
+          llm.generateSummaries(freshRecords)
         ]);
         
         const finalized = freshRecords.map(m => {
@@ -180,16 +194,23 @@ const App: React.FC = () => {
     setTimeout(() => setCopiedConclusion(false), 2000);
   };
 
-  const selectedRecord = useMemo(() => 
+  const selectedRecord = useMemo(() =>
     records.find(r => r.id === selectedRecordId) || masterDatabase.find(r => r.id === selectedRecordId)
   , [records, masterDatabase, selectedRecordId]);
+
+  // 待核閱清單：依相關性分數過濾並由高到低排序
+  const visibleReviewRecords = useMemo(() =>
+    records
+      .filter(r => (r.relevance_score || 0) >= minScore)
+      .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
+  , [records, minScore]);
 
   const [isExtracting, setIsExtracting] = useState(false);
   useEffect(() => {
     const triggerExtraction = async () => {
       if (selectedRecord && !selectedRecord.pv_data?.ae_verbatim && !isExtracting && !selectedRecord.is_excluded) {
         setIsExtracting(true);
-        const data = await gemini.extractPVData(selectedRecord);
+        const data = await llm.extractPVData(selectedRecord);
         const updateFn = (r: PVRecord) => {
           if (r.id !== selectedRecord.id) return r;
           return { 
@@ -239,25 +260,31 @@ const App: React.FC = () => {
     });
   }, [masterDatabase, dbFilter]);
 
-  const exportToCSV = () => {
-    const headers = ["PMID", "Title", "Journal", "PubDate", "SearchTerm", "AI_Ingredient", "Conclusion_ZH", "Summary_ZH"];
-    const rows = filteredDatabase.map(r => [
-      r.pmid, 
-      `"${r.title}"`, 
-      `"${r.journal}"`, 
-      r.dp, 
-      r.original_search_term, 
-      r.pv_data?.ingredient, 
-      `"${r.conclusion_zh || ''}"`,
-      `"${r.summary_zh || ''}"`
-    ]);
-    const csvContent = "\uFEFF" + [headers, ...rows].map(e => e.join(",")).join("\n");
+  const exportToCSV = (scope: 'filtered' | 'all') => {
+    const data = scope === 'all' ? masterDatabase : filteredDatabase;
+    const headers = ["PMID", "Title", "Journal", "PubDate", "SearchTerm", "AI_Ingredient", "RelevanceScore", "MedDRA_PT", "Seriousness", "Causality", "Conclusion_ZH", "Summary_ZH"];
+    const rows = data.map(r => [
+      r.pmid,
+      r.title,
+      r.journal,
+      r.dp,
+      r.original_search_term,
+      r.pv_data?.ingredient,
+      r.relevance_score,
+      r.pv_data?.meddra_pt_candidate,
+      r.pv_data?.seriousness,
+      r.pv_data?.causality,
+      r.conclusion_zh,
+      r.summary_zh
+    ].map(csvCell));
+    const csvContent = "\uFEFF" + [headers.map(csvCell), ...rows].map(e => e.join(",")).join("\r\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `PV_DB_Export_${now().iso_datetime.split('T')[0]}.csv`;
+    link.download = `PV_DB_Export_${scope}_${now().iso_datetime.split('T')[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -325,6 +352,14 @@ const App: React.FC = () => {
                          <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all shadow-sm" />
                        </div>
                     </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">AE 關鍵字 (逗號分隔，支援 * 萬用字元)</label>
+                       <input type="text" placeholder='例如: Adverse drug reactions, pharmacovigilance*' value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">排除詞 (逗號分隔，選填，以 NOT 排除)</label>
+                       <input type="text" placeholder='例如: animal-only, review' value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    </div>
                   </div>
                </div>
             </div>
@@ -333,14 +368,24 @@ const App: React.FC = () => {
           {activeTab === 'review' && (
              <div className="flex-1 flex overflow-hidden">
                <div className="w-[45%] border-r border-white/30 overflow-y-auto p-8 space-y-4 bg-white/10 backdrop-blur-sm">
+                  {records.length > 0 && (
+                    <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 backdrop-blur-xl border-b border-white/50 flex items-center gap-3">
+                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest whitespace-nowrap">相關性 ≥ {minScore}</span>
+                      <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="flex-1 accent-indigo-600" />
+                      <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} 筆</span>
+                    </div>
+                  )}
                   {records.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">無待核閱文獻</p></div>
-                  ) : records.map(r => (
+                  ) : visibleReviewRecords.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">無文獻達到分數門檻</p></div>
+                  ) : visibleReviewRecords.map(r => (
                     <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-indigo-600 bg-white/90 shadow-xl' : 'border-slate-200/60 bg-white/40 hover:bg-white/60 hover:border-indigo-300'}`}>
-                       <div className="flex justify-between items-start mb-2">
-                         <span className="text-[10px] font-black text-indigo-600">{r.dp}</span>
+                       <div className="flex justify-between items-center mb-2">
+                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason}>相關性 {r.relevance_score ?? '—'}</span>
                          <span className="text-[10px] font-black text-slate-500">PMID:{r.pmid}</span>
                        </div>
+                       <div className="text-[10px] font-black text-indigo-600 mb-1">{r.dp}</div>
                        <h3 className="font-black text-slate-800 text-sm leading-tight line-clamp-2">{r.title}</h3>
                     </div>
                   ))}
@@ -386,6 +431,41 @@ const App: React.FC = () => {
                         </div>
                       </div>
 
+                      {/* 結構化 PV 數據抽取結果 */}
+                      <div className="bg-white/60 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="text-[10px] font-black text-indigo-500 tracking-widest uppercase">結構化 PV 數據 (Structured Extraction)</div>
+                          {selectedRecord.pv_data?.completeness && (
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>{selectedRecord.pv_data.completeness}</span>
+                          )}
+                        </div>
+                        {isExtracting && !selectedRecord.pv_data ? (
+                          <p className="text-sm text-slate-400 font-bold italic">AI 結構化抽取中...</p>
+                        ) : selectedRecord.pv_data ? (
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                            {[
+                              ['成分 (Ingredient)', selectedRecord.pv_data.ingredient],
+                              ['產品 (Product)', selectedRecord.pv_data.product],
+                              ['不良事件原文 (AE Verbatim)', selectedRecord.pv_data.ae_verbatim],
+                              ['MedDRA PT 候選', selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}` : ''],
+                              ['嚴重性 (Seriousness)', selectedRecord.pv_data.seriousness],
+                              ['因果關係 (Causality)', selectedRecord.pv_data.causality],
+                              ['族群 (Population)', selectedRecord.pv_data.population],
+                              ['劑量/途徑 (Dosage/Route)', selectedRecord.pv_data.dosage_route],
+                              ['發生時間 (TTO)', selectedRecord.pv_data.tto],
+                              ['結果 (Outcome)', selectedRecord.pv_data.outcome],
+                            ].map(([label, value]) => (
+                              <div key={label} className="space-y-1">
+                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{label}</div>
+                                <div className="text-sm font-bold text-slate-700 break-words">{value || <span className="text-slate-300">—</span>}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-400 font-bold italic">選取文獻後將自動抽取結構化數據。</p>
+                        )}
+                      </div>
+
                       {!masterDatabase.some(m => m.pmid === selectedRecord.pmid) && (
                         <button onClick={() => handleImport(selectedRecord)} className="w-full bg-emerald-600/90 backdrop-blur-sm text-white py-6 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all hover:bg-emerald-700/90 border border-white/20">
                           確認匯入正式庫
@@ -406,9 +486,14 @@ const App: React.FC = () => {
                     <h2 className="text-4xl font-black text-slate-900 drop-shadow-sm">正式文獻庫</h2>
                     <p className="text-slate-500 text-xs font-black uppercase mt-1">總筆數: {masterDatabase.length} | 篩選後: {filteredDatabase.length}</p>
                   </div>
-                  <button onClick={exportToCSV} className="bg-emerald-100/80 backdrop-blur-sm text-emerald-900 px-6 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 transition-all border border-emerald-300/50 shadow-sm">
-                    <ArrowDownTrayIcon className="w-5 h-5" /> 匯出 CSV 報表
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 backdrop-blur-sm text-emerald-900 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 transition-all border border-emerald-300/50 shadow-sm">
+                      <ArrowDownTrayIcon className="w-5 h-5" /> 匯出篩選結果 ({filteredDatabase.length})
+                    </button>
+                    <button onClick={() => exportToCSV('all')} className="bg-white/60 backdrop-blur-sm text-slate-700 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-white transition-all border border-slate-300/50 shadow-sm">
+                      <ArrowDownTrayIcon className="w-5 h-5" /> 匯出全庫 ({masterDatabase.length})
+                    </button>
+                  </div>
                </div>
 
                <div className="bg-white/60 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 shadow-lg mb-6 flex flex-wrap gap-4 items-end">

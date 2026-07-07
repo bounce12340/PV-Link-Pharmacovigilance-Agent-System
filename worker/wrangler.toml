@@ -1,0 +1,13 @@
+name = "pv-link-llm-proxy"
+main = "index.js"
+compatibility_date = "2024-11-01"
+
+# 非機密設定（可依你的服務調整）。範例為 OpenAI 官方；
+# 換 OpenRouter 就把 base 改成 https://openrouter.ai/api/v1、model 改成對應名稱。
+[vars]
+LLM_BASE_URL = "https://api.openai.com/v1"
+LLM_MODEL = "gpt-4o-mini"
+# ALLOW_ORIGIN = "https://your-frontend.pages.dev"   # 正式環境建議鎖定前端網域
+
+# 金鑰請用 secret，勿寫在這裡：
+#   npx wrangler secret put LLM_API_KEY

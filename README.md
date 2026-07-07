@@ -4,7 +4,7 @@
 
 # PV-Link: Pharmacovigilance Agent System
 
-![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![Gemini AI](https://img.shields.io/badge/AI-Google_Gemini-orange.svg)
+![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![OpenAI-compatible](https://img.shields.io/badge/AI-OpenAI--compatible-green.svg)
 
 **PV-Link** is a professional automated agent system built specifically for Pharmacovigilance (PV). This system aims to solve the time-consuming and error-prone nature of traditional manual literature reviews. By integrating official literature databases with Large Language Models (LLMs), it provides an all-in-one solution from retrieval, scoring, and summarization to structured data extraction.
 
@@ -15,7 +15,7 @@
     *   Supports simultaneous search for **multiple target ingredients** (e.g., `Fenofibrate, Aspirin`), automatically converting them into precise PubMed query syntax.
     *   Supports custom monitoring date ranges.
 *   🤖 **AI Scoring & Summarization**
-    *   Integrates the **Google Gemini 3 Flash** model to rapidly evaluate the PV relevance (score 0-100) of incoming literature.
+    *   Talks to any **OpenAI-compatible Chat Completions endpoint** (OpenAI, Azure OpenAI, Ollama, OpenRouter, Kimi, …) to rapidly evaluate the PV relevance (score 0-100) of incoming literature.
     *   Automatically translates complex English medical abstracts into easy-to-read summaries.
     *   Independently extracts the **"Key Conclusion"**, which is crucial for drug safety monitoring, and supports one-click copying.
 *   📊 **Structured Data Extraction**
@@ -29,7 +29,7 @@
 
 *   **Frontend Framework**: React 19, TypeScript, Vite
 *   **UI Styling**: Tailwind CSS, Heroicons
-*   **AI Engine**: Google Gen AI SDK (`@google/genai`)
+*   **AI Engine**: Any OpenAI-compatible Chat Completions API (provider-agnostic; no vendor SDK)
 *   **Data Source**: NCBI PubMed E-utilities API
 
 ## 🚀 Getting Started
@@ -41,10 +41,13 @@ npm install
 ```
 
 ### 2. Environment Variables
-Create a `.env.local` file in the project root and enter your Google Gemini API Key:
+Copy `.env.example` to `.env.local`. For **local development** you can point the frontend directly at any OpenAI-compatible endpoint:
 ```env
-GEMINI_API_KEY=your_api_key_here
+VITE_LLM_BASE_URL=https://api.openai.com/v1
+VITE_LLM_API_KEY=sk-xxxx
+VITE_LLM_MODEL=gpt-4o-mini
 ```
+> ⚠️ `VITE_`-prefixed keys are bundled into the frontend — fine for local use, **not** for public deployment. For a public/multi-user deployment, use the backend proxy instead (see "Deployment" below) and set only `VITE_PV_PROXY_ENDPOINT`, keeping the key on the server.
 
 ### 3. Start Development Server
 ```bash
@@ -60,34 +63,28 @@ Once started, open `http://localhost:3000` in your browser to begin using the sy
 4.  **Confirm Import**: After confirming the literature has PV value, click "Confirm Import to Master Database".
 5.  **Master Database Management**: In the "Master Database" tab, you can search historical records and click "Export CSV Report" in the top right corner to download the data.
 
-## 🔌 Multi-LLM Integration Guide
+## 🔌 LLM Provider (OpenAI-compatible)
 
-This system currently uses the Google Gemini API by default. If you wish to expand or replace it with other AI sources (such as OpenAI, Claude, xAI, Ollama, OpenRouter, etc.), we recommend the following two architectural strategies:
+The AI layer (`services/llmService.ts`) is provider-agnostic: it speaks the standard **OpenAI Chat Completions** format, so it works with OpenAI, Azure OpenAI, Ollama, OpenRouter, Kimi, LiteLLM, or any compatible gateway — you only change environment variables, no code.
 
-### Strategy 1: Use a Unified API Gateway (Fastest & Recommended)
-If you want to quickly support various models, the simplest way is to use a proxy service that supports the "OpenAI-compatible API" format, such as **OpenRouter** or a local **Ollama** / **LiteLLM** instance.
-1. Install the official OpenAI SDK: `npm install openai`
-2. Create a new Service under `services/` and point the Base URL to the target service:
-   ```typescript
-   import OpenAI from 'openai';
-   
-   const openai = new OpenAI({
-     baseURL: "https://openrouter.ai/api/v1", // or http://localhost:11434/v1 (Ollama)
-     apiKey: process.env.OPENROUTER_API_KEY,
-   });
-   
-   // Just swap the model name when calling
-   // model: "anthropic/claude-3-opus" or "xai/grok-1" or "llama3"
-   ```
+Switch providers by pointing `VITE_LLM_BASE_URL` / `VITE_LLM_MODEL` (local) or the Worker's `LLM_BASE_URL` / `LLM_MODEL` (proxy) at your service. Examples:
 
-### Strategy 2: Implement the Adapter Pattern (For Deep Customization)
-If deep customization is required for different models (e.g., specific models have different Function Calling or JSON Schema formats), implement an abstraction layer under the `services/` directory:
-1. **Define Interface**: Create an `IAIService` interface defining core methods like `scoreRelevance`, `generateSummaries`, `extractPVData`.
-2. **Implementations**: 
-   - Keep the existing `PVGeminiService.ts`
-   - Add `OpenAIService.ts` (using the `openai` package)
-   - Add `ClaudeService.ts` (using `@anthropic-ai/sdk`)
-3. **Dependency Injection (DI) / Factory Pattern**: In `App.tsx`, dynamically instantiate the corresponding Service based on user settings (environment variables or UI dropdown). For example: `const aiService = AIFactory.create(process.env.AI_PROVIDER);`
+| Provider | Base URL | Example model |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `moonshotai/kimi-k2` |
+| Ollama (local) | `http://localhost:11434/v1` | `llama3.1` |
+
+## 🚀 Deployment (public / multi-user)
+
+To avoid shipping any API key to the browser, deploy the thin proxy in `worker/` (a Cloudflare Worker) — it holds the key server-side and forwards prompts to your chosen OpenAI-compatible endpoint.
+
+```bash
+cd worker
+npx wrangler secret put LLM_API_KEY   # store the upstream key as a secret
+npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL are set in wrangler.toml
+```
+Then set `VITE_PV_PROXY_ENDPOINT` in the frontend to the deployed Worker URL and rebuild. The frontend now carries **no** LLM key.
 
 ## 📄 License
 MIT License
