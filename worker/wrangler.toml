@@ -11,7 +11,19 @@ LLM_BASE_URL = "https://ollama.com/v1"
 LLM_MODEL = "deepseek-v4-pro"
 LLM_JSON_MODE = "0"                                  # Ollama 對 response_format 支援不一,關閉改靠 parseJsonLoose
 ALLOW_ORIGIN = "https://pv-link-auditor.pages.dev"    # 已鎖定前端網域
+RATE_LIMIT_MAX = "30"                                 # 每 IP 每分鐘最多請求數（需綁定下方 KV 才生效）
+
+# 速率限制用的 KV namespace（#8）。建立指令：
+#   npx wrangler kv namespace create RATE_LIMIT
+# 再把回傳的 id 填入下方；未綁定時 Worker 會自動略過速率限制、照常運作。
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "f335d67ab7e7432ca69dc181224bb535"
 
 # 機密請用 secret，勿寫在這裡：
 #   npx wrangler secret put LLM_API_KEY
 #   npx wrangler secret put PROXY_TOKEN   # 與前端 VITE_PV_PROXY_TOKEN 同值，防開放式代理
+#
+# 進階（選配）：Cloudflare Turnstile 防機器人 —— 需你在 CF 後台建立 Turnstile widget 取得
+# site key/secret，前端嵌入 widget、Worker 端驗證 token。因需你的 site key，暫未接線，
+# 已先實作 KV 速率限制作為第一層防護。

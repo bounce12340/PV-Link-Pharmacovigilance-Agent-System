@@ -21,6 +21,22 @@ function corsHeaders(env) {
   };
 }
 
+// 以 KV 做「固定時間窗」速率限制（每 IP 每分鐘 N 次）。
+// 需綁定 KV namespace（binding 名 RATE_LIMIT，見 wrangler.toml）；未綁定則自動略過。
+// 回傳 true 表示「已超限，應擋下」。
+async function isRateLimited(request, env) {
+  if (!env.RATE_LIMIT) return false; // 未設定 KV → 不啟用（本機/未綁定時仍可運作）
+  const max = Number(env.RATE_LIMIT_MAX || '30');
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const windowStart = Math.floor(Date.now() / 60000); // 每 60 秒一個窗
+  const key = `rl:${ip}:${windowStart}`;
+  const current = Number((await env.RATE_LIMIT.get(key)) || '0');
+  if (current >= max) return true;
+  // 寫回計數，TTL 120 秒讓窗自然過期（KV 最小 TTL 為 60）
+  await env.RATE_LIMIT.put(key, String(current + 1), { expirationTtl: 120 });
+  return false;
+}
+
 export default {
   async fetch(request, env) {
     const cors = corsHeaders(env);
@@ -35,6 +51,15 @@ export default {
     // 共享密鑰驗證（有設定 PROXY_TOKEN 才啟用）
     if (env.PROXY_TOKEN && request.headers.get('X-PV-Token') !== env.PROXY_TOKEN) {
       return json({ error: 'unauthorized' }, 401, cors);
+    }
+
+    // 速率限制（有綁定 RATE_LIMIT KV 才啟用）：擋濫用、保護金鑰額度
+    try {
+      if (await isRateLimited(request, env)) {
+        return json({ error: 'rate limit exceeded, please retry later' }, 429, cors);
+      }
+    } catch (e) {
+      console.log('rate limit check failed (fail-open):', e); // KV 異常時放行，不阻斷正常使用
     }
 
     let prompt;

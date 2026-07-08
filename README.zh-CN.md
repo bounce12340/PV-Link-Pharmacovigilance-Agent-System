@@ -25,6 +25,31 @@
     *   提供强大的**多字段模糊搜索**与日期区间过滤功能。
     *   支持一键将筛选后的文献数据**导出为 CSV 报表**，方便后续稽核与归档。
 
+## 🆕 高级功能 (v4)
+
+*   📄 **CIOMS-I / E2B(R3) 草稿生成**
+    *   在文献详情页一键由结构化数据生成 **CIOMS-I 个案安全报告草稿**，含 E2B(R3) 关键数据元素对照（如 `E.i.2.1b MedDRA PT`、`G.k.2.2 Active substance`）。
+    *   纯离线映射、可复制或下载为 `.txt`。⚠️ 产出为草稿，需药安人员审阅补全后方可提交。
+*   📈 **安全信号聚合 (Signal Aggregation)**
+    *   新增“信号聚合”标签页，将正式库依 **成分 × MedDRA PT** 分组计数，标示严重个案与潜在信号（计数 ≥ 3 或含严重个案）。
+*   🧬 **MedDRA 对照层**
+    *   内置常见 PV 事件的 **PT → SOC 种子词典**，离线校验 AI 猜测的 PT 并补上系统器官分类。⚠️ 完整 MedDRA 为授权词典，需自行扩充或接授权来源。
+*   ⚡ **批量并行 + 进度显示**
+    *   AI 评分/摘要改为**并行分批**（大幅缩短一轮时间），并在顶部显示实时进度条。
+    *   正式库支持**批量结构化抽取**未抽取文献，供信号聚合使用。
+*   💽 **IndexedDB 持久化**
+    *   正式库与“待核阅清单”改存 **IndexedDB**（容量远大于 localStorage），刷新不丢失；首次加载自动从旧 localStorage 迁移。
+*   🔎 **PubMed 分页**：检索可设定“最多取回笔数”（分页上限，默认 100），efetch 自动分批抓取。
+*   🛡️ **后端速率限制**：Worker proxy 内置 KV 固定窗速率限制（每 IP 每分钟上限），保护密钥额度。
+
+## 🧪 测试 (Testing)
+
+核心纯函数（`parseJsonLoose`、`reconcile`、MedDRA 对照、CIOMS 映射、信号聚合）皆有单元测试：
+```bash
+npm test        # vitest 执行单元测试
+npm run typecheck  # tsc --noEmit 类型检查
+```
+
 ## 🛠️ 技术栈 (Tech Stack)
 
 *   **前端框架**: React 19, TypeScript, Vite
@@ -82,9 +107,11 @@ AI 层（`services/llmService.ts`）是 provider 无关的：它走标准 **Open
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # 将上游密钥存成 secret
+npx wrangler secret put PROXY_TOKEN   # 与前端 VITE_PV_PROXY_TOKEN 同值，防开放式代理
+npx wrangler kv namespace create RATE_LIMIT   # 创建速率限制 KV，将返回的 id 填入 wrangler.toml
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL 于 wrangler.toml 设定
 ```
-接着在前端把 `VITE_PV_PROXY_ENDPOINT` 设为部署后的 Worker URL 并重新 build。此时前端**不含**任何 LLM 密钥。
+接着在前端把 `VITE_PV_PROXY_ENDPOINT` 设为部署后的 Worker URL 并重新 build。此时前端**不含**任何 LLM 密钥。速率限制的 KV 未绑定时 Worker 会自动跳过、照常运作。
 
 ## 📄 授权条款 (License)
 MIT License

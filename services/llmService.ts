@@ -22,6 +22,30 @@ const NCBI_API_KEY: string = env.VITE_NCBI_API_KEY || '';
 
 // 評分/摘要每批文獻數上限，避免單一 prompt 超出 token 上限或漏 pmid。
 const BATCH_SIZE = 8;
+// 同時進行的批次數上限。並行可大幅縮短總時間，但過高會壓垮上游/觸發速率限制。
+const BATCH_CONCURRENCY = 3;
+// 單次結構化抽取的並行度（批次抽取整庫用）。
+const EXTRACT_CONCURRENCY = 3;
+// efetch 單次拉取的 PMID 數上限（分頁抓取用）。
+const EFETCH_CHUNK = 100;
+
+/** 進度回呼：done / total 為「已處理 / 總數」。 */
+export type ProgressFn = (done: number, total: number) => void;
+
+/** 併發上限的 map：最多 limit 個工作同時進行，回傳順序與輸入一致。 */
+async function mapLimit<A, B>(items: A[], limit: number, fn: (item: A, index: number) => Promise<B>): Promise<B[]> {
+  const results: B[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return results;
+}
 
 export class PVLLMService {
   /**
@@ -66,48 +90,67 @@ export class PVLLMService {
     return data.choices?.[0]?.message?.content ?? '';
   }
 
-  /** 將 items 切成固定大小的批次序列處理，回傳攤平後的結果。
-   *  單一批次失敗不影響其他批次；缺漏的 pmid 由上層 reconcile 補上。 */
-  private async runBatched<T>(items: any[], fn: (batch: any[]) => Promise<T[]>): Promise<T[]> {
-    const out: T[] = [];
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+  /** 將 items 切成固定大小的批次「並行」處理（併發上限 BATCH_CONCURRENCY），回傳攤平後的結果。
+   *  單一批次失敗不影響其他批次；缺漏的 pmid 由上層 reconcile 補上。
+   *  onProgress 於每批完成後回報累計處理筆數。 */
+  private async runBatched<T>(items: any[], fn: (batch: any[]) => Promise<T[]>, onProgress?: ProgressFn): Promise<T[]> {
+    const batches: any[][] = [];
+    for (let i = 0; i < items.length; i += BATCH_SIZE) batches.push(items.slice(i, i + BATCH_SIZE));
+    let done = 0;
+    const perBatch = await mapLimit(batches, BATCH_CONCURRENCY, async (batch) => {
       try {
-        out.push(...await fn(items.slice(i, i + BATCH_SIZE)));
+        return await fn(batch);
       } catch {
-        // 該批失敗，略過；reconcile 會以 fallback 補齊
+        return [] as T[]; // 該批失敗，reconcile 會以 fallback 補齊
+      } finally {
+        done += batch.length;
+        onProgress?.(Math.min(done, items.length), items.length);
       }
-    }
-    return out;
+    });
+    return perBatch.flat();
   }
 
   private ncbiFetch(url: string): Promise<Response> {
     return fetch(NCBI_API_KEY ? `${url}&api_key=${NCBI_API_KEY}` : url);
   }
 
+  private ncbiPause() {
+    // NCBI 建議：無金鑰 3 req/s、有金鑰 10 req/s。呼叫間補最小間隔。
+    return new Promise(r => setTimeout(r, NCBI_API_KEY ? 110 : 350));
+  }
+
   /**
-   * 使用 NCBI E-utilities API 進行精確且一致的 PubMed 搜尋
+   * 使用 NCBI E-utilities API 進行精確且一致的 PubMed 搜尋。
+   * maxResults：最多取回的文獻數（分頁；預設 100，可依需求調高）。
    */
-  async performPubMedSearch(query: string, ingredient: string, dateWindow: { from: string, to: string }) {
-    // 1. 使用 esearch 取得 PMIDs
+  async performPubMedSearch(query: string, ingredient: string, dateWindow: { from: string, to: string }, maxResults = 100) {
+    // 1. 使用 esearch 取得 PMIDs（一次取回至多 maxResults 筆）
     const minDate = dateWindow.from.replace(/-/g, '/');
     const maxDate = dateWindow.to.replace(/-/g, '/');
-    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&mindate=${minDate}&maxdate=${maxDate}&datetype=pdat&retmode=json&retmax=50`;
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&mindate=${minDate}&maxdate=${maxDate}&datetype=pdat&retmode=json&retmax=${maxResults}`;
 
     const searchRes = await this.ncbiFetch(searchUrl);
     if (!searchRes.ok) throw new Error(`PubMed esearch 失敗 (HTTP ${searchRes.status})`);
     const searchData = await searchRes.json();
-    const pmids = searchData.esearchresult?.idlist || [];
+    const pmids: string[] = searchData.esearchresult?.idlist || [];
     if (pmids.length === 0) return [];
 
-    // NCBI 建議：無金鑰 3 req/s、有金鑰 10 req/s。序列呼叫間補最小間隔。
-    await new Promise(r => setTimeout(r, NCBI_API_KEY ? 110 : 350));
+    // 2. efetch 分頁抓取：PMID 過多時切成多批（每批 EFETCH_CHUNK 筆），逐批補速率間隔
+    const results: any[] = [];
+    for (let start = 0; start < pmids.length; start += EFETCH_CHUNK) {
+      const chunk = pmids.slice(start, start + EFETCH_CHUNK);
+      await this.ncbiPause();
+      const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${chunk.join(',')}&retmode=xml`;
+      const fetchRes = await this.ncbiFetch(fetchUrl);
+      if (!fetchRes.ok) throw new Error(`PubMed efetch 失敗 (HTTP ${fetchRes.status})`);
+      const xmlText = await fetchRes.text();
+      results.push(...this.parseArticles(xmlText));
+    }
+    return results;
+  }
 
-    // 2. 使用 efetch 取得文獻詳細資料 (XML 格式包含摘要)
-    const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmids.join(',')}&retmode=xml`;
-    const fetchRes = await this.ncbiFetch(fetchUrl);
-    if (!fetchRes.ok) throw new Error(`PubMed efetch 失敗 (HTTP ${fetchRes.status})`);
-    const xmlText = await fetchRes.text();
-
+  /** 解析 efetch 回傳的 XML，抽出文獻欄位。 */
+  private parseArticles(xmlText: string): any[] {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, "text/xml");
     if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
@@ -151,7 +194,7 @@ export class PVLLMService {
     return results;
   }
 
-  async scoreRelevance(records: any[]) {
+  async scoreRelevance(records: any[], onProgress?: ProgressFn) {
     const slim = records.map(r => ({ pmid: r.pmid, title: r.title, abstract: r.abstract }));
     try {
       const scored = await this.runBatched(slim, async (batch) => {
@@ -162,14 +205,14 @@ export class PVLLMService {
         );
         const arr = res?.items ?? res;
         return Array.isArray(arr) ? arr : [];
-      });
+      }, onProgress);
       return reconcile(records, scored, (r) => ({ pmid: r.pmid, score: 50, reason: "AI 未回傳此筆評分，暫給保守分數" }));
     } catch (e) {
       return records.map(r => ({ pmid: r.pmid, score: 50, reason: "AI 評分暫時無法使用" }));
     }
   }
 
-  async generateSummaries(records: any[]) {
+  async generateSummaries(records: any[], onProgress?: ProgressFn) {
     const slim = records.map(r => ({ pmid: r.pmid, title: r.title, abstract: r.abstract }));
     try {
       const summarized = await this.runBatched(slim, async (batch) => {
@@ -181,11 +224,23 @@ export class PVLLMService {
         );
         const arr = res?.items ?? res;
         return Array.isArray(arr) ? arr : [];
-      });
+      }, onProgress);
       return reconcile(records, summarized, (r) => ({ pmid: r.pmid, summary_zh: "（AI 未回傳此筆摘要）", conclusion_zh: "AI 未回傳此筆結論" }));
     } catch (e) {
       return records.map(r => ({ pmid: r.pmid, summary_zh: "摘要生成失敗", conclusion_zh: "待重新分析" }));
     }
+  }
+
+  /** 並行對多筆文獻做結構化抽取（供訊號聚合前的整庫批次抽取用）。
+   *  回傳 [{ id, pv_data }]，順序與輸入一致；單筆失敗以 Missing 骨架補上。 */
+  async extractPVDataBatch(records: any[], onProgress?: ProgressFn): Promise<{ id: string, pv_data: any }[]> {
+    let done = 0;
+    return mapLimit(records, EXTRACT_CONCURRENCY, async (rec) => {
+      const pv_data = await this.extractPVData(rec);
+      done++;
+      onProgress?.(done, records.length);
+      return { id: rec.id, pv_data };
+    });
   }
 
   async extractPVData(record: any) {
@@ -231,13 +286,13 @@ function extractPubDate(article: Element): string {
 }
 
 /** 確保輸出涵蓋每一筆輸入（依 pmid 對映），缺漏者以 fallback 補上，不靜默丟失。 */
-function reconcile(records: any[], results: any[], fallback: (r: any) => any): any[] {
+export function reconcile(records: any[], results: any[], fallback: (r: any) => any): any[] {
   const byPmid = new Map(results.filter(x => x && x.pmid != null).map(x => [String(x.pmid), x]));
   return records.map(r => byPmid.get(String(r.pmid)) || fallback(r));
 }
 
 /** 寬鬆解析 LLM 回傳：去除可能的 ```json 圍欄與前後雜訊。 */
-function parseJsonLoose(raw: string): any {
+export function parseJsonLoose(raw: string): any {
   if (!raw) return null;
   let s = raw.trim();
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);

@@ -8,8 +8,12 @@ import {
 } from './types';
 import { now } from './services/tools';
 import { PVLLMService } from './services/llmService';
-import { 
-  ClipboardDocumentCheckIcon, 
+import { loadRecords, saveRecords, DB_KEY, PENDING_KEY } from './services/storage';
+import { buildCIOMS, ciomsToText } from './services/cioms';
+import { aggregateSignals } from './services/signals';
+import { lookupMeddra } from './services/meddra';
+import {
+  ClipboardDocumentCheckIcon,
   ArrowPathIcon,
   DocumentMagnifyingGlassIcon,
   XMarkIcon,
@@ -27,11 +31,13 @@ import {
   TrashIcon,
   LightBulbIcon,
   ClipboardDocumentIcon,
-  CheckIcon
+  CheckIcon,
+  ChartBarIcon,
+  DocumentTextIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 
 const llm = new PVLLMService();
-const DB_STORAGE_KEY = 'PV_AUDITOR_MASTER_DB';
 
 // 相關性分數的顏色分級：高(綠) / 中(琥珀) / 低(灰)
 const scoreBadgeClass = (score: number) =>
@@ -55,25 +61,27 @@ const App: React.FC = () => {
     ae_strings: ['Adverse drug reactions', 'Adverse Event Reporting System', 'pharmacovigilance*'],
     optional_ae_focus_terms: [],
     exclusions: ['animal-only'],
-    db_mode: 'upsert'
+    db_mode: 'upsert',
+    max_results: 100
   });
 
   const [step, setStep] = useState<WorkflowStep>(WorkflowStep.IDLE);
   const [logs, setLogs] = useState<string[]>([]);
   const [records, setRecords] = useState<PVRecord[]>([]);
-  const [masterDatabase, setMasterDatabase] = useState<PVRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(DB_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return []; // 儲存資料損毀時不讓 App 掛掉
-    }
-  });
-  const [activeTab, setActiveTab] = useState<'input' | 'review' | 'database' | 'logs'>('input');
+  const [masterDatabase, setMasterDatabase] = useState<PVRecord[]>([]);
+  // 儲存層採 IndexedDB（非同步）。hydrated 用來確保「載入完成前」不會用空陣列覆寫既有資料。
+  const [hydrated, setHydrated] = useState(false);
+  const [activeTab, setActiveTab] = useState<'input' | 'review' | 'database' | 'signals' | 'logs'>('input');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [copiedConclusion, setCopiedConclusion] = useState(false);
   const [minScore, setMinScore] = useState(0);
+  // 進度顯示：AI 分批處理時的「已完成 / 總數」
+  const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
+  // CIOMS 草稿檢視器（modal）目前顯示的純文字內容
+  const [ciomsText, setCiomsText] = useState<string | null>(null);
+  const [ciomsCopied, setCiomsCopied] = useState(false);
+  const [batchExtractInfo, setBatchExtractInfo] = useState<{ done: number; total: number } | null>(null);
 
   const [dbFilter, setDbFilter] = useState({
     keyword: '',
@@ -83,10 +91,28 @@ const App: React.FC = () => {
   
   const addLog = (msg: string) => setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev]);
 
-  // 持久化儲存
+  // 啟動時從 IndexedDB 載入正式庫與待核閱清單（含舊 localStorage 一次性遷移）
   useEffect(() => {
-    localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(masterDatabase));
-  }, [masterDatabase]);
+    let cancelled = false;
+    (async () => {
+      const [db, pending] = await Promise.all([loadRecords(DB_KEY), loadRecords(PENDING_KEY)]);
+      if (cancelled) return;
+      setMasterDatabase(db as PVRecord[]);
+      setRecords(pending as PVRecord[]);
+      setHydrated(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // 持久化：正式庫（載入完成後才寫，避免用初始空陣列覆蓋既有資料）
+  useEffect(() => {
+    if (hydrated) saveRecords(DB_KEY, masterDatabase);
+  }, [masterDatabase, hydrated]);
+
+  // 持久化：待核閱清單（#3 重新整理不遺失）
+  useEffect(() => {
+    if (hydrated) saveRecords(PENDING_KEY, records);
+  }, [records, hydrated]);
 
   // Reset copy state when selection changes
   useEffect(() => {
@@ -119,7 +145,7 @@ const App: React.FC = () => {
       addLog(`[稽核] 啟動監測任務，成分：${ingredientLabel}`);
 
       setStep(WorkflowStep.RSS_FETCH);
-      const realResults = await llm.performPubMedSearch(pubmedQuery, ingredientLabel, input.date_window);
+      const realResults = await llm.performPubMedSearch(pubmedQuery, ingredientLabel, input.date_window, input.max_results || 100);
       
       const rawRecords: PVRecord[] = realResults.map((r: any) => ({
         id: r.pmid || `tmp-${Math.random()}`,
@@ -143,11 +169,17 @@ const App: React.FC = () => {
 
       if (freshRecords.length > 0) {
         setStep(WorkflowStep.RELEVANCE_SCORING);
+        // 進度：評分與摘要各佔 total 筆，合計 total*2；兩者並行進行，累加已完成數
+        const total = freshRecords.length;
+        let scoreDone = 0, sumDone = 0;
+        const bump = () => setProgress({ label: 'AI 評分 + 摘要生成', done: scoreDone + sumDone, total: total * 2 });
+        bump();
         const [scores, summaries] = await Promise.all([
-          llm.scoreRelevance(freshRecords),
-          llm.generateSummaries(freshRecords)
+          llm.scoreRelevance(freshRecords, d => { scoreDone = d; bump(); }),
+          llm.generateSummaries(freshRecords, d => { sumDone = d; bump(); })
         ]);
-        
+        setProgress(null);
+
         const finalized = freshRecords.map(m => {
           // pmid 以字串比對（模型常回數字型 pmid）；分數用 ?? 保留合法的 0 分
           const s = scores.find((sc: any) => String(sc.pmid) === String(m.pmid));
@@ -172,8 +204,68 @@ const App: React.FC = () => {
       addLog(`[錯誤] 執行異常: ${e instanceof Error ? e.message : 'Unknown'}`);
     } finally {
       setIsProcessing(false);
+      setProgress(null);
     }
   };
+
+  // 批次抽取正式庫中「尚未抽取結構化數據」的文獻，供訊號聚合使用（並行）
+  const runBatchExtract = async () => {
+    const pending = masterDatabase.filter(r => !r.pv_data && !r.is_excluded);
+    if (pending.length === 0) {
+      addLog(`[抽取] 正式庫所有文獻皆已完成結構化抽取。`);
+      return;
+    }
+    setBatchExtractInfo({ done: 0, total: pending.length });
+    addLog(`[抽取] 開始批次抽取 ${pending.length} 筆未抽取文獻...`);
+    try {
+      const results = await llm.extractPVDataBatch(pending, (done, total) => setBatchExtractInfo({ done, total }));
+      const byId = new Map(results.map(x => [x.id, x.pv_data]));
+      setMasterDatabase(prev => prev.map(r => {
+        const data = byId.get(r.id);
+        if (!data) return r;
+        return {
+          ...r,
+          pv_data: {
+            ...data,
+            ingredient: data.ingredient && data.ingredient !== 'N/A' ? data.ingredient : r.original_search_term
+          }
+        };
+      }));
+      addLog(`[抽取] 批次抽取完成，共處理 ${results.length} 筆。`);
+    } catch (e) {
+      addLog(`[錯誤] 批次抽取異常: ${e instanceof Error ? e.message : 'Unknown'}`);
+    } finally {
+      setBatchExtractInfo(null);
+    }
+  };
+
+  // 產生選定文獻的 CIOMS 草稿並開啟檢視器
+  const openCiomsDraft = (record: PVRecord) => {
+    const draft = buildCIOMS(record, now().iso_datetime);
+    setCiomsText(ciomsToText(draft));
+    setCiomsCopied(false);
+  };
+
+  const copyCiomsText = () => {
+    if (!ciomsText) return;
+    navigator.clipboard.writeText(ciomsText);
+    setCiomsCopied(true);
+    setTimeout(() => setCiomsCopied(false), 2000);
+  };
+
+  const downloadCiomsText = () => {
+    if (!ciomsText) return;
+    const blob = new Blob(["﻿" + ciomsText], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CIOMS_Draft_${now().iso_datetime.split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 訊號聚合結果（依正式庫即時計算）
+  const signalReport = useMemo(() => aggregateSignals(masterDatabase), [masterDatabase]);
 
   const handleImport = async (record: PVRecord) => {
     if (masterDatabase.some(m => m.pmid === record.pmid)) {
@@ -214,15 +306,16 @@ const App: React.FC = () => {
       .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
   , [records, minScore]);
 
-  const [isExtracting, setIsExtracting] = useState(false);
-  // 以 record id 追蹤「抽取中/已抽過」，避免切換文獻時的競態與重複呼叫
+  // 以 state Set 追蹤「哪些 record 正在抽取」，供 UI 依 record id 顯示 spinner（避免單一布林在快速切換時錯亂）
+  const [extractingSet, setExtractingSet] = useState<Set<string>>(new Set());
+  // ref Set 作同步的防重入守衛（setState 非同步，快速切換時可能讀到舊值）
   const extractingIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     const rec = selectedRecord;
     // 守衛以「是否已有 pv_data」判斷，而非某個欄位是否有值（無 AE 的文獻 ae_verbatim 可能為空）
     if (!rec || rec.pv_data || rec.is_excluded || extractingIds.current.has(rec.id)) return;
     extractingIds.current.add(rec.id);
-    setIsExtracting(true);
+    setExtractingSet(prev => new Set(prev).add(rec.id));
     llm.extractPVData(rec).then(data => {
       const updateFn = (r: PVRecord) => {
         if (r.id !== rec.id) return r;
@@ -239,7 +332,7 @@ const App: React.FC = () => {
       setMasterDatabase(prev => prev.map(updateFn));
     }).finally(() => {
       extractingIds.current.delete(rec.id);
-      setIsExtracting(false);
+      setExtractingSet(prev => { const n = new Set(prev); n.delete(rec.id); return n; });
     });
   }, [selectedRecordId]);
 
@@ -329,6 +422,17 @@ const App: React.FC = () => {
         </button>
       </header>
 
+      {/* 進度條：AI 分批處理時顯示已完成 / 總數（#2） */}
+      {progress && progress.total > 0 && (
+        <div className="bg-indigo-50/80 backdrop-blur-md border-b border-indigo-100 px-8 py-2.5 flex items-center gap-4 z-20">
+          <span className="text-[11px] font-black text-indigo-700 whitespace-nowrap uppercase tracking-widest">{progress.label}</span>
+          <div className="flex-1 h-2.5 bg-indigo-100 rounded-full overflow-hidden">
+            <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
+          </div>
+          <span className="text-[11px] font-black text-indigo-700 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
+        </div>
+      )}
+
       <main className="flex-1 flex overflow-hidden">
         <aside className="w-72 bg-white/30 backdrop-blur-2xl border-r border-white/40 flex flex-col p-6 space-y-2 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
           <button onClick={() => setActiveTab('input')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
@@ -339,6 +443,9 @@ const App: React.FC = () => {
           </button>
           <button onClick={() => setActiveTab('database')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
             <CircleStackIcon className="w-5 h-5" /> 正式庫 ({masterDatabase.length})
+          </button>
+          <button onClick={() => setActiveTab('signals')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
+            <ChartBarIcon className="w-5 h-5" /> 訊號聚合 ({signalReport.groups.length})
           </button>
           <button onClick={() => setActiveTab('logs')} className="mt-auto w-full flex items-center gap-4 px-5 py-4 text-[10px] font-black uppercase text-slate-400">
             <FingerPrintIcon className="w-4 h-4" /> 系統日誌
@@ -372,6 +479,10 @@ const App: React.FC = () => {
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">排除詞 (逗號分隔，選填，以 NOT 排除)</label>
                        <input type="text" placeholder='例如: animal-only, review' value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">最多取回筆數 (分頁上限，10–500)</label>
+                       <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                   </div>
                </div>
@@ -452,7 +563,7 @@ const App: React.FC = () => {
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>{selectedRecord.pv_data.completeness}</span>
                           )}
                         </div>
-                        {isExtracting && !selectedRecord.pv_data ? (
+                        {extractingSet.has(selectedRecord.id) && !selectedRecord.pv_data ? (
                           <p className="text-sm text-slate-400 font-bold italic">AI 結構化抽取中...</p>
                         ) : selectedRecord.pv_data ? (
                           <div className="grid grid-cols-2 gap-x-6 gap-y-4">
@@ -460,7 +571,8 @@ const App: React.FC = () => {
                               ['成分 (Ingredient)', selectedRecord.pv_data.ingredient],
                               ['產品 (Product)', selectedRecord.pv_data.product],
                               ['不良事件原文 (AE Verbatim)', selectedRecord.pv_data.ae_verbatim],
-                              ['MedDRA PT 候選', selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence != null ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}` : ''],
+                              ['MedDRA PT 候選', selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence != null ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}${lookupMeddra(selectedRecord.pv_data.meddra_pt_candidate).matched ? ' ✓詞典校驗' : ' ·AI推測'}` : ''],
+                              ['MedDRA SOC (系統器官分類)', lookupMeddra(selectedRecord.pv_data.meddra_pt_candidate).soc || '種子詞典未收錄'],
                               ['嚴重性 (Seriousness)', selectedRecord.pv_data.seriousness],
                               ['因果關係 (Causality)', selectedRecord.pv_data.causality],
                               ['族群 (Population)', selectedRecord.pv_data.population],
@@ -479,11 +591,21 @@ const App: React.FC = () => {
                         )}
                       </div>
 
-                      {!masterDatabase.some(m => m.pmid === selectedRecord.pmid) && (
-                        <button onClick={() => handleImport(selectedRecord)} className="w-full bg-emerald-600/90 backdrop-blur-sm text-white py-6 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all hover:bg-emerald-700/90 border border-white/20">
-                          確認匯入正式庫
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => openCiomsDraft(selectedRecord)}
+                          disabled={!selectedRecord.pv_data}
+                          className="flex-1 bg-slate-800/90 disabled:opacity-40 backdrop-blur-sm text-white py-5 rounded-[2rem] font-black text-sm shadow-xl active:scale-95 transition-all hover:bg-slate-900 border border-white/20 flex items-center justify-center gap-2"
+                          title={selectedRecord.pv_data ? '由結構化數據產生 CIOMS-I / E2B 草稿' : '請先等待結構化抽取完成'}
+                        >
+                          <DocumentTextIcon className="w-5 h-5" /> 產生 CIOMS 草稿
                         </button>
-                      )}
+                        {!masterDatabase.some(m => m.pmid === selectedRecord.pmid) && (
+                          <button onClick={() => handleImport(selectedRecord)} className="flex-1 bg-emerald-600/90 backdrop-blur-sm text-white py-5 rounded-[2rem] font-black text-sm shadow-xl active:scale-95 transition-all hover:bg-emerald-700/90 border border-white/20">
+                            確認匯入正式庫
+                          </button>
+                        )}
+                      </div>
                    </div>
                  ) : (
                    <div className="h-full flex flex-col items-center justify-center opacity-10"><DocumentMagnifyingGlassIcon className="w-20 h-20" /></div>
@@ -500,6 +622,10 @@ const App: React.FC = () => {
                     <p className="text-slate-500 text-xs font-black uppercase mt-1">總筆數: {masterDatabase.length} | 篩選後: {filteredDatabase.length}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-indigo-100/80 backdrop-blur-sm text-indigo-900 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-indigo-200 disabled:opacity-50 transition-all border border-indigo-300/50 shadow-sm">
+                      <SparklesIcon className={`w-5 h-5 ${batchExtractInfo ? 'animate-pulse' : ''}`} />
+                      {batchExtractInfo ? `抽取中 ${batchExtractInfo.done}/${batchExtractInfo.total}` : `批次抽取 (${masterDatabase.filter(r => !r.pv_data && !r.is_excluded).length})`}
+                    </button>
                     <button onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 backdrop-blur-sm text-emerald-900 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 transition-all border border-emerald-300/50 shadow-sm">
                       <ArrowDownTrayIcon className="w-5 h-5" /> 匯出篩選結果 ({filteredDatabase.length})
                     </button>
@@ -569,6 +695,70 @@ const App: React.FC = () => {
             </div>
           )}
 
+          {activeTab === 'signals' && (
+            <div className="w-full h-full p-12 flex flex-col overflow-hidden">
+               <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <h2 className="text-4xl font-black text-slate-900 drop-shadow-sm">安全訊號聚合</h2>
+                    <p className="text-slate-500 text-xs font-black uppercase mt-1">
+                      成分 × MedDRA PT 分組 | 已分析 {signalReport.analysedRecords} 筆 | 未抽取略過 {signalReport.skipped} 筆
+                    </p>
+                  </div>
+                  {signalReport.skipped > 0 && (
+                    <button onClick={() => { setActiveTab('database'); }} className="bg-amber-100/80 text-amber-900 px-5 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-amber-200 transition-all border border-amber-300/50 shadow-sm">
+                      <ExclamationTriangleIcon className="w-5 h-5" /> {signalReport.skipped} 筆尚未抽取，前往批次抽取
+                    </button>
+                  )}
+               </div>
+
+               <div className="bg-rose-50/60 border border-rose-200/60 rounded-2xl px-6 py-3 mb-6 text-[11px] font-bold text-rose-800/80 flex items-center gap-2">
+                 <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
+                 訊號僅供內部監測參考。計數 ≥ 3 或含嚴重個案者以紅底標示；PT 未經完整 MedDRA 詞典校驗者標「AI推測」。
+               </div>
+
+               <div className="bg-white/40 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 shadow-xl flex-1 overflow-auto">
+                 {signalReport.groups.length === 0 ? (
+                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 py-20">
+                     <ChartBarIcon className="w-16 h-16" />
+                     <p className="font-black mt-4">尚無可聚合的訊號</p>
+                     <p className="text-xs font-bold mt-1">請先將文獻匯入正式庫並完成結構化抽取</p>
+                   </div>
+                 ) : (
+                   <table className="w-full">
+                     <thead className="bg-white/30 backdrop-blur-md sticky top-0 z-10">
+                       <tr className="border-b border-slate-200/50">
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">成分</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">MedDRA PT</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">系統器官分類 (SOC)</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-center">文獻數</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-center">嚴重</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">PMIDs</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {signalReport.groups.map((g, i) => {
+                         const flagged = g.count >= 3 || g.seriousCount > 0;
+                         return (
+                           <tr key={i} className={`border-b border-slate-200/60 transition-colors ${flagged ? 'bg-rose-50/50 hover:bg-rose-100/50' : 'hover:bg-white/60'}`}>
+                             <td className="px-6 py-5 font-black text-slate-800 text-sm">{g.ingredient}</td>
+                             <td className="px-6 py-5 text-sm font-bold text-slate-700">
+                               {g.pt}
+                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>{g.matched ? '詞典校驗' : 'AI推測'}</span>
+                             </td>
+                             <td className="px-6 py-5 text-xs font-bold text-slate-500 italic">{g.soc}</td>
+                             <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-rose-200 text-rose-800' : 'bg-slate-100 text-slate-600'}`}>{g.count}</span></td>
+                             <td className="px-6 py-5 text-center font-black text-rose-600">{g.seriousCount || '—'}</td>
+                             <td className="px-6 py-5 text-[10px] font-mono text-indigo-400 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
+                           </tr>
+                         );
+                       })}
+                     </tbody>
+                   </table>
+                 )}
+               </div>
+            </div>
+          )}
+
           {activeTab === 'logs' && (
             <div className="flex-1 p-12 bg-slate-950/85 backdrop-blur-xl font-mono text-[11px] text-indigo-200/70 overflow-y-auto">
                {logs.map((l, i) => <div key={i} className="mb-1 border-b border-white/5 pb-1 last:border-0">{l}</div>)}
@@ -576,6 +766,34 @@ const App: React.FC = () => {
           )}
         </section>
       </main>
+
+      {/* CIOMS-I / E2B 草稿檢視器 (#4) */}
+      {ciomsText !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm" onClick={() => setCiomsText(null)}>
+          <div className="bg-white rounded-[2rem] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-white/60" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-8 py-5 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-800 rounded-xl text-white"><DocumentTextIcon className="w-5 h-5" /></div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">CIOMS-I / E2B 草稿</h3>
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">AI 輔助產生，需藥物警戒人員審閱補全</p>
+                </div>
+              </div>
+              <button onClick={() => setCiomsText(null)} className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-100 transition-all"><XMarkIcon className="w-6 h-6" /></button>
+            </div>
+            <pre className="flex-1 overflow-auto px-8 py-6 text-xs font-mono text-slate-700 whitespace-pre-wrap leading-relaxed">{ciomsText}</pre>
+            <div className="flex gap-3 px-8 py-5 border-t border-slate-200">
+              <button onClick={copyCiomsText} className="flex-1 bg-indigo-600 text-white py-3 rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all hover:bg-indigo-700 flex items-center justify-center gap-2">
+                {ciomsCopied ? <CheckIcon className="w-5 h-5" /> : <ClipboardDocumentIcon className="w-5 h-5" />}
+                {ciomsCopied ? '已複製!' : '複製全文'}
+              </button>
+              <button onClick={downloadCiomsText} className="flex-1 bg-slate-800 text-white py-3 rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all hover:bg-slate-900 flex items-center justify-center gap-2">
+                <ArrowDownTrayIcon className="w-5 h-5" /> 下載 .txt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

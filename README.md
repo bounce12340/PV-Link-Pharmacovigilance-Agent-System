@@ -25,6 +25,31 @@
     *   Provides powerful **multi-field fuzzy search** and date range filtering.
     *   Supports one-click **CSV report export** of filtered literature data for subsequent auditing and archiving.
 
+## 🆕 Advanced Features (v4)
+
+*   📄 **CIOMS-I / E2B(R3) Draft Generation**
+    *   Generate a **CIOMS-I Individual Case Safety Report draft** with one click from structured data on the literature detail page, including E2B(R3) key data element mapping (e.g., `E.i.2.1b MedDRA PT`, `G.k.2.2 Active substance`).
+    *   Pure offline mapping; copy or download as `.txt`. ⚠️ Output is a draft — it must be reviewed and completed by PV staff before submission.
+*   📈 **Safety Signal Aggregation**
+    *   New "Signal Aggregation" tab groups and counts the master database by **Ingredient × MedDRA PT**, flagging serious cases and potential signals (count ≥ 3 or containing a serious case).
+*   🧬 **MedDRA Mapping Layer**
+    *   Built-in **PT → SOC seed dictionary** for common PV events, offline-validating AI-guessed PTs and filling in the System Organ Class. ⚠️ The full MedDRA dictionary is licensed — extend it yourself or connect a licensed source.
+*   ⚡ **Batch Parallelism + Progress Display**
+    *   AI scoring/summarization now runs in **parallel batches** (significantly shortening each round), with a live progress bar shown at the top.
+    *   The master database supports **batch structured extraction** for unextracted literature, for use in signal aggregation.
+*   💽 **IndexedDB Persistence**
+    *   The master database and "pending review list" are now stored in **IndexedDB** (far larger capacity than localStorage) and survive page refreshes; existing data auto-migrates from localStorage on first load.
+*   🔎 **PubMed Pagination**: Search now supports a "max results" setting (pagination cap, default 100), with efetch automatically fetching in batches.
+*   🛡️ **Backend Rate Limiting**: The Worker proxy has a built-in KV fixed-window rate limiter (per-IP, per-minute cap) to protect API key quota.
+
+## 🧪 Testing
+
+Core pure functions (`parseJsonLoose`, `reconcile`, MedDRA mapping, CIOMS mapping, signal aggregation) all have unit tests:
+```bash
+npm test        # run unit tests with vitest
+npm run typecheck  # type-check with tsc --noEmit
+```
+
 ## 🛠️ Tech Stack
 
 *   **Frontend Framework**: React 19, TypeScript, Vite
@@ -82,9 +107,11 @@ To avoid shipping any API key to the browser, deploy the thin proxy in `worker/`
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # store the upstream key as a secret
+npx wrangler secret put PROXY_TOKEN   # same value as the frontend's VITE_PV_PROXY_TOKEN, prevents an open proxy
+npx wrangler kv namespace create RATE_LIMIT   # create the rate-limit KV; put the returned id into wrangler.toml
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL are set in wrangler.toml
 ```
-Then set `VITE_PV_PROXY_ENDPOINT` in the frontend to the deployed Worker URL and rebuild. The frontend now carries **no** LLM key.
+Then set `VITE_PV_PROXY_ENDPOINT` in the frontend to the deployed Worker URL and rebuild. The frontend now carries **no** LLM key. If the rate-limit KV isn't bound, the Worker automatically skips it and works as normal.
 
 ## 📄 License
 MIT License

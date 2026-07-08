@@ -8,6 +8,7 @@ export interface PVInput {
   optional_ae_focus_terms: string[];
   exclusions: string[];
   db_mode: 'insert-only' | 'upsert';
+  max_results?: number; // 每次檢索最多取回筆數（分頁上限），預設 100
 }
 
 export interface PVRecord {
@@ -35,7 +36,7 @@ export interface PVRecord {
   exclusion_reason?: string;
   pv_data?: PVStructuredData;
   original_search_term?: string;
-  cimos_draft?: any;
+  cioms_draft?: import('./services/cioms').CIOMSDraft;
 }
 
 export interface PVStructuredData {

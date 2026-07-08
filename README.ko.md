@@ -25,6 +25,31 @@
     *   강력한 **다중 필드 퍼지 검색** 및 날짜 범위 필터링 기능을 제공합니다.
     *   필터링된 문헌 데이터의 **CSV 보고서 내보내기**를 원클릭으로 지원하여 향후 감사 및 보관을 용이하게 합니다.
 
+## 🆕 고급 기능 (v4)
+
+*   📄 **CIOMS-I / E2B(R3) 초안 생성**
+    *   문헌 상세 페이지에서 구조화된 데이터로부터 원클릭으로 **CIOMS-I 개별 증례 안전성 보고서 초안**을 생성하며, E2B(R3) 핵심 데이터 요소 매핑을 포함합니다(예: `E.i.2.1b MedDRA PT`, `G.k.2.2 Active substance`).
+    *   순수 오프라인 매핑이며 복사하거나 `.txt`로 다운로드할 수 있습니다. ⚠️ 결과물은 초안이며, 제출 전 약물감시 담당자의 검토와 보완이 필요합니다.
+*   📈 **안전성 신호 집계 (Signal Aggregation)**
+    *   "신호 집계" 탭이 추가되어 마스터 데이터베이스를 **성분 × MedDRA PT** 기준으로 그룹화하여 집계하고, 중대한 사례 및 잠재적 신호(건수 ≥ 3 또는 중대한 사례 포함)를 표시합니다.
+*   🧬 **MedDRA 매핑 레이어**
+    *   일반적인 PV 이벤트에 대한 **PT → SOC 시드 사전**을 내장하여 AI가 추정한 PT를 오프라인으로 검증하고 기관계 대분류(System Organ Class)를 보완합니다. ⚠️ 전체 MedDRA는 라이선스 사전이므로 직접 확장하거나 라이선스가 있는 소스에 연결해야 합니다.
+*   ⚡ **배치 병렬 처리 + 진행률 표시**
+    *   AI 스코어링/요약이 **병렬 배치 처리** 방식으로 변경되어(한 라운드 소요 시간을 크게 단축) 상단에 실시간 진행률 표시줄이 나타납니다.
+    *   마스터 데이터베이스는 추출되지 않은 문헌에 대한 **배치 구조화 추출**을 지원하며, 신호 집계에 사용됩니다.
+*   💽 **IndexedDB 영구 저장**
+    *   마스터 데이터베이스와 "검토 대기 목록"의 저장소가 **IndexedDB**(localStorage보다 훨씬 큰 용량)로 변경되어 새로고침해도 데이터가 유실되지 않습니다. 처음 로드 시 기존 localStorage에서 자동으로 마이그레이션됩니다.
+*   🔎 **PubMed 페이지네이션**: 검색 시 "최대 조회 건수"(페이지네이션 상한, 기본값 100)를 설정할 수 있으며, efetch가 자동으로 배치 단위로 가져옵니다.
+*   🛡️ **백엔드 속도 제한**: Worker 프록시에 KV 고정 윈도우 방식의 속도 제한(IP당, 분당 상한)이 내장되어 API 키 할당량을 보호합니다.
+
+## 🧪 테스트 (Testing)
+
+핵심 순수 함수(`parseJsonLoose`, `reconcile`, MedDRA 매핑, CIOMS 매핑, 신호 집계)에는 모두 단위 테스트가 있습니다:
+```bash
+npm test        # vitest로 단위 테스트 실행
+npm run typecheck  # tsc --noEmit로 타입 체크
+```
+
 ## 🛠️ 기술 스택 (Tech Stack)
 
 *   **프론트엔드 프레임워크**: React 19, TypeScript, Vite
@@ -82,9 +107,11 @@ AI 레이어(`services/llmService.ts`)는 provider에 독립적입니다. 표준
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # 업스트림 키를 secret으로 저장
+npx wrangler secret put PROXY_TOKEN   # 프런트엔드 VITE_PV_PROXY_TOKEN과 동일한 값으로 설정, 오픈 프록시 방지
+npx wrangler kv namespace create RATE_LIMIT   # 속도 제한용 KV 생성, 반환된 id를 wrangler.toml에 입력
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL은 wrangler.toml에서 설정
 ```
-그런 다음 프런트엔드의 `VITE_PV_PROXY_ENDPOINT`를 배포된 Worker URL로 설정하고 다시 빌드합니다. 이제 프런트엔드에는 LLM 키가 **전혀** 포함되지 않습니다.
+그런 다음 프런트엔드의 `VITE_PV_PROXY_ENDPOINT`를 배포된 Worker URL로 설정하고 다시 빌드합니다. 이제 프런트엔드에는 LLM 키가 **전혀** 포함되지 않습니다. 속도 제한용 KV가 바인딩되지 않은 경우 Worker는 자동으로 건너뛰고 정상적으로 동작합니다.
 
 ## 📄 라이선스 (License)
 MIT License
