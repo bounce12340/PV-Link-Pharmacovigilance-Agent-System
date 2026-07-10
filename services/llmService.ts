@@ -214,9 +214,9 @@ export class PVLLMService {
         const arr = res?.items ?? res;
         return Array.isArray(arr) ? arr : [];
       }, onProgress);
-      return reconcile(records, scored, (r) => ({ pmid: r.pmid, score: 50, reason: "AI 未回傳此筆評分，暫給保守分數" }));
+      return reconcile(records, scored, (r) => ({ pmid: r.pmid, score: 50, reason: lang === 'en' ? 'AI returned no score for this record; conservative default applied' : 'AI 未回傳此筆評分，暫給保守分數' }));
     } catch (e) {
-      return records.map(r => ({ pmid: r.pmid, score: 50, reason: "AI 評分暫時無法使用" }));
+      return records.map(r => ({ pmid: r.pmid, score: 50, reason: lang === 'en' ? 'AI scoring temporarily unavailable' : 'AI 評分暫時無法使用' }));
     }
   }
 
@@ -234,9 +234,9 @@ export class PVLLMService {
         const arr = res?.items ?? res;
         return Array.isArray(arr) ? arr : [];
       }, onProgress);
-      return reconcile(records, summarized, (r) => ({ pmid: r.pmid, summary_zh: "（AI 未回傳此筆摘要）", conclusion_zh: "AI 未回傳此筆結論" }));
+      return reconcile(records, summarized, (r) => ({ pmid: r.pmid, summary_zh: lang === 'en' ? '(AI returned no summary for this record)' : '（AI 未回傳此筆摘要）', conclusion_zh: lang === 'en' ? 'AI returned no conclusion for this record' : 'AI 未回傳此筆結論' }));
     } catch (e) {
-      return records.map(r => ({ pmid: r.pmid, summary_zh: "摘要生成失敗", conclusion_zh: "待重新分析" }));
+      return records.map(r => ({ pmid: r.pmid, summary_zh: lang === 'en' ? 'Summary generation failed' : '摘要生成失敗', conclusion_zh: lang === 'en' ? 'Pending re-analysis' : '待重新分析' }));
     }
   }
 
