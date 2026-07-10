@@ -6,7 +6,8 @@ account_id = "a85ac222b1d8c791558116cf369139b6"
 # 掛在受 Cloudflare Access 保護的同源路徑（前端 pvlink.uic-ai.com，API 走 /api）。
 # wrangler deploy 會據此建立/更新 route（用 wrangler 的 workers_routes 權限）。
 routes = [
-  { pattern = "pvlink.uic-ai.com/api/*", zone_name = "uic-ai.com" }
+  # 用 /api*（非 /api/*）才能同時匹配 /api 與 /api/...；CF 的 /api/* 不匹配無尾斜線的 /api
+  { pattern = "pvlink.uic-ai.com/api*", zone_name = "uic-ai.com" }
 ]
 
 # 非機密設定（可依你的服務調整）。範例為 OpenAI 官方；
