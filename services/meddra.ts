@@ -134,6 +134,7 @@ export const MEDDRA_SEED: MeddraSeedEntry[] = [
   { pt: 'Cholestasis', soc: SOC_HEPATO, synonyms: ['膽汁鬱積'] },
   { pt: 'Jaundice', soc: SOC_HEPATO, synonyms: ['黃疸'] },
   { pt: 'Hepatitis', soc: SOC_HEPATO, synonyms: ['肝炎'] },
+  { pt: 'Autoimmune hepatitis', soc: SOC_HEPATO, synonyms: ['自體免疫性肝炎', '自身免疫性肝炎'] },
   { pt: 'Drug-induced liver injury', soc: SOC_HEPATO, synonyms: ['dili', '藥物性肝損傷'] },
   { pt: 'Hyperbilirubinaemia', soc: SOC_HEPATO, synonyms: ['hyperbilirubinemia', '高膽紅素血症'] },
 
