@@ -13,6 +13,7 @@ import { buildCIOMS, ciomsToText } from './services/cioms';
 import { aggregateSignals } from './services/signals';
 import { lookupMeddra } from './services/meddra';
 import { useTheme } from './theme/ThemeContext';
+import { useLang } from './i18n/LangContext';
 import {
   ClipboardDocumentCheckIcon,
   ArrowPathIcon,
@@ -55,6 +56,7 @@ const csvCell = (v: any) => {
 
 const App: React.FC = () => {
   const { theme, toggle } = useTheme();
+  const { lang, setLang } = useLang();
   const [input, setInput] = useState<PVInput>({
     company_product_names: ['藥品A'],
     active_ingredients: ['Fenofibrate'],
@@ -422,6 +424,10 @@ const App: React.FC = () => {
         <button onClick={toggle} title="切換主題" className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
+        <div className="flex rounded-2xl overflow-hidden border border-white/40 dark:border-white/10 text-[11px] font-black">
+          <button onClick={() => setLang('zh')} className={`px-3 py-2 transition-all ${lang === 'zh' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>中</button>
+          <button onClick={() => setLang('en')} className={`px-3 py-2 transition-all ${lang === 'en' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>EN</button>
+        </div>
         <button onClick={runWorkflow} disabled={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-3 transition-all border border-white/20">
           <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} />
           {isProcessing ? step : '啟動新監測任務'}
