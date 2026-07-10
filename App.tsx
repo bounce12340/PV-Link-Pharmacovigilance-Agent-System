@@ -12,6 +12,7 @@ import { loadRecords, saveRecords, DB_KEY, PENDING_KEY } from './services/storag
 import { buildCIOMS, ciomsToText } from './services/cioms';
 import { aggregateSignals } from './services/signals';
 import { lookupMeddra } from './services/meddra';
+import { useTheme } from './theme/ThemeContext';
 import {
   ClipboardDocumentCheckIcon,
   ArrowPathIcon,
@@ -53,6 +54,7 @@ const csvCell = (v: any) => {
 };
 
 const App: React.FC = () => {
+  const { theme, toggle } = useTheme();
   const [input, setInput] = useState<PVInput>({
     company_product_names: ['藥品A'],
     active_ingredients: ['Fenofibrate'],
@@ -416,10 +418,15 @@ const App: React.FC = () => {
             <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest flex items-center gap-2">專業稽核模式 (PRO-V3)</p>
           </div>
         </div>
+        <div className="flex items-center gap-3">
+        <button onClick={toggle} title="切換主題" className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
         <button onClick={runWorkflow} disabled={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-3 transition-all border border-white/20">
           <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} />
           {isProcessing ? step : '啟動新監測任務'}
         </button>
+        </div>
       </header>
 
       {/* 進度條：AI 分批處理時顯示已完成 / 總數（#2） */}

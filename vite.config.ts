@@ -1,5 +1,5 @@
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 // LLM 金鑰不再由 Vite 注入前端 bundle。
@@ -16,5 +16,9 @@ export default defineConfig(() => ({
     alias: {
       '@': path.resolve(__dirname, '.'),
     }
-  }
+  },
+  test: {
+    // theme.test.ts 需要 localStorage（Node 環境無此全域），改用 jsdom。
+    environment: 'jsdom',
+  },
 }));
