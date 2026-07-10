@@ -194,8 +194,8 @@ const App: React.FC = () => {
         const bump = () => setProgress({ label: t('common.aiProcessingLabel'), done: scoreDone + sumDone, total: total * 2 });
         bump();
         const [scores, summaries] = await Promise.all([
-          llm.scoreRelevance(freshRecords, d => { scoreDone = d; bump(); }),
-          llm.generateSummaries(freshRecords, d => { sumDone = d; bump(); })
+          llm.scoreRelevance(freshRecords, lang, d => { scoreDone = d; bump(); }),
+          llm.generateSummaries(freshRecords, lang, d => { sumDone = d; bump(); })
         ]);
         setProgress(null);
 
@@ -237,7 +237,7 @@ const App: React.FC = () => {
     setBatchExtractInfo({ done: 0, total: pending.length });
     addLog(`[抽取] 開始批次抽取 ${pending.length} 筆未抽取文獻...`);
     try {
-      const results = await llm.extractPVDataBatch(pending, (done, total) => setBatchExtractInfo({ done, total }));
+      const results = await llm.extractPVDataBatch(pending, lang, (done, total) => setBatchExtractInfo({ done, total }));
       const byId = new Map(results.map(x => [x.id, x.pv_data]));
       setMasterDatabase(prev => prev.map(r => {
         const data = byId.get(r.id);
@@ -335,7 +335,7 @@ const App: React.FC = () => {
     if (!rec || rec.pv_data || rec.is_excluded || extractingIds.current.has(rec.id)) return;
     extractingIds.current.add(rec.id);
     setExtractingSet(prev => new Set(prev).add(rec.id));
-    llm.extractPVData(rec).then(data => {
+    llm.extractPVData(rec, lang).then(data => {
       const updateFn = (r: PVRecord) => {
         if (r.id !== rec.id) return r;
         return {
@@ -354,6 +354,30 @@ const App: React.FC = () => {
       setExtractingSet(prev => { const n = new Set(prev); n.delete(rec.id); return n; });
     });
   }, [selectedRecordId]);
+
+  // 以當前語言重新產出指定記錄的摘要/結論/結構化數據（覆蓋既有 AI 產出）
+  const [regeneratingSet, setRegeneratingSet] = useState<Set<string>>(new Set());
+  const handleRegenerate = async (rec: PVRecord) => {
+    setRegeneratingSet(prev => new Set(prev).add(rec.id));
+    try {
+      const [sum] = await llm.generateSummaries([rec], lang);
+      const pv = await llm.extractPVData(rec, lang);
+      const upd = (r: PVRecord): PVRecord => r.id !== rec.id ? r : {
+        ...r,
+        summary_zh: sum?.summary_zh ?? r.summary_zh,
+        conclusion_zh: sum?.conclusion_zh ?? r.conclusion_zh,
+        pv_data: {
+          ...pv,
+          // 如果 AI 沒抽到成分，絕不覆蓋原始成分
+          ingredient: pv.ingredient && pv.ingredient !== 'N/A' ? pv.ingredient : r.original_search_term
+        }
+      };
+      setRecords(prev => prev.map(upd));
+      setMasterDatabase(prev => prev.map(upd));
+    } finally {
+      setRegeneratingSet(prev => { const n = new Set(prev); n.delete(rec.id); return n; });
+    }
+  };
 
   // 超強模糊檢索邏輯
   const filteredDatabase = useMemo(() => {
@@ -587,9 +611,19 @@ const App: React.FC = () => {
                       <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                           <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 tracking-widest uppercase">{t('review.structured')}</div>
-                          {selectedRecord.pv_data?.completeness && (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {selectedRecord.pv_data?.completeness && (
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
+                            )}
+                            <button
+                              onClick={() => handleRegenerate(selectedRecord)}
+                              disabled={regeneratingSet.has(selectedRecord.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-100/80 dark:bg-indigo-500/20 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 text-[10px] font-black text-indigo-800 dark:text-indigo-200 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm active:scale-95"
+                            >
+                              <ArrowPathIcon className={`w-3.5 h-3.5 ${regeneratingSet.has(selectedRecord.id) ? 'animate-spin' : ''}`} />
+                              {t('review.regenerate')}
+                            </button>
+                          </div>
                         </div>
                         {extractingSet.has(selectedRecord.id) && !selectedRecord.pv_data ? (
                           <p className="text-sm text-slate-400 font-bold italic">{t('review.extracting')}</p>

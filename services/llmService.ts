@@ -30,6 +30,15 @@ const EFETCH_CHUNK = 100;
 /** 進度回呼：done / total 為「已處理 / 總數」。 */
 export type ProgressFn = (done: number, total: number) => void;
 
+/** AI 產出語言。 */
+export type Lang = 'zh' | 'en';
+
+/** 依語言插入 prompt 的輸出語言指示。 */
+const langDirective = (lang: Lang) =>
+  lang === 'en'
+    ? 'Respond in English. summary and conclusion fields must be in English.'
+    : '請以繁體中文回答。summary 與 conclusion 欄位必須是繁體中文。';
+
 /** 併發上限的 map：最多 limit 個工作同時進行，回傳順序與輸入一致。 */
 async function mapLimit<A, B>(items: A[], limit: number, fn: (item: A, index: number) => Promise<B>): Promise<B[]> {
   const results: B[] = new Array(items.length);
@@ -192,13 +201,14 @@ export class PVLLMService {
     return results;
   }
 
-  async scoreRelevance(records: any[], onProgress?: ProgressFn) {
+  async scoreRelevance(records: any[], lang: Lang = 'zh', onProgress?: ProgressFn) {
     const slim = records.map(r => ({ pmid: r.pmid, title: r.title, abstract: r.abstract }));
     try {
       const scored = await this.runBatched(slim, async (batch) => {
         const res = await this.callModel(
           `You are a pharmacovigilance analyst. For each record, evaluate PV relevance (0-100) based on potential adverse events. ` +
           `Return ONLY a JSON object shaped {"items":[{"pmid":string,"score":number,"reason":string}]} with exactly one entry per input pmid. ` +
+          `${lang === 'en' ? 'The reason field must be in English.' : 'reason 欄位必須是繁體中文。'} ` +
           `Records: ${JSON.stringify(batch)}`
         );
         const arr = res?.items ?? res;
@@ -210,14 +220,15 @@ export class PVLLMService {
     }
   }
 
-  async generateSummaries(records: any[], onProgress?: ProgressFn) {
+  async generateSummaries(records: any[], lang: Lang = 'zh', onProgress?: ProgressFn) {
     const slim = records.map(r => ({ pmid: r.pmid, title: r.title, abstract: r.abstract }));
     try {
       const summarized = await this.runBatched(slim, async (batch) => {
         const res = await this.callModel(
           `請將以下文獻進行專業藥物警戒(PV)分析。回傳格式必須是 JSON 物件 {"items":[{"pmid":string,"summary_zh":string,"conclusion_zh":string}]}，每個輸入 pmid 對應一筆：\n` +
-          `- summary_zh: 譯為繁體中文摘要，重點放在病例描述或研究方法。\n` +
+          `- summary_zh: 摘要，重點放在病例描述或研究方法。\n` +
           `- conclusion_zh: 獨立提煉該文獻的「結論」或「臨床建議」（對藥物安全監測最重要）。\n` +
+          `${langDirective(lang)}\n` +
           `只輸出 JSON，不要多餘文字。文獻資料： ${JSON.stringify(batch)}`
         );
         const arr = res?.items ?? res;
@@ -231,21 +242,22 @@ export class PVLLMService {
 
   /** 並行對多筆文獻做結構化抽取（供訊號聚合前的整庫批次抽取用）。
    *  回傳 [{ id, pv_data }]，順序與輸入一致；單筆失敗以 Missing 骨架補上。 */
-  async extractPVDataBatch(records: any[], onProgress?: ProgressFn): Promise<{ id: string, pv_data: any }[]> {
+  async extractPVDataBatch(records: any[], lang: Lang = 'zh', onProgress?: ProgressFn): Promise<{ id: string, pv_data: any }[]> {
     let done = 0;
     return mapLimit(records, EXTRACT_CONCURRENCY, async (rec) => {
-      const pv_data = await this.extractPVData(rec);
+      const pv_data = await this.extractPVData(rec, lang);
       done++;
       onProgress?.(done, records.length);
       return { id: rec.id, pv_data };
     });
   }
 
-  async extractPVData(record: any) {
+  async extractPVData(record: any, lang: Lang = 'zh') {
     try {
       const data = await this.callModel(
         `從以下內容抽取結構化 PV 數據，只回傳 JSON 物件，鍵為：` +
         `product, ingredient, ae_verbatim, meddra_pt_candidate, meddra_confidence(0-100 數字), seriousness, population, dosage_route, tto, outcome, causality, completeness(Complete|Partial|Missing)。\n` +
+        `${langDirective(lang)}\n` +
         `內容：${record.summary || record.abstract || record.title}`
       );
       return data || { product: "N/A", completeness: "Missing" };
