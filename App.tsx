@@ -206,9 +206,9 @@ const App: React.FC = () => {
           return {
             ...m,
             relevance_score: s?.score ?? 50,
-            relevance_reason: s?.reason || t('review.reasonComplete'),
+            relevance_reason: s?.reason || '',
             summary_zh: sum?.summary_zh || m.abstract,
-            conclusion_zh: sum?.conclusion_zh || t('review.conclusionAnalyzing')
+            conclusion_zh: sum?.conclusion_zh || ''
           };
         });
         setRecords(finalized);
@@ -300,7 +300,7 @@ const App: React.FC = () => {
 
   const handleDeleteFromDB = (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // 防止觸發行點擊事件
-    if (window.confirm(t('db.deleteConfirm'))) {
+    if (window.confirm(t('db.deleteConfirmPrefix') + id + t('db.deleteConfirmSuffix'))) {
        setMasterDatabase(prev => prev.filter(r => r.id !== id));
        if (selectedRecordId === id) setSelectedRecordId(null);
        addLog(`[資料庫] 已手動移除文獻 ID: ${id}`);
@@ -534,7 +534,7 @@ const App: React.FC = () => {
                   ) : visibleReviewRecords.map(r => (
                     <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-indigo-600 dark:border-indigo-400 bg-white/90 dark:bg-slate-800/90 shadow-xl' : 'border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-white/[0.07] hover:bg-white/60 dark:hover:bg-white/10 hover:border-indigo-300 dark:hover:border-indigo-500'}`}>
                        <div className="flex justify-between items-center mb-2">
-                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
+                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason || t('review.reasonComplete')}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
                          <span className="text-[10px] font-black text-slate-500 dark:text-slate-400">PMID:{r.pmid}</span>
                        </div>
                        <div className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1">{r.dp}</div>
