@@ -1,6 +1,13 @@
 name = "pv-link-llm-proxy"
 main = "index.js"
 compatibility_date = "2026-07-01"
+account_id = "a85ac222b1d8c791558116cf369139b6"
+
+# 掛在受 Cloudflare Access 保護的同源路徑（前端 pvlink.uic-ai.com，API 走 /api）。
+# wrangler deploy 會據此建立/更新 route（用 wrangler 的 workers_routes 權限）。
+routes = [
+  { pattern = "pvlink.uic-ai.com/api/*", zone_name = "uic-ai.com" }
+]
 
 # 非機密設定（可依你的服務調整）。範例為 OpenAI 官方；
 # 換 OpenRouter 就把 base 改成 https://openrouter.ai/api/v1、model 改成對應名稱。
@@ -10,8 +17,11 @@ compatibility_date = "2026-07-01"
 LLM_BASE_URL = "https://ollama.com/v1"
 LLM_MODEL = "deepseek-v4-pro"
 LLM_JSON_MODE = "0"                                  # Ollama 對 response_format 支援不一,關閉改靠 parseJsonLoose
-ALLOW_ORIGIN = "https://pv-link-auditor.pages.dev"    # 已鎖定前端網域
+ALLOW_ORIGIN = "https://pvlink.uic-ai.com"           # 同源部署網域
 RATE_LIMIT_MAX = "30"                                 # 每 IP 每分鐘最多請求數（需綁定下方 KV 才生效）
+# Cloudflare Access 驗證（Access application: PV-Link Auditor）——取代已失效的前端 PROXY_TOKEN
+ACCESS_TEAM_DOMAIN = "uic-ai.cloudflareaccess.com"
+ACCESS_AUD = "9e0d8727ca721895cfd720c1753edef64f6469ed2888920137a7658e6a957a9c"
 
 # 速率限制用的 KV namespace（#8）。建立指令：
 #   npx wrangler kv namespace create RATE_LIMIT

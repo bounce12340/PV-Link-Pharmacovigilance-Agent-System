@@ -8,8 +8,6 @@
 //   2) 未設定 → 前端直連 VITE_LLM_BASE_URL（僅供本機開發，金鑰會進前端）。
 const env = (import.meta as any).env || {};
 const PROXY_ENDPOINT: string = env.VITE_PV_PROXY_ENDPOINT || '';
-// 選填：與後端 proxy 共享的密鑰，隨每次請求送出，避免 proxy 成為開放式代理
-const PROXY_TOKEN: string = env.VITE_PV_PROXY_TOKEN || '';
 const LLM_BASE_URL: string = (env.VITE_LLM_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '');
 const LLM_API_KEY: string = env.VITE_LLM_API_KEY || '';
 const LLM_MODEL: string = env.VITE_LLM_MODEL || 'gpt-4o-mini';
@@ -58,12 +56,12 @@ export class PVLLMService {
   }
 
   private async viaProxy(prompt: string): Promise<string> {
+    // 同源部署 + Cloudflare Access：登入後的 CF_Authorization cookie 隨同源請求自動帶上，
+    // 前端不再需要持有任何密鑰。
     const res = await fetch(PROXY_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(PROXY_TOKEN ? { 'X-PV-Token': PROXY_TOKEN } : {})
-      },
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({ prompt })
     });
     if (!res.ok) throw new Error(`Proxy 回應 ${res.status}`);

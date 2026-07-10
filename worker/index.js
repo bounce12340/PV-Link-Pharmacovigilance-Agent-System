@@ -4,21 +4,70 @@
 // 的 Chat Completions 端點（OpenAI 官方 / Azure OpenAI / Ollama / OpenRouter / Kimi…），
 // 再把模型回傳的 JSON 字串以 { content } 回給前端。金鑰永不進前端 bundle。
 //
+// 存取控制：本 Worker 掛在受 Cloudflare Access 保護的網域下（pvlink.uic-ai.com/api/*）。
+// 請求須帶 Access 於登入後注入的 JWT（Cf-Access-Jwt-Assertion），Worker 驗證其簽章、
+// aud、iss、exp 才放行——取代「前端持有共享密鑰」這種必然外洩的作法。
+//
 // 環境設定（見 wrangler.toml 與 README）：
-//   LLM_BASE_URL  例 https://api.openai.com/v1 、 https://openrouter.ai/api/v1
-//   LLM_MODEL     例 gpt-4o-mini 、 moonshotai/kimi-k2
-//   LLM_API_KEY   （secret）呼叫上游服務用的金鑰
-//   LLM_JSON_MODE （選填）設 "0" 可關閉 response_format（相容不支援的服務）
-//   ALLOW_ORIGIN  （強烈建議）允許的前端網域；正式環境務必設定
-//   PROXY_TOKEN   （強烈建議，secret）共享密鑰；設定後前端須帶 X-PV-Token，
-//                  否則此 Worker 等於開放式代理，任何人都能燒你的金鑰
+//   LLM_BASE_URL        例 https://ollama.com/v1 、 https://api.openai.com/v1
+//   LLM_MODEL           例 deepseek-v4-pro 、 gpt-4o-mini
+//   LLM_API_KEY         （secret）呼叫上游服務用的金鑰
+//   LLM_JSON_MODE       （選填）設 "0" 可關閉 response_format（相容不支援的服務）
+//   ALLOW_ORIGIN        （選填）允許的前端網域；同源部署下非必要
+//   ACCESS_TEAM_DOMAIN  Access team 網域，例 uic-ai.cloudflareaccess.com
+//   ACCESS_AUD          此 Access application 的 Audience (AUD) tag
+//   （未設 ACCESS_TEAM_DOMAIN/ACCESS_AUD 時跳過驗證，僅供本機開發）
 
 function corsHeaders(env) {
   return {
     'Access-Control-Allow-Origin': env.ALLOW_ORIGIN || '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-PV-Token',
+    'Access-Control-Allow-Headers': 'Content-Type',
   };
+}
+
+// ── Cloudflare Access JWT 驗證 ───────────────────────────────────────────────
+// JWKS 於 isolate 存活期間快取，避免每次請求都打 certs 端點。
+let _jwks = { domain: null, keys: null, at: 0 };
+async function getJwks(teamDomain) {
+  const now = Date.now();
+  if (_jwks.domain === teamDomain && _jwks.keys && now - _jwks.at < 3600000) return _jwks.keys;
+  const res = await fetch(`https://${teamDomain}/cdn-cgi/access/certs`);
+  if (!res.ok) throw new Error(`fetch certs failed ${res.status}`);
+  const { keys } = await res.json();
+  _jwks = { domain: teamDomain, keys, at: now };
+  return keys;
+}
+
+function b64urlToBytes(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  if (s.length % 4) s += '='.repeat(4 - (s.length % 4));
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+const b64urlToJson = (s) => JSON.parse(new TextDecoder().decode(b64urlToBytes(s)));
+
+// 驗證成功回 payload，否則丟出錯誤。
+async function verifyAccessJwt(token, teamDomain, aud) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('malformed jwt');
+  const [h, p, s] = parts;
+  const header = b64urlToJson(h);
+  const jwk = (await getJwks(teamDomain)).find((k) => k.kid === header.kid);
+  if (!jwk) throw new Error('signing key not found');
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+  const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(s), new TextEncoder().encode(`${h}.${p}`));
+  if (!ok) throw new Error('bad signature');
+  const payload = b64urlToJson(p);
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp && now >= payload.exp) throw new Error('expired');
+  if (payload.nbf && now < payload.nbf) throw new Error('not yet valid');
+  if (payload.iss && payload.iss !== `https://${teamDomain}`) throw new Error('issuer mismatch');
+  const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  if (aud && !auds.includes(aud)) throw new Error('aud mismatch');
+  return payload;
 }
 
 // 以 KV 做「固定時間窗」速率限制（每 IP 每分鐘 N 次）。
@@ -48,9 +97,18 @@ export default {
       return new Response('Method Not Allowed', { status: 405, headers: cors });
     }
 
-    // 共享密鑰驗證（有設定 PROXY_TOKEN 才啟用）
-    if (env.PROXY_TOKEN && request.headers.get('X-PV-Token') !== env.PROXY_TOKEN) {
-      return json({ error: 'unauthorized' }, 401, cors);
+    // Cloudflare Access 驗證（有設定 team domain + aud 才啟用）。
+    // Access 於登入後注入 Cf-Access-Jwt-Assertion；亦支援 CF_Authorization cookie 作為後備。
+    if (env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
+      const jwt = request.headers.get('Cf-Access-Jwt-Assertion')
+        || (request.headers.get('Cookie') || '').match(/CF_Authorization=([^;]+)/)?.[1];
+      if (!jwt) return json({ error: 'unauthorized: missing Access token' }, 401, cors);
+      try {
+        await verifyAccessJwt(jwt, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
+      } catch (e) {
+        console.log('access jwt verify failed:', e.message);
+        return json({ error: 'unauthorized' }, 401, cors);
+      }
     }
 
     // 速率限制（有綁定 RATE_LIMIT KV 才啟用）：擋濫用、保護金鑰額度
