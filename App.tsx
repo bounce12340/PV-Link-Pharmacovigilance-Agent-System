@@ -13,7 +13,8 @@ import { buildCIOMS, ciomsToText } from './services/cioms';
 import { aggregateSignals } from './services/signals';
 import { lookupMeddra } from './services/meddra';
 import { useTheme } from './theme/ThemeContext';
-import { useLang } from './i18n/LangContext';
+import { useLang, useT } from './i18n/LangContext';
+import { TransKey } from './i18n/translations';
 import {
   ClipboardDocumentCheckIcon,
   ArrowPathIcon,
@@ -54,9 +55,23 @@ const csvCell = (v: any) => {
   return `"${s.replace(/"/g, '""')}"`;
 };
 
+// WorkflowStep（枚舉值本身為繁中）對應的 i18n key，供 UI 顯示切換語言
+const stepLabelKeys: Record<WorkflowStep, TransKey> = {
+  [WorkflowStep.IDLE]: 'common.stepIdle',
+  [WorkflowStep.QUERY_GEN]: 'common.stepQueryGen',
+  [WorkflowStep.RSS_FETCH]: 'common.stepRssFetch',
+  [WorkflowStep.EFETCH_FILTER]: 'common.stepEfetchFilter',
+  [WorkflowStep.WEB_SEARCH]: 'common.stepWebSearch',
+  [WorkflowStep.RELEVANCE_SCORING]: 'common.stepRelevanceScoring',
+  [WorkflowStep.SUMMARIZATION]: 'common.stepSummarization',
+  [WorkflowStep.PV_EXTRACTION]: 'common.stepPvExtraction',
+  [WorkflowStep.DB_EXPORT]: 'common.stepDbExport',
+};
+
 const App: React.FC = () => {
   const { theme, toggle } = useTheme();
   const { lang, setLang } = useLang();
+  const t = useT();
   const [input, setInput] = useState<PVInput>({
     company_product_names: ['藥品A'],
     active_ingredients: ['Fenofibrate'],
@@ -176,7 +191,7 @@ const App: React.FC = () => {
         // 進度：評分與摘要各佔 total 筆，合計 total*2；兩者並行進行，累加已完成數
         const total = freshRecords.length;
         let scoreDone = 0, sumDone = 0;
-        const bump = () => setProgress({ label: 'AI 評分 + 摘要生成', done: scoreDone + sumDone, total: total * 2 });
+        const bump = () => setProgress({ label: t('common.aiProcessingLabel'), done: scoreDone + sumDone, total: total * 2 });
         bump();
         const [scores, summaries] = await Promise.all([
           llm.scoreRelevance(freshRecords, d => { scoreDone = d; bump(); }),
@@ -191,9 +206,9 @@ const App: React.FC = () => {
           return {
             ...m,
             relevance_score: s?.score ?? 50,
-            relevance_reason: s?.reason || '分析完成',
+            relevance_reason: s?.reason || t('review.reasonComplete'),
             summary_zh: sum?.summary_zh || m.abstract,
-            conclusion_zh: sum?.conclusion_zh || '結論分析中'
+            conclusion_zh: sum?.conclusion_zh || t('review.conclusionAnalyzing')
           };
         });
         setRecords(finalized);
@@ -273,7 +288,7 @@ const App: React.FC = () => {
 
   const handleImport = async (record: PVRecord) => {
     if (masterDatabase.some(m => m.pmid === record.pmid)) {
-      alert("此文獻 (PMID: " + record.pmid + ") 已存在於資料庫中。");
+      alert(t('db.dupPrefix') + record.pmid + t('db.dupSuffix'));
       return;
     }
     const preparedRecord = { ...record, quality_flags: [...record.quality_flags, 'DB_COMMITTED'] };
@@ -285,7 +300,7 @@ const App: React.FC = () => {
 
   const handleDeleteFromDB = (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // 防止觸發行點擊事件
-    if (window.confirm(`確定要刪除此文獻 (ID: ${id}) 嗎？\n此動作將永久移除這筆紀錄。`)) {
+    if (window.confirm(t('db.deleteConfirm'))) {
        setMasterDatabase(prev => prev.filter(r => r.id !== id));
        if (selectedRecordId === id) setSelectedRecordId(null);
        addLog(`[資料庫] 已手動移除文獻 ID: ${id}`);
@@ -417,11 +432,11 @@ const App: React.FC = () => {
           <div className="bg-indigo-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" /></div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">PV-Link Auditor</h1>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest flex items-center gap-2">專業稽核模式 (PRO-V3)</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest flex items-center gap-2">{t('header.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-        <button onClick={toggle} title="切換主題" className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
+        <button onClick={toggle} title={t('header.themeToggle')} className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
         <div className="flex rounded-2xl overflow-hidden border border-white/40 dark:border-white/10 text-[11px] font-black">
@@ -430,7 +445,7 @@ const App: React.FC = () => {
         </div>
         <button onClick={runWorkflow} disabled={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-3 transition-all border border-white/20">
           <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} />
-          {isProcessing ? step : '啟動新監測任務'}
+          {isProcessing ? t(stepLabelKeys[step]) : t('header.run')}
         </button>
         </div>
       </header>
@@ -449,19 +464,19 @@ const App: React.FC = () => {
       <main className="flex-1 flex overflow-hidden">
         <aside className="w-72 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-r border-white/40 dark:border-white/10 flex flex-col p-6 space-y-2 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
           <button onClick={() => setActiveTab('input')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <AdjustmentsHorizontalIcon className="w-5 h-5" /> 檢索設定
+            <AdjustmentsHorizontalIcon className="w-5 h-5" /> {t('nav.input')}
           </button>
           <button onClick={() => setActiveTab('review')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'review' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <ClipboardDocumentCheckIcon className="w-5 h-5" /> 待核閱 ({records.length})
+            <ClipboardDocumentCheckIcon className="w-5 h-5" /> {t('nav.review')} ({records.length})
           </button>
           <button onClick={() => setActiveTab('database')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <CircleStackIcon className="w-5 h-5" /> 正式庫 ({masterDatabase.length})
+            <CircleStackIcon className="w-5 h-5" /> {t('nav.database')} ({masterDatabase.length})
           </button>
           <button onClick={() => setActiveTab('signals')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <ChartBarIcon className="w-5 h-5" /> 訊號聚合 ({signalReport.groups.length})
+            <ChartBarIcon className="w-5 h-5" /> {t('nav.signals')} ({signalReport.groups.length})
           </button>
           <button onClick={() => setActiveTab('logs')} className="mt-auto w-full flex items-center gap-4 px-5 py-4 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
-            <FingerPrintIcon className="w-4 h-4" /> 系統日誌
+            <FingerPrintIcon className="w-4 h-4" /> {t('nav.logs')}
           </button>
         </aside>
 
@@ -469,32 +484,32 @@ const App: React.FC = () => {
           {activeTab === 'input' && (
             <div className="flex-1 p-20 flex flex-col items-center overflow-y-auto">
                <div className="w-full max-w-xl bg-white/50 dark:bg-white/[0.08] backdrop-blur-xl p-12 rounded-[3rem] border border-white/60 dark:border-white/10 shadow-2xl space-y-10">
-                  <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">藥物監測配置</h2>
+                  <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{t('input.title')}</h2>
                   <div className="space-y-6">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">目標成分 (必填，多成分請用逗號分隔)</label>
-                       <input type="text" placeholder="例如: Fenofibrate, Aspirin" value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.ingredients')}</label>
+                       <input type="text" placeholder={t('input.ingredientsPlaceholder')} value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                        <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">監測起始</label>
+                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateFrom')}</label>
                          <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                        <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">監測結束</label>
+                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateTo')}</label>
                          <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">AE 關鍵字 (逗號分隔，支援 * 萬用字元)</label>
-                       <input type="text" placeholder='例如: Adverse drug reactions, pharmacovigilance*' value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.aeTerms')}</label>
+                       <input type="text" placeholder={t('input.aeTermsPlaceholder')} value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">排除詞 (逗號分隔，選填，以 NOT 排除)</label>
-                       <input type="text" placeholder='例如: animal-only, review' value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.exclusions')}</label>
+                       <input type="text" placeholder={t('input.exclusionsPlaceholder')} value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">最多取回筆數 (分頁上限，10–500)</label>
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.maxResults')}</label>
                        <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                   </div>
@@ -507,19 +522,19 @@ const App: React.FC = () => {
                <div className="w-[45%] border-r border-white/30 dark:border-white/10 overflow-y-auto p-8 space-y-4 bg-white/10 dark:bg-white/[0.03] backdrop-blur-sm">
                   {records.length > 0 && (
                     <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 dark:bg-white/10 backdrop-blur-xl border-b border-white/50 dark:border-white/10 flex items-center gap-3">
-                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest whitespace-nowrap">相關性 ≥ {minScore}</span>
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest whitespace-nowrap">{t('review.thresholdLabel')} {minScore}</span>
                       <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="flex-1 accent-indigo-600" />
-                      <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} 筆</span>
+                      <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
                     </div>
                   )}
                   {records.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">無待核閱文獻</p></div>
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">{t('review.empty')}</p></div>
                   ) : visibleReviewRecords.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">無文獻達到分數門檻</p></div>
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">{t('review.noneAboveThreshold')}</p></div>
                   ) : visibleReviewRecords.map(r => (
                     <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-indigo-600 dark:border-indigo-400 bg-white/90 dark:bg-slate-800/90 shadow-xl' : 'border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-white/[0.07] hover:bg-white/60 dark:hover:bg-white/10 hover:border-indigo-300 dark:hover:border-indigo-500'}`}>
                        <div className="flex justify-between items-center mb-2">
-                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason}>相關性 {r.relevance_score ?? '—'}</span>
+                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
                          <span className="text-[10px] font-black text-slate-500 dark:text-slate-400">PMID:{r.pmid}</span>
                        </div>
                        <div className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1">{r.dp}</div>
@@ -531,10 +546,10 @@ const App: React.FC = () => {
                  {selectedRecord ? (
                    <div className="max-w-xl mx-auto space-y-8">
                       <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-[10px] font-black tracking-widest uppercase"><SparklesIcon className="w-4 h-4" /> 文獻稽核詳情</div>
+                        <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-[10px] font-black tracking-widest uppercase"><SparklesIcon className="w-4 h-4" /> {t('review.auditDetail')}</div>
                         <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-snug">{selectedRecord.title}</h2>
                         <button onClick={() => window.open(selectedRecord.primary_link, '_blank')} className="flex items-center gap-2 bg-slate-900/90 text-white px-6 py-3 rounded-2xl font-black text-[11px] shadow-lg hover:bg-slate-800 transition-all">
-                          <ArrowTopRightOnSquareIcon className="w-4 h-4" /> 官網驗證連結
+                          <ArrowTopRightOnSquareIcon className="w-4 h-4" /> {t('review.officialLink')}
                         </button>
                       </div>
 
@@ -546,52 +561,52 @@ const App: React.FC = () => {
                                  <div className="p-1.5 bg-amber-200/50 dark:bg-amber-500/20 rounded-lg">
                                     <LightBulbIcon className="w-5 h-5 text-amber-700 dark:text-amber-300" />
                                  </div>
-                                 臨床結論 (Key Conclusion)
+                                 {t('review.conclusion')}
                                </div>
                                <button
                                  onClick={() => handleCopyConclusion(selectedRecord.conclusion_zh)}
                                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-[10px] font-bold text-amber-800 dark:text-amber-200 transition-all border border-amber-100 dark:border-amber-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
-                                 title="複製結論"
+                                 title={t('review.copyConclusionTitle')}
                                >
                                  {copiedConclusion ? <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
-                                 {copiedConclusion ? <span className="text-emerald-600 dark:text-emerald-400">已複製!</span> : '複製'}
+                                 {copiedConclusion ? <span className="text-emerald-600 dark:text-emerald-400">{t('common.copied')}</span> : t('common.copy')}
                                </button>
                            </div>
                            <p className="text-lg font-bold leading-relaxed text-slate-800 dark:text-slate-100 drop-shadow-sm selection:bg-amber-200/50">
-                             {selectedRecord.conclusion_zh || "分析中..."}
+                             {selectedRecord.conclusion_zh || t('review.conclusionPending')}
                            </p>
                         </div>
 
                         <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md text-indigo-950 dark:text-indigo-100 p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
-                           <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 mb-3 tracking-widest uppercase">AI 完整摘要 (Summary)</div>
-                           <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{selectedRecord.summary_zh || "正在解析中..."}</p>
+                           <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 mb-3 tracking-widest uppercase">{t('review.summary')}</div>
+                           <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{selectedRecord.summary_zh || t('review.summaryPending')}</p>
                         </div>
                       </div>
 
                       {/* 結構化 PV 數據抽取結果 */}
                       <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 tracking-widest uppercase">結構化 PV 數據 (Structured Extraction)</div>
+                          <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 tracking-widest uppercase">{t('review.structured')}</div>
                           {selectedRecord.pv_data?.completeness && (
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
                           )}
                         </div>
                         {extractingSet.has(selectedRecord.id) && !selectedRecord.pv_data ? (
-                          <p className="text-sm text-slate-400 font-bold italic">AI 結構化抽取中...</p>
+                          <p className="text-sm text-slate-400 font-bold italic">{t('review.extracting')}</p>
                         ) : selectedRecord.pv_data ? (
                           <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                             {[
-                              ['成分 (Ingredient)', selectedRecord.pv_data.ingredient],
-                              ['產品 (Product)', selectedRecord.pv_data.product],
-                              ['不良事件原文 (AE Verbatim)', selectedRecord.pv_data.ae_verbatim],
-                              ['MedDRA PT 候選', selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence != null ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}${lookupMeddra(selectedRecord.pv_data.meddra_pt_candidate).matched ? ' ✓詞典校驗' : ' ·AI推測'}` : ''],
-                              ['MedDRA SOC (系統器官分類)', lookupMeddra(selectedRecord.pv_data.meddra_pt_candidate).soc || '種子詞典未收錄'],
-                              ['嚴重性 (Seriousness)', selectedRecord.pv_data.seriousness],
-                              ['因果關係 (Causality)', selectedRecord.pv_data.causality],
-                              ['族群 (Population)', selectedRecord.pv_data.population],
-                              ['劑量/途徑 (Dosage/Route)', selectedRecord.pv_data.dosage_route],
-                              ['發生時間 (TTO)', selectedRecord.pv_data.tto],
-                              ['結果 (Outcome)', selectedRecord.pv_data.outcome],
+                              [t('review.fieldIngredient'), selectedRecord.pv_data.ingredient],
+                              [t('review.fieldProduct'), selectedRecord.pv_data.product],
+                              [t('review.fieldAeVerbatim'), selectedRecord.pv_data.ae_verbatim],
+                              [t('review.fieldMeddraPt'), selectedRecord.pv_data.meddra_pt_candidate ? `${selectedRecord.pv_data.meddra_pt_candidate}${selectedRecord.pv_data.meddra_confidence != null ? ` (${selectedRecord.pv_data.meddra_confidence}%)` : ''}${lookupMeddra(selectedRecord.pv_data.meddra_pt_candidate).matched ? ` ✓${t('common.dictVerified')}` : ` ·${t('common.aiInferred')}`}` : ''],
+                              [t('review.fieldMeddraSoc'), lookupMeddra(selectedRecord.pv_data.meddra_pt_candidate).soc || t('review.socNotInDict')],
+                              [t('review.fieldSeriousness'), selectedRecord.pv_data.seriousness],
+                              [t('review.fieldCausality'), selectedRecord.pv_data.causality],
+                              [t('review.fieldPopulation'), selectedRecord.pv_data.population],
+                              [t('review.fieldDosageRoute'), selectedRecord.pv_data.dosage_route],
+                              [t('review.fieldTto'), selectedRecord.pv_data.tto],
+                              [t('review.fieldOutcome'), selectedRecord.pv_data.outcome],
                             ].map(([label, value]) => (
                               <div key={label} className="space-y-1">
                                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{label}</div>
@@ -600,7 +615,7 @@ const App: React.FC = () => {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-slate-400 font-bold italic">選取文獻後將自動抽取結構化數據。</p>
+                          <p className="text-sm text-slate-400 font-bold italic">{t('review.selectToExtract')}</p>
                         )}
                       </div>
 
@@ -609,13 +624,13 @@ const App: React.FC = () => {
                           onClick={() => openCiomsDraft(selectedRecord)}
                           disabled={!selectedRecord.pv_data}
                           className="flex-1 bg-slate-800/90 disabled:opacity-40 backdrop-blur-sm text-white py-5 rounded-[2rem] font-black text-sm shadow-xl active:scale-95 transition-all hover:bg-slate-900 border border-white/20 flex items-center justify-center gap-2"
-                          title={selectedRecord.pv_data ? '由結構化數據產生 CIOMS-I / E2B 草稿' : '請先等待結構化抽取完成'}
+                          title={selectedRecord.pv_data ? t('review.ciomsReadyTitle') : t('review.ciomsWaitingTitle')}
                         >
-                          <DocumentTextIcon className="w-5 h-5" /> 產生 CIOMS 草稿
+                          <DocumentTextIcon className="w-5 h-5" /> {t('review.generateCioms')}
                         </button>
                         {!masterDatabase.some(m => m.pmid === selectedRecord.pmid) && (
                           <button onClick={() => handleImport(selectedRecord)} className="flex-1 bg-emerald-600/90 backdrop-blur-sm text-white py-5 rounded-[2rem] font-black text-sm shadow-xl active:scale-95 transition-all hover:bg-emerald-700/90 border border-white/20">
-                            確認匯入正式庫
+                            {t('review.import')}
                           </button>
                         )}
                       </div>
@@ -631,19 +646,19 @@ const App: React.FC = () => {
             <div className="w-full h-full p-12 flex flex-col overflow-hidden">
                <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">正式文獻庫</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">總筆數: {masterDatabase.length} | 篩選後: {filteredDatabase.length}</p>
+                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('db.title')}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">{t('db.totalLabel')}: {masterDatabase.length} | {t('db.filteredLabel')}: {filteredDatabase.length}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-indigo-100/80 dark:bg-indigo-500/20 backdrop-blur-sm text-indigo-900 dark:text-indigo-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm">
                       <SparklesIcon className={`w-5 h-5 ${batchExtractInfo ? 'animate-pulse' : ''}`} />
-                      {batchExtractInfo ? `抽取中 ${batchExtractInfo.done}/${batchExtractInfo.total}` : `批次抽取 (${masterDatabase.filter(r => !r.pv_data && !r.is_excluded).length})`}
+                      {batchExtractInfo ? `${t('db.extracting')} ${batchExtractInfo.done}/${batchExtractInfo.total}` : `${t('db.batchExtract')} (${masterDatabase.filter(r => !r.pv_data && !r.is_excluded).length})`}
                     </button>
                     <button onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 dark:bg-emerald-500/20 backdrop-blur-sm text-emerald-900 dark:text-emerald-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-all border border-emerald-300/50 dark:border-emerald-500/30 shadow-sm">
-                      <ArrowDownTrayIcon className="w-5 h-5" /> 匯出篩選結果 ({filteredDatabase.length})
+                      <ArrowDownTrayIcon className="w-5 h-5" /> {t('db.exportFiltered')} ({filteredDatabase.length})
                     </button>
                     <button onClick={() => exportToCSV('all')} className="bg-white/60 dark:bg-white/10 backdrop-blur-sm text-slate-700 dark:text-slate-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-white dark:hover:bg-white/20 transition-all border border-slate-300/50 dark:border-slate-600/50 shadow-sm">
-                      <ArrowDownTrayIcon className="w-5 h-5" /> 匯出全庫 ({masterDatabase.length})
+                      <ArrowDownTrayIcon className="w-5 h-5" /> {t('db.exportAll')} ({masterDatabase.length})
                     </button>
                   </div>
                </div>
@@ -651,7 +666,7 @@ const App: React.FC = () => {
                <div className="bg-white/60 dark:bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 dark:border-white/10 shadow-lg mb-6 flex flex-wrap gap-4 items-end">
                   <div className="flex-1 min-w-[300px] relative">
                     <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 dark:text-slate-400" />
-                    <input type="text" placeholder="全域檢索: PMID、標題、成分或摘要關鍵字..." value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    <input type="text" placeholder={t('db.searchPlaceholder')} value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                   </div>
                   <div className="flex items-center gap-3">
                     <FunnelIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
@@ -659,31 +674,31 @@ const App: React.FC = () => {
                     <span className="text-slate-400">~</span>
                     <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
                   </div>
-                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-black text-[10px] uppercase p-2">清空</button>
+                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-black text-[10px] uppercase p-2">{t('db.clear')}</button>
                </div>
 
                <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  <table className="w-full">
                    <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                      <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">文獻 ID</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">文獻細節</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">出版資訊</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-right">操作</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colId')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colDetail')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colPublication')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-right">{t('db.colActions')}</th>
                      </tr>
                    </thead>
                    <tbody>
                      {filteredDatabase.length === 0 ? (
-                       <tr><td colSpan={4} className="py-20 text-center text-slate-400 font-black italic">查無資料</td></tr>
+                       <tr><td colSpan={4} className="py-20 text-center text-slate-400 font-black italic">{t('db.empty')}</td></tr>
                      ) : filteredDatabase.map(r => (
                        <tr key={r.id} className="border-b border-slate-200/60 dark:border-slate-700/60 hover:bg-white/60 dark:hover:bg-white/10 cursor-pointer group transition-colors" onClick={() => { setSelectedRecordId(r.id); setActiveTab('review'); }}>
                          <td className="px-8 py-8 font-mono text-xs font-bold text-slate-400">{r.pmid}</td>
                          <td className="px-8 py-8 max-w-lg">
                            <div className="font-black text-slate-800 dark:text-slate-100 line-clamp-2">{r.title}</div>
                            <div className="flex gap-2 mt-2">
-                             <span className="bg-indigo-100/60 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">標籤: {r.original_search_term}</span>
+                             <span className="bg-indigo-100/60 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.tagLabel')}: {r.original_search_term}</span>
                              {r.pv_data?.ingredient && r.pv_data.ingredient !== r.original_search_term && (
-                               <span className="bg-amber-100/60 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">AI 識別: {r.pv_data.ingredient}</span>
+                               <span className="bg-amber-100/60 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
                              )}
                            </div>
                          </td>
@@ -695,7 +710,7 @@ const App: React.FC = () => {
                            <button
                              onClick={(e) => handleDeleteFromDB(e, r.id)}
                              className="text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-500/10 p-2 rounded-full transition-all"
-                             title="移除此文獻"
+                             title={t('db.removeTitle')}
                            >
                              <TrashIcon className="w-5 h-5" />
                            </button>
@@ -712,39 +727,39 @@ const App: React.FC = () => {
             <div className="w-full h-full p-12 flex flex-col overflow-hidden">
                <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">安全訊號聚合</h2>
+                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('signals.title')}</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">
-                      成分 × MedDRA PT 分組 | 已分析 {signalReport.analysedRecords} 筆 | 未抽取略過 {signalReport.skipped} 筆
+                      {t('signals.groupByLabel')} | {t('signals.analysedLabel')} {signalReport.analysedRecords} {t('common.unitRecords')} | {t('signals.skippedLabel')} {signalReport.skipped} {t('common.unitRecords')}
                     </p>
                   </div>
                   {signalReport.skipped > 0 && (
                     <button onClick={() => { setActiveTab('database'); }} className="bg-amber-100/80 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 px-5 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-amber-200 dark:hover:bg-amber-500/30 transition-all border border-amber-300/50 dark:border-amber-500/30 shadow-sm">
-                      <ExclamationTriangleIcon className="w-5 h-5" /> {signalReport.skipped} 筆尚未抽取，前往批次抽取
+                      <ExclamationTriangleIcon className="w-5 h-5" /> {signalReport.skipped} {t('signals.skippedSuffix')}
                     </button>
                   )}
                </div>
 
                <div className="bg-rose-50/60 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 rounded-2xl px-6 py-3 mb-6 text-[11px] font-bold text-rose-800/80 dark:text-rose-300 flex items-center gap-2">
                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
-                 訊號僅供內部監測參考。計數 ≥ 3 或含嚴重個案者以紅底標示；PT 未經完整 MedDRA 詞典校驗者標「AI推測」。
+                 {t('signals.disclaimer')}
                </div>
 
                <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  {signalReport.groups.length === 0 ? (
                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400 py-20">
                      <ChartBarIcon className="w-16 h-16" />
-                     <p className="font-black mt-4">尚無可聚合的訊號</p>
-                     <p className="text-xs font-bold mt-1">請先將文獻匯入正式庫並完成結構化抽取</p>
+                     <p className="font-black mt-4">{t('signals.empty')}</p>
+                     <p className="text-xs font-bold mt-1">{t('signals.emptyHint')}</p>
                    </div>
                  ) : (
                    <table className="w-full">
                      <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                        <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">成分</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colIngredient')}</th>
                          <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">MedDRA PT</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">系統器官分類 (SOC)</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">文獻數</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">嚴重</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colSoc')}</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colCount')}</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colSerious')}</th>
                          <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">PMIDs</th>
                        </tr>
                      </thead>
@@ -756,7 +771,7 @@ const App: React.FC = () => {
                              <td className="px-6 py-5 font-black text-slate-800 dark:text-slate-100 text-sm">{g.ingredient}</td>
                              <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                {g.pt}
-                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{g.matched ? '詞典校驗' : 'AI推測'}</span>
+                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
                              </td>
                              <td className="px-6 py-5 text-xs font-bold text-slate-500 dark:text-slate-400 italic">{g.soc}</td>
                              <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-rose-200 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>{g.count}</span></td>
@@ -788,8 +803,8 @@ const App: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-slate-800 rounded-xl text-white"><DocumentTextIcon className="w-5 h-5" /></div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">CIOMS-I / E2B 草稿</h3>
-                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">AI 輔助產生，需藥物警戒人員審閱補全</p>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t('review.ciomsModalTitle')}</h3>
+                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">{t('review.ciomsAiNotice')}</p>
                 </div>
               </div>
               <button onClick={() => setCiomsText(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>
@@ -798,10 +813,10 @@ const App: React.FC = () => {
             <div className="flex gap-3 px-8 py-5 border-t border-slate-200 dark:border-slate-700">
               <button onClick={copyCiomsText} className="flex-1 bg-indigo-600 text-white py-3 rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all hover:bg-indigo-700 flex items-center justify-center gap-2">
                 {ciomsCopied ? <CheckIcon className="w-5 h-5" /> : <ClipboardDocumentIcon className="w-5 h-5" />}
-                {ciomsCopied ? '已複製!' : '複製全文'}
+                {ciomsCopied ? t('common.copied') : t('review.copyFullText')}
               </button>
               <button onClick={downloadCiomsText} className="flex-1 bg-slate-800 text-white py-3 rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all hover:bg-slate-900 flex items-center justify-center gap-2">
-                <ArrowDownTrayIcon className="w-5 h-5" /> 下載 .txt
+                <ArrowDownTrayIcon className="w-5 h-5" /> {t('review.downloadTxt')}
               </button>
             </div>
           </div>
