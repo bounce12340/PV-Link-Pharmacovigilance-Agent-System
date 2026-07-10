@@ -42,9 +42,9 @@ const llm = new PVLLMService();
 
 // 相關性分數的顏色分級：高(綠) / 中(琥珀) / 低(灰)
 const scoreBadgeClass = (score: number) =>
-  score >= 70 ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-  : score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-300'
-  : 'bg-slate-100 text-slate-500 border-slate-300';
+  score >= 70 ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40'
+  : score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
+  : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40';
 
 // CSV 欄位轉義：以雙引號包覆並加倍內部引號；前導 = + - @ 加單引號，防 Excel 公式注入
 const csvCell = (v: any) => {
@@ -396,13 +396,13 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans text-slate-900 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col font-sans text-slate-900 dark:text-slate-100 relative overflow-hidden">
       {/* 水彩背景層 */}
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc]">
-         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/40 rounded-full blur-[120px] mix-blend-multiply animate-[pulse_8s_infinite]" />
-         <div className="absolute top-[20%] right-[-10%] w-[60%] h-[60%] bg-rose-200/40 rounded-full blur-[120px] mix-blend-multiply animate-[pulse_10s_infinite_2s]" />
-         <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-teal-200/40 rounded-full blur-[120px] mix-blend-multiply animate-[pulse_12s_infinite_4s]" />
-         <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-amber-100/60 rounded-full blur-[80px] mix-blend-multiply" />
+      <div className="fixed inset-0 -z-10 bg-[#f8fafc] dark:bg-[#0b1020]">
+         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/40 dark:bg-indigo-500/20 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_8s_infinite]" />
+         <div className="absolute top-[20%] right-[-10%] w-[60%] h-[60%] bg-rose-200/40 dark:bg-rose-500/15 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_10s_infinite_2s]" />
+         <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-teal-200/40 dark:bg-teal-500/15 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_12s_infinite_4s]" />
+         <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-amber-100/60 dark:bg-amber-500/10 rounded-full blur-[80px] mix-blend-multiply dark:mix-blend-screen" />
       </div>
 
       <div className="bg-slate-900/80 backdrop-blur-md text-indigo-200/80 text-[10px] px-6 py-1.5 flex justify-between font-mono tracking-widest border-b border-white/5">
@@ -410,12 +410,12 @@ const App: React.FC = () => {
         <span>SYSTEM_TIME: {now().iso_datetime}</span>
       </div>
 
-      <header className="bg-white/30 backdrop-blur-xl border-b border-white/40 px-8 py-5 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+      <header className="bg-white/30 dark:bg-white/5 backdrop-blur-xl border-b border-white/40 dark:border-white/10 px-8 py-5 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-5">
           <div className="bg-indigo-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" /></div>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">PV-Link Auditor</h1>
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest flex items-center gap-2">專業稽核模式 (PRO-V3)</p>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">PV-Link Auditor</h1>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest flex items-center gap-2">專業稽核模式 (PRO-V3)</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -431,30 +431,30 @@ const App: React.FC = () => {
 
       {/* 進度條：AI 分批處理時顯示已完成 / 總數（#2） */}
       {progress && progress.total > 0 && (
-        <div className="bg-indigo-50/80 backdrop-blur-md border-b border-indigo-100 px-8 py-2.5 flex items-center gap-4 z-20">
-          <span className="text-[11px] font-black text-indigo-700 whitespace-nowrap uppercase tracking-widest">{progress.label}</span>
-          <div className="flex-1 h-2.5 bg-indigo-100 rounded-full overflow-hidden">
+        <div className="bg-indigo-50/80 dark:bg-indigo-950/40 backdrop-blur-md border-b border-indigo-100 dark:border-indigo-900/40 px-8 py-2.5 flex items-center gap-4 z-20">
+          <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap uppercase tracking-widest">{progress.label}</span>
+          <div className="flex-1 h-2.5 bg-indigo-100 dark:bg-indigo-900/40 rounded-full overflow-hidden">
             <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
           </div>
-          <span className="text-[11px] font-black text-indigo-700 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
+          <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
         </div>
       )}
 
       <main className="flex-1 flex overflow-hidden">
-        <aside className="w-72 bg-white/30 backdrop-blur-2xl border-r border-white/40 flex flex-col p-6 space-y-2 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-          <button onClick={() => setActiveTab('input')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
+        <aside className="w-72 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-r border-white/40 dark:border-white/10 flex flex-col p-6 space-y-2 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+          <button onClick={() => setActiveTab('input')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <AdjustmentsHorizontalIcon className="w-5 h-5" /> 檢索設定
           </button>
-          <button onClick={() => setActiveTab('review')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'review' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
+          <button onClick={() => setActiveTab('review')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'review' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <ClipboardDocumentCheckIcon className="w-5 h-5" /> 待核閱 ({records.length})
           </button>
-          <button onClick={() => setActiveTab('database')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
+          <button onClick={() => setActiveTab('database')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <CircleStackIcon className="w-5 h-5" /> 正式庫 ({masterDatabase.length})
           </button>
-          <button onClick={() => setActiveTab('signals')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 hover:bg-white/40 border-transparent'}`}>
+          <button onClick={() => setActiveTab('signals')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <ChartBarIcon className="w-5 h-5" /> 訊號聚合 ({signalReport.groups.length})
           </button>
-          <button onClick={() => setActiveTab('logs')} className="mt-auto w-full flex items-center gap-4 px-5 py-4 text-[10px] font-black uppercase text-slate-400">
+          <button onClick={() => setActiveTab('logs')} className="mt-auto w-full flex items-center gap-4 px-5 py-4 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
             <FingerPrintIcon className="w-4 h-4" /> 系統日誌
           </button>
         </aside>
@@ -462,34 +462,34 @@ const App: React.FC = () => {
         <section className="flex-1 overflow-hidden flex flex-col relative">
           {activeTab === 'input' && (
             <div className="flex-1 p-20 flex flex-col items-center overflow-y-auto">
-               <div className="w-full max-w-xl bg-white/50 backdrop-blur-xl p-12 rounded-[3rem] border border-white/60 shadow-2xl space-y-10">
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">藥物監測配置</h2>
+               <div className="w-full max-w-xl bg-white/50 dark:bg-white/[0.08] backdrop-blur-xl p-12 rounded-[3rem] border border-white/60 dark:border-white/10 shadow-2xl space-y-10">
+                  <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">藥物監測配置</h2>
                   <div className="space-y-6">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">目標成分 (必填，多成分請用逗號分隔)</label>
-                       <input type="text" placeholder="例如: Fenofibrate, Aspirin" value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-4 text-lg font-black outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">目標成分 (必填，多成分請用逗號分隔)</label>
+                       <input type="text" placeholder="例如: Fenofibrate, Aspirin" value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                        <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">監測起始</label>
-                         <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all shadow-sm" />
+                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">監測起始</label>
+                         <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                        <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">監測結束</label>
-                         <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all shadow-sm" />
+                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">監測結束</label>
+                         <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">AE 關鍵字 (逗號分隔，支援 * 萬用字元)</label>
-                       <input type="text" placeholder='例如: Adverse drug reactions, pharmacovigilance*' value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">AE 關鍵字 (逗號分隔，支援 * 萬用字元)</label>
+                       <input type="text" placeholder='例如: Adverse drug reactions, pharmacovigilance*' value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">排除詞 (逗號分隔，選填，以 NOT 排除)</label>
-                       <input type="text" placeholder='例如: animal-only, review' value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">排除詞 (逗號分隔，選填，以 NOT 排除)</label>
+                       <input type="text" placeholder='例如: animal-only, review' value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-1">最多取回筆數 (分頁上限，10–500)</label>
-                       <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl px-6 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">最多取回筆數 (分頁上限，10–500)</label>
+                       <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                   </div>
                </div>
@@ -498,76 +498,76 @@ const App: React.FC = () => {
 
           {activeTab === 'review' && (
              <div className="flex-1 flex overflow-hidden">
-               <div className="w-[45%] border-r border-white/30 overflow-y-auto p-8 space-y-4 bg-white/10 backdrop-blur-sm">
+               <div className="w-[45%] border-r border-white/30 dark:border-white/10 overflow-y-auto p-8 space-y-4 bg-white/10 dark:bg-white/[0.03] backdrop-blur-sm">
                   {records.length > 0 && (
-                    <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 backdrop-blur-xl border-b border-white/50 flex items-center gap-3">
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest whitespace-nowrap">相關性 ≥ {minScore}</span>
+                    <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 dark:bg-white/10 backdrop-blur-xl border-b border-white/50 dark:border-white/10 flex items-center gap-3">
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest whitespace-nowrap">相關性 ≥ {minScore}</span>
                       <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="flex-1 accent-indigo-600" />
                       <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} 筆</span>
                     </div>
                   )}
                   {records.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">無待核閱文獻</p></div>
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">無待核閱文獻</p></div>
                   ) : visibleReviewRecords.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">無文獻達到分數門檻</p></div>
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">無文獻達到分數門檻</p></div>
                   ) : visibleReviewRecords.map(r => (
-                    <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-indigo-600 bg-white/90 shadow-xl' : 'border-slate-200/60 bg-white/40 hover:bg-white/60 hover:border-indigo-300'}`}>
+                    <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-indigo-600 dark:border-indigo-400 bg-white/90 dark:bg-slate-800/90 shadow-xl' : 'border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-white/[0.07] hover:bg-white/60 dark:hover:bg-white/10 hover:border-indigo-300 dark:hover:border-indigo-500'}`}>
                        <div className="flex justify-between items-center mb-2">
                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason}>相關性 {r.relevance_score ?? '—'}</span>
-                         <span className="text-[10px] font-black text-slate-500">PMID:{r.pmid}</span>
+                         <span className="text-[10px] font-black text-slate-500 dark:text-slate-400">PMID:{r.pmid}</span>
                        </div>
-                       <div className="text-[10px] font-black text-indigo-600 mb-1">{r.dp}</div>
-                       <h3 className="font-black text-slate-800 text-sm leading-tight line-clamp-2">{r.title}</h3>
+                       <div className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1">{r.dp}</div>
+                       <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight line-clamp-2">{r.title}</h3>
                     </div>
                   ))}
                </div>
-               <div className="flex-1 bg-white/40 backdrop-blur-xl p-12 overflow-y-auto">
+               <div className="flex-1 bg-white/40 dark:bg-white/[0.07] backdrop-blur-xl p-12 overflow-y-auto">
                  {selectedRecord ? (
                    <div className="max-w-xl mx-auto space-y-8">
                       <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-700 text-[10px] font-black tracking-widest uppercase"><SparklesIcon className="w-4 h-4" /> 文獻稽核詳情</div>
-                        <h2 className="text-2xl font-black text-slate-900 leading-snug">{selectedRecord.title}</h2>
+                        <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-[10px] font-black tracking-widest uppercase"><SparklesIcon className="w-4 h-4" /> 文獻稽核詳情</div>
+                        <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-snug">{selectedRecord.title}</h2>
                         <button onClick={() => window.open(selectedRecord.primary_link, '_blank')} className="flex items-center gap-2 bg-slate-900/90 text-white px-6 py-3 rounded-2xl font-black text-[11px] shadow-lg hover:bg-slate-800 transition-all">
                           <ArrowTopRightOnSquareIcon className="w-4 h-4" /> 官網驗證連結
                         </button>
                       </div>
-                      
+
                       <div className="space-y-4">
                         {/* 強化版結論卡片 */}
-                        <div className="relative group bg-gradient-to-br from-amber-50/90 to-orange-50/80 backdrop-blur-md text-amber-900 p-8 rounded-[2rem] border-2 border-amber-200/60 shadow-lg transition-all hover:shadow-xl hover:border-amber-300/80">
+                        <div className="relative group bg-gradient-to-br from-amber-50/90 to-orange-50/80 dark:from-amber-500/10 dark:to-orange-500/10 backdrop-blur-md text-amber-900 dark:text-amber-100 p-8 rounded-[2rem] border-2 border-amber-200/60 dark:border-amber-500/20 shadow-lg transition-all hover:shadow-xl hover:border-amber-300/80 dark:hover:border-amber-500/40">
                            <div className="flex justify-between items-start mb-4">
-                               <div className="flex items-center gap-2 text-xs font-black text-amber-700 uppercase tracking-widest">
-                                 <div className="p-1.5 bg-amber-200/50 rounded-lg">
-                                    <LightBulbIcon className="w-5 h-5 text-amber-700" />
+                               <div className="flex items-center gap-2 text-xs font-black text-amber-700 dark:text-amber-300 uppercase tracking-widest">
+                                 <div className="p-1.5 bg-amber-200/50 dark:bg-amber-500/20 rounded-lg">
+                                    <LightBulbIcon className="w-5 h-5 text-amber-700 dark:text-amber-300" />
                                  </div>
                                  臨床結論 (Key Conclusion)
                                </div>
-                               <button 
+                               <button
                                  onClick={() => handleCopyConclusion(selectedRecord.conclusion_zh)}
-                                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 hover:bg-white text-[10px] font-bold text-amber-800 transition-all border border-amber-100 shadow-sm active:scale-95 group-hover:bg-white"
+                                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-[10px] font-bold text-amber-800 dark:text-amber-200 transition-all border border-amber-100 dark:border-amber-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
                                  title="複製結論"
                                >
-                                 {copiedConclusion ? <CheckIcon className="w-4 h-4 text-emerald-600" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
-                                 {copiedConclusion ? <span className="text-emerald-600">已複製!</span> : '複製'}
+                                 {copiedConclusion ? <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
+                                 {copiedConclusion ? <span className="text-emerald-600 dark:text-emerald-400">已複製!</span> : '複製'}
                                </button>
                            </div>
-                           <p className="text-lg font-bold leading-relaxed text-slate-800 drop-shadow-sm selection:bg-amber-200/50">
+                           <p className="text-lg font-bold leading-relaxed text-slate-800 dark:text-slate-100 drop-shadow-sm selection:bg-amber-200/50">
                              {selectedRecord.conclusion_zh || "分析中..."}
                            </p>
                         </div>
-                        
-                        <div className="bg-white/60 backdrop-blur-md text-indigo-950 p-8 rounded-[2rem] border border-white/80 shadow-sm">
-                           <div className="text-[10px] font-black text-indigo-500 mb-3 tracking-widest uppercase">AI 完整摘要 (Summary)</div>
-                           <p className="text-sm font-medium leading-relaxed text-slate-700">{selectedRecord.summary_zh || "正在解析中..."}</p>
+
+                        <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md text-indigo-950 dark:text-indigo-100 p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
+                           <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 mb-3 tracking-widest uppercase">AI 完整摘要 (Summary)</div>
+                           <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{selectedRecord.summary_zh || "正在解析中..."}</p>
                         </div>
                       </div>
 
                       {/* 結構化 PV 數據抽取結果 */}
-                      <div className="bg-white/60 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 shadow-sm">
+                      <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="text-[10px] font-black text-indigo-500 tracking-widest uppercase">結構化 PV 數據 (Structured Extraction)</div>
+                          <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 tracking-widest uppercase">結構化 PV 數據 (Structured Extraction)</div>
                           {selectedRecord.pv_data?.completeness && (
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>{selectedRecord.pv_data.completeness}</span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
                           )}
                         </div>
                         {extractingSet.has(selectedRecord.id) && !selectedRecord.pv_data ? (
@@ -589,7 +589,7 @@ const App: React.FC = () => {
                             ].map(([label, value]) => (
                               <div key={label} className="space-y-1">
                                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{label}</div>
-                                <div className="text-sm font-bold text-slate-700 break-words">{value || <span className="text-slate-300">—</span>}</div>
+                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 break-words">{value || <span className="text-slate-300 dark:text-slate-600">—</span>}</div>
                               </div>
                             ))}
                           </div>
@@ -625,59 +625,59 @@ const App: React.FC = () => {
             <div className="w-full h-full p-12 flex flex-col overflow-hidden">
                <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h2 className="text-4xl font-black text-slate-900 drop-shadow-sm">正式文獻庫</h2>
-                    <p className="text-slate-500 text-xs font-black uppercase mt-1">總筆數: {masterDatabase.length} | 篩選後: {filteredDatabase.length}</p>
+                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">正式文獻庫</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">總筆數: {masterDatabase.length} | 篩選後: {filteredDatabase.length}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-indigo-100/80 backdrop-blur-sm text-indigo-900 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-indigo-200 disabled:opacity-50 transition-all border border-indigo-300/50 shadow-sm">
+                    <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-indigo-100/80 dark:bg-indigo-500/20 backdrop-blur-sm text-indigo-900 dark:text-indigo-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm">
                       <SparklesIcon className={`w-5 h-5 ${batchExtractInfo ? 'animate-pulse' : ''}`} />
                       {batchExtractInfo ? `抽取中 ${batchExtractInfo.done}/${batchExtractInfo.total}` : `批次抽取 (${masterDatabase.filter(r => !r.pv_data && !r.is_excluded).length})`}
                     </button>
-                    <button onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 backdrop-blur-sm text-emerald-900 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 transition-all border border-emerald-300/50 shadow-sm">
+                    <button onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 dark:bg-emerald-500/20 backdrop-blur-sm text-emerald-900 dark:text-emerald-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-all border border-emerald-300/50 dark:border-emerald-500/30 shadow-sm">
                       <ArrowDownTrayIcon className="w-5 h-5" /> 匯出篩選結果 ({filteredDatabase.length})
                     </button>
-                    <button onClick={() => exportToCSV('all')} className="bg-white/60 backdrop-blur-sm text-slate-700 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-white transition-all border border-slate-300/50 shadow-sm">
+                    <button onClick={() => exportToCSV('all')} className="bg-white/60 dark:bg-white/10 backdrop-blur-sm text-slate-700 dark:text-slate-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-white dark:hover:bg-white/20 transition-all border border-slate-300/50 dark:border-slate-600/50 shadow-sm">
                       <ArrowDownTrayIcon className="w-5 h-5" /> 匯出全庫 ({masterDatabase.length})
                     </button>
                   </div>
                </div>
 
-               <div className="bg-white/60 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 shadow-lg mb-6 flex flex-wrap gap-4 items-end">
+               <div className="bg-white/60 dark:bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 dark:border-white/10 shadow-lg mb-6 flex flex-wrap gap-4 items-end">
                   <div className="flex-1 min-w-[300px] relative">
-                    <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                    <input type="text" placeholder="全域檢索: PMID、標題、成分或摘要關鍵字..." value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 border-2 border-slate-300 rounded-2xl pl-12 pr-4 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    <input type="text" placeholder="全域檢索: PMID、標題、成分或摘要關鍵字..." value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <FunnelIcon className="w-5 h-5 text-slate-500" />
-                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 border-2 border-slate-300 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md shadow-sm" />
+                    <FunnelIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
                     <span className="text-slate-400">~</span>
-                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 border-2 border-slate-300 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white focus:shadow-md shadow-sm" />
+                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
                   </div>
-                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 hover:text-indigo-600 font-black text-[10px] uppercase p-2">清空</button>
+                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-black text-[10px] uppercase p-2">清空</button>
                </div>
 
-               <div className="bg-white/40 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 shadow-xl flex-1 overflow-auto">
+               <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  <table className="w-full">
-                   <thead className="bg-white/30 backdrop-blur-md sticky top-0 z-10">
-                     <tr className="border-b border-slate-200/50">
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase text-left">文獻 ID</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase text-left">文獻細節</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase text-left">出版資訊</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase text-right">操作</th>
+                   <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
+                     <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">文獻 ID</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">文獻細節</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">出版資訊</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-right">操作</th>
                      </tr>
                    </thead>
                    <tbody>
                      {filteredDatabase.length === 0 ? (
                        <tr><td colSpan={4} className="py-20 text-center text-slate-400 font-black italic">查無資料</td></tr>
                      ) : filteredDatabase.map(r => (
-                       <tr key={r.id} className="border-b border-slate-200/60 hover:bg-white/60 cursor-pointer group transition-colors" onClick={() => { setSelectedRecordId(r.id); setActiveTab('review'); }}>
+                       <tr key={r.id} className="border-b border-slate-200/60 dark:border-slate-700/60 hover:bg-white/60 dark:hover:bg-white/10 cursor-pointer group transition-colors" onClick={() => { setSelectedRecordId(r.id); setActiveTab('review'); }}>
                          <td className="px-8 py-8 font-mono text-xs font-bold text-slate-400">{r.pmid}</td>
                          <td className="px-8 py-8 max-w-lg">
-                           <div className="font-black text-slate-800 line-clamp-2">{r.title}</div>
+                           <div className="font-black text-slate-800 dark:text-slate-100 line-clamp-2">{r.title}</div>
                            <div className="flex gap-2 mt-2">
-                             <span className="bg-indigo-100/60 text-indigo-700 px-2 py-0.5 rounded text-[8px] font-black uppercase">標籤: {r.original_search_term}</span>
+                             <span className="bg-indigo-100/60 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">標籤: {r.original_search_term}</span>
                              {r.pv_data?.ingredient && r.pv_data.ingredient !== r.original_search_term && (
-                               <span className="bg-amber-100/60 text-amber-700 px-2 py-0.5 rounded text-[8px] font-black uppercase">AI 識別: {r.pv_data.ingredient}</span>
+                               <span className="bg-amber-100/60 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">AI 識別: {r.pv_data.ingredient}</span>
                              )}
                            </div>
                          </td>
@@ -686,9 +686,9 @@ const App: React.FC = () => {
                            <div className="text-[10px] font-mono text-indigo-400 font-black mt-1">{r.dp}</div>
                          </td>
                          <td className="px-8 py-8 text-right">
-                           <button 
+                           <button
                              onClick={(e) => handleDeleteFromDB(e, r.id)}
-                             className="text-slate-300 hover:text-red-500 hover:bg-red-50/50 p-2 rounded-full transition-all"
+                             className="text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-500/10 p-2 rounded-full transition-all"
                              title="移除此文獻"
                            >
                              <TrashIcon className="w-5 h-5" />
@@ -706,55 +706,55 @@ const App: React.FC = () => {
             <div className="w-full h-full p-12 flex flex-col overflow-hidden">
                <div className="flex justify-between items-start mb-8">
                   <div>
-                    <h2 className="text-4xl font-black text-slate-900 drop-shadow-sm">安全訊號聚合</h2>
-                    <p className="text-slate-500 text-xs font-black uppercase mt-1">
+                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">安全訊號聚合</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">
                       成分 × MedDRA PT 分組 | 已分析 {signalReport.analysedRecords} 筆 | 未抽取略過 {signalReport.skipped} 筆
                     </p>
                   </div>
                   {signalReport.skipped > 0 && (
-                    <button onClick={() => { setActiveTab('database'); }} className="bg-amber-100/80 text-amber-900 px-5 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-amber-200 transition-all border border-amber-300/50 shadow-sm">
+                    <button onClick={() => { setActiveTab('database'); }} className="bg-amber-100/80 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 px-5 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-amber-200 dark:hover:bg-amber-500/30 transition-all border border-amber-300/50 dark:border-amber-500/30 shadow-sm">
                       <ExclamationTriangleIcon className="w-5 h-5" /> {signalReport.skipped} 筆尚未抽取，前往批次抽取
                     </button>
                   )}
                </div>
 
-               <div className="bg-rose-50/60 border border-rose-200/60 rounded-2xl px-6 py-3 mb-6 text-[11px] font-bold text-rose-800/80 flex items-center gap-2">
+               <div className="bg-rose-50/60 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 rounded-2xl px-6 py-3 mb-6 text-[11px] font-bold text-rose-800/80 dark:text-rose-300 flex items-center gap-2">
                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
                  訊號僅供內部監測參考。計數 ≥ 3 或含嚴重個案者以紅底標示；PT 未經完整 MedDRA 詞典校驗者標「AI推測」。
                </div>
 
-               <div className="bg-white/40 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 shadow-xl flex-1 overflow-auto">
+               <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  {signalReport.groups.length === 0 ? (
-                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 py-20">
+                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400 py-20">
                      <ChartBarIcon className="w-16 h-16" />
                      <p className="font-black mt-4">尚無可聚合的訊號</p>
                      <p className="text-xs font-bold mt-1">請先將文獻匯入正式庫並完成結構化抽取</p>
                    </div>
                  ) : (
                    <table className="w-full">
-                     <thead className="bg-white/30 backdrop-blur-md sticky top-0 z-10">
-                       <tr className="border-b border-slate-200/50">
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">成分</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">MedDRA PT</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">系統器官分類 (SOC)</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-center">文獻數</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-center">嚴重</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 uppercase text-left">PMIDs</th>
+                     <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
+                       <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">成分</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">MedDRA PT</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">系統器官分類 (SOC)</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">文獻數</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">嚴重</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">PMIDs</th>
                        </tr>
                      </thead>
                      <tbody>
                        {signalReport.groups.map((g, i) => {
                          const flagged = g.count >= 3 || g.seriousCount > 0;
                          return (
-                           <tr key={i} className={`border-b border-slate-200/60 transition-colors ${flagged ? 'bg-rose-50/50 hover:bg-rose-100/50' : 'hover:bg-white/60'}`}>
-                             <td className="px-6 py-5 font-black text-slate-800 text-sm">{g.ingredient}</td>
-                             <td className="px-6 py-5 text-sm font-bold text-slate-700">
+                           <tr key={i} className={`border-b border-slate-200/60 dark:border-slate-700/60 transition-colors ${flagged ? 'bg-rose-50/50 dark:bg-rose-500/10 hover:bg-rose-100/50 dark:hover:bg-rose-500/15' : 'hover:bg-white/60 dark:hover:bg-white/10'}`}>
+                             <td className="px-6 py-5 font-black text-slate-800 dark:text-slate-100 text-sm">{g.ingredient}</td>
+                             <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                {g.pt}
-                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>{g.matched ? '詞典校驗' : 'AI推測'}</span>
+                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{g.matched ? '詞典校驗' : 'AI推測'}</span>
                              </td>
-                             <td className="px-6 py-5 text-xs font-bold text-slate-500 italic">{g.soc}</td>
-                             <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-rose-200 text-rose-800' : 'bg-slate-100 text-slate-600'}`}>{g.count}</span></td>
-                             <td className="px-6 py-5 text-center font-black text-rose-600">{g.seriousCount || '—'}</td>
+                             <td className="px-6 py-5 text-xs font-bold text-slate-500 dark:text-slate-400 italic">{g.soc}</td>
+                             <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-rose-200 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>{g.count}</span></td>
+                             <td className="px-6 py-5 text-center font-black text-rose-600 dark:text-rose-400">{g.seriousCount || '—'}</td>
                              <td className="px-6 py-5 text-[10px] font-mono text-indigo-400 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
                            </tr>
                          );
@@ -777,19 +777,19 @@ const App: React.FC = () => {
       {/* CIOMS-I / E2B 草稿檢視器 (#4) */}
       {ciomsText !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm" onClick={() => setCiomsText(null)}>
-          <div className="bg-white rounded-[2rem] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-white/60" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-8 py-5 border-b border-slate-200">
+          <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col border border-white/60 dark:border-white/10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-8 py-5 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-slate-800 rounded-xl text-white"><DocumentTextIcon className="w-5 h-5" /></div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900">CIOMS-I / E2B 草稿</h3>
-                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">AI 輔助產生，需藥物警戒人員審閱補全</p>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">CIOMS-I / E2B 草稿</h3>
+                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">AI 輔助產生，需藥物警戒人員審閱補全</p>
                 </div>
               </div>
-              <button onClick={() => setCiomsText(null)} className="text-slate-400 hover:text-slate-700 p-2 rounded-full hover:bg-slate-100 transition-all"><XMarkIcon className="w-6 h-6" /></button>
+              <button onClick={() => setCiomsText(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>
             </div>
-            <pre className="flex-1 overflow-auto px-8 py-6 text-xs font-mono text-slate-700 whitespace-pre-wrap leading-relaxed">{ciomsText}</pre>
-            <div className="flex gap-3 px-8 py-5 border-t border-slate-200">
+            <pre className="flex-1 overflow-auto px-8 py-6 text-xs font-mono text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{ciomsText}</pre>
+            <div className="flex gap-3 px-8 py-5 border-t border-slate-200 dark:border-slate-700">
               <button onClick={copyCiomsText} className="flex-1 bg-indigo-600 text-white py-3 rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all hover:bg-indigo-700 flex items-center justify-center gap-2">
                 {ciomsCopied ? <CheckIcon className="w-5 h-5" /> : <ClipboardDocumentIcon className="w-5 h-5" />}
                 {ciomsCopied ? '已複製!' : '複製全文'}
