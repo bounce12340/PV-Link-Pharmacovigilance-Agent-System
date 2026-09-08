@@ -1,0 +1,63 @@
+# CI：每個 PR 與每次推上 main 都跑一次「乾淨檢出 → 安裝 → 型別檢查 → 測試 → 建置」。
+#
+# 為什麼是這四步，不多也不少：
+#   本專案沒有 linter 設定（無 eslint / prettier 設定檔），硬加一個沒人約定過的 linter
+#   只會產生大量與程式正確性無關的雜訊。真正擋得住錯誤的是 tsc、vitest 與 vite build 三關，
+#   而 build 會抓到前兩者抓不到的打包期問題——最典型的是 import 路徑大小寫：
+#   macOS 檔案系統不分大小寫，Linux 分，只有真的建置一次才會現形。
+#
+# Node 版本矩陣為 22 與 24：
+#   Node 20 已於 2026-04 結束支援，不再納入；
+#   jsdom 29 要求 ^20.19 || ^22.13 || >=24，@vitejs/plugin-react 5 要求 ^20.19 || >=22.12，
+#   22.x / 24.x 取到的最新修補版都在支援範圍內。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支連續推送時取消尚未跑完的舊執行：省額度，也確保綠燈永遠對應最新的 commit。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 最小權限：這個工作流程只需要讀原始碼，不寫回 repo、不碰 packages。
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      # 一個版本失敗時仍把另一個跑完，才分得出是「版本專屬問題」還是「共通問題」。
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # 用 npm ci 而非 npm install：嚴格依 package-lock.json 安裝，
+      # 且 lock 與 package.json 不同步時會直接失敗——這本身就是一道檢查。
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
