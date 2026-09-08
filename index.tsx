@@ -2,7 +2,7 @@
 import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import Root from './components/Root';
 import { ThemeProvider } from './theme/ThemeContext';
 import { LangProvider } from './i18n/LangContext';
 
@@ -16,7 +16,7 @@ root.render(
   <React.StrictMode>
     <ThemeProvider>
       <LangProvider>
-        <App />
+        <Root />
       </LangProvider>
     </ThemeProvider>
   </React.StrictMode>
