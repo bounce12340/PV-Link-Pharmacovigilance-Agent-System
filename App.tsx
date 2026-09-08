@@ -8,9 +8,11 @@ import {
 } from './types';
 import { now } from './services/tools';
 import { PVLLMService } from './services/llmService';
-import { loadRecords, saveRecords, DB_KEY, PENDING_KEY } from './services/storage';
+import { loadRecords, saveRecords, DB_KEY, PENDING_KEY, AE_CASES_KEY } from './services/storage';
 import { buildCIOMS, ciomsToText } from './services/cioms';
 import { aggregateSignals } from './services/signals';
+import { AEReport, aeToSignalRecords } from './services/aeReport';
+import AEIntakeConsole from './components/AEIntakeConsole';
 import { lookupMeddra } from './services/meddra';
 import { useTheme } from './theme/ThemeContext';
 import { useLang, useT } from './i18n/LangContext';
@@ -90,7 +92,9 @@ const App: React.FC = () => {
   const [masterDatabase, setMasterDatabase] = useState<PVRecord[]>([]);
   // 儲存層採 IndexedDB（非同步）。hydrated 用來確保「載入完成前」不會用空陣列覆寫既有資料。
   const [hydrated, setHydrated] = useState(false);
-  const [activeTab, setActiveTab] = useState<'input' | 'review' | 'database' | 'signals' | 'logs'>('input');
+  const [activeTab, setActiveTab] = useState<'input' | 'review' | 'database' | 'signals' | 'intake' | 'logs'>('input');
+  // 業務端送進來的不良反應個案（自發性通報）。與文獻庫並存，共用訊號聚合。
+  const [aeCases, setAeCases] = useState<AEReport[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [copiedConclusion, setCopiedConclusion] = useState(false);
@@ -114,10 +118,13 @@ const App: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [db, pending] = await Promise.all([loadRecords(DB_KEY), loadRecords(PENDING_KEY)]);
+      const [db, pending, ae] = await Promise.all([
+        loadRecords(DB_KEY), loadRecords(PENDING_KEY), loadRecords(AE_CASES_KEY),
+      ]);
       if (cancelled) return;
       setMasterDatabase(db as PVRecord[]);
       setRecords(pending as PVRecord[]);
+      setAeCases(ae as AEReport[]);
       setHydrated(true);
     })();
     return () => { cancelled = true; };
@@ -132,6 +139,29 @@ const App: React.FC = () => {
   useEffect(() => {
     if (hydrated) saveRecords(PENDING_KEY, records);
   }, [records, hydrated]);
+
+  // 持久化：不良反應個案庫
+  useEffect(() => {
+    if (hydrated) saveRecords(AE_CASES_KEY, aeCases);
+  }, [aeCases, hydrated]);
+
+  // 視窗重新取得焦點時重讀個案庫。
+  // 未設定 VITE_AE_API_ENDPOINT 時，業務端與後台共用同一個瀏覽器的 IndexedDB；
+  // 少了這一步，後台分頁會一直停在開啟當下的快照，還可能用舊陣列覆寫手機剛送出的個案。
+  useEffect(() => {
+    if (!hydrated) return;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const fresh = (await loadRecords(AE_CASES_KEY)) as PVRecord[] as unknown as AEReport[];
+      setAeCases(prev => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [hydrated]);
 
   // Reset copy state when selection changes
   useEffect(() => {
@@ -284,7 +314,12 @@ const App: React.FC = () => {
   };
 
   // 訊號聚合結果（依正式庫即時計算）
-  const signalReport = useMemo(() => aggregateSignals(masterDatabase), [masterDatabase]);
+  // 訊號聚合同時吃「文獻個案」與「自發性通報個案」——兩者是同一個安全訊號的不同來源，
+  // 分開統計會讓同一個成分 × PT 組合的計數低估，錯過訊號門檻。
+  const signalReport = useMemo(
+    () => aggregateSignals([...masterDatabase, ...aeToSignalRecords(aeCases)]),
+    [masterDatabase, aeCases]
+  );
 
   const handleImport = async (record: PVRecord) => {
     if (masterDatabase.some(m => m.pmid === record.pmid)) {
@@ -446,20 +481,20 @@ const App: React.FC = () => {
          <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-amber-100/60 dark:bg-amber-500/10 rounded-full blur-[80px] mix-blend-multiply dark:mix-blend-screen" />
       </div>
 
-      <div className="bg-slate-900/80 backdrop-blur-md text-indigo-200/80 text-[10px] px-6 py-1.5 flex justify-between font-mono tracking-widest border-b border-white/5">
+      <div className="bg-slate-900/80 backdrop-blur-md text-indigo-200/80 text-[10px] px-4 md:px-6 py-1.5 flex justify-between font-mono tracking-widest border-b border-white/5">
         <span>PV-AUDITOR // DATA-INTEGRITY-ENABLED</span>
-        <span>SYSTEM_TIME: {now().iso_datetime}</span>
+        <span className="hidden sm:inline">SYSTEM_TIME: {now().iso_datetime}</span>
       </div>
 
-      <header className="bg-white/30 dark:bg-white/5 backdrop-blur-xl border-b border-white/40 dark:border-white/10 px-8 py-5 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-5">
+      <header className="bg-white/30 dark:bg-white/5 backdrop-blur-xl border-b border-white/40 dark:border-white/10 px-4 md:px-8 py-4 md:py-5 flex justify-between items-center gap-3 sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-3 md:gap-5 min-w-0">
           <div className="bg-indigo-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" /></div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">PV-Link Auditor</h1>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest flex items-center gap-2">{t('header.subtitle')}</p>
+          <div className="min-w-0">
+            <h1 className="text-lg md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight truncate">PV-Link Auditor</h1>
+            <p className="hidden sm:flex text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest items-center gap-2">{t('header.subtitle')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
         <button onClick={toggle} title={t('header.themeToggle')} className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
@@ -467,16 +502,16 @@ const App: React.FC = () => {
           <button onClick={() => setLang('zh')} className={`px-3 py-2 transition-all ${lang === 'zh' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>中</button>
           <button onClick={() => setLang('en')} className={`px-3 py-2 transition-all ${lang === 'en' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>EN</button>
         </div>
-        <button onClick={runWorkflow} disabled={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-3 transition-all border border-white/20">
+        <button onClick={runWorkflow} disabled={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-4 md:px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-2 md:gap-3 transition-all border border-white/20 min-h-[44px]">
           <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} />
-          {isProcessing ? t(stepLabelKeys[step]) : t('header.run')}
+          <span className="hidden md:inline">{isProcessing ? t(stepLabelKeys[step]) : t('header.run')}</span>
         </button>
         </div>
       </header>
 
       {/* 進度條：AI 分批處理時顯示已完成 / 總數（#2） */}
       {progress && progress.total > 0 && (
-        <div className="bg-indigo-50/80 dark:bg-indigo-950/40 backdrop-blur-md border-b border-indigo-100 dark:border-indigo-900/40 px-8 py-2.5 flex items-center gap-4 z-20">
+        <div className="bg-indigo-50/80 dark:bg-indigo-950/40 backdrop-blur-md border-b border-indigo-100 dark:border-indigo-900/40 px-4 md:px-8 py-2.5 flex items-center gap-4 z-20">
           <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap uppercase tracking-widest">{progress.label}</span>
           <div className="flex-1 h-2.5 bg-indigo-100 dark:bg-indigo-900/40 rounded-full overflow-hidden">
             <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
@@ -485,29 +520,34 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <main className="flex-1 flex overflow-hidden">
-        <aside className="w-72 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-r border-white/40 dark:border-white/10 flex flex-col p-6 space-y-2 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-          <button onClick={() => setActiveTab('input')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* 側欄：桌面為直向導覽；手機收成可橫向捲動的頁籤列，避免佔掉半個螢幕 */}
+        <aside className="md:w-72 shrink-0 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-b md:border-b-0 md:border-r border-white/40 dark:border-white/10 flex md:flex-col gap-2 md:gap-0 md:space-y-2 p-3 md:p-6 overflow-x-auto md:overflow-x-visible shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+          <button onClick={() => setActiveTab('input')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <AdjustmentsHorizontalIcon className="w-5 h-5" /> {t('nav.input')}
           </button>
-          <button onClick={() => setActiveTab('review')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'review' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('review')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'review' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <ClipboardDocumentCheckIcon className="w-5 h-5" /> {t('nav.review')} ({records.length})
           </button>
-          <button onClick={() => setActiveTab('database')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('database')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <CircleStackIcon className="w-5 h-5" /> {t('nav.database')} ({masterDatabase.length})
           </button>
-          <button onClick={() => setActiveTab('signals')} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all border ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('signals')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <ChartBarIcon className="w-5 h-5" /> {t('nav.signals')} ({signalReport.groups.length})
           </button>
-          <button onClick={() => setActiveTab('logs')} className="mt-auto w-full flex items-center gap-4 px-5 py-4 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500">
+          {/* 通報收案：業務端手機送進來的自發性個案 */}
+          <button onClick={() => setActiveTab('intake')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'intake' ? 'bg-amber-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+            <InboxIcon className="w-5 h-5" /> {t('nav.intake')} ({aeCases.length})
+          </button>
+          <button onClick={() => setActiveTab('logs')} className="shrink-0 md:mt-auto md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 whitespace-nowrap">
             <FingerPrintIcon className="w-4 h-4" /> {t('nav.logs')}
           </button>
         </aside>
 
         <section className="flex-1 overflow-hidden flex flex-col relative">
           {activeTab === 'input' && (
-            <div className="flex-1 p-20 flex flex-col items-center overflow-y-auto">
-               <div className="w-full max-w-xl bg-white/50 dark:bg-white/[0.08] backdrop-blur-xl p-12 rounded-[3rem] border border-white/60 dark:border-white/10 shadow-2xl space-y-10">
+            <div className="flex-1 p-5 md:p-20 flex flex-col items-center overflow-y-auto">
+               <div className="w-full max-w-xl bg-white/50 dark:bg-white/[0.08] backdrop-blur-xl p-6 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-white/60 dark:border-white/10 shadow-2xl space-y-10">
                   <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{t('input.title')}</h2>
                   <div className="space-y-6">
                     <div className="space-y-2">
@@ -819,6 +859,10 @@ const App: React.FC = () => {
                  )}
                </div>
             </div>
+          )}
+
+          {activeTab === 'intake' && (
+            <AEIntakeConsole cases={aeCases} onChange={setAeCases} />
           )}
 
           {activeTab === 'logs' && (

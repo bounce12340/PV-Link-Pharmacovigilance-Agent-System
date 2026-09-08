@@ -42,9 +42,29 @@
 *   🔎 **PubMed Pagination**: Search now supports a "max results" setting (pagination cap, default 100), with efetch automatically fetching in batches.
 *   🛡️ **Backend Rate Limiting**: The Worker proxy has a built-in KV fixed-window rate limiter (per-IP, per-minute cap) to protect API key quota.
 
+## 🆕 Adverse Event Case Reporting (v5)
+
+A spontaneous reporting channel, covering the half of ICSR intake that literature monitoring cannot reach. Two interfaces:
+
+*   📱 **Field reporting (mobile-first, `#/report`)**
+    *   Fields mapped to all 26 numbered items of the **CIOMS Form I** (official field numbers shown inline), plus **lot number, expiry and marketing authorisation number** required in local practice.
+    *   Six-step wizard instead of one 40-input page; 16px inputs (prevents iOS auto-zoom), ≥44px touch targets, chip-style selectors instead of native dropdowns.
+    *   **Auto-saved drafts** (600ms debounce), **offline outbox** with automatic retry, and **on-device photo compression** (1600px long edge).
+    *   Validation splits into errors and warnings: only hard gaps such as the four minimum criteria block submission; everything else becomes a follow-up checklist — **an incomplete case beats a case never reported**.
+*   🗂️ **PV intake console ("Case Intake" tab)**
+    *   Inbox sorted by **regulatory time pressure** (overdue → days remaining → newest), not first-in-first-out.
+    *   Seven processing gates: intake → validity (four ICSR criteria) → **duplicate detection** → seriousness (with audited manual override) → MedDRA coding / expectedness / causality → follow-up tracking (one-click follow-up email draft) → submission and closure.
+    *   **Regulatory clock**: 15-day countdown from the date of first awareness for serious cases; red when overdue, amber within five days.
+    *   One-click **CIOMS-I text form** and **E2B(R3) element mapping**; case list exports to CSV.
+    *   Full **audit trail** (who, when, what) across the workflow.
+    *   Cases feed the existing **ingredient × MedDRA PT signal aggregation** alongside literature cases.
+
+> 📖 Field derivation, regulatory notes and the back-office workflow: [`docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md`](docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md) (Traditional Chinese).
+> ⚠️ Without `VITE_AE_API_ENDPOINT`, the reporting form and the console share **one browser's** IndexedDB (single-device trial only). Configure a real backend endpoint for production — see `.env.example`.
+
 ## 🧪 Testing
 
-Core pure functions (`parseJsonLoose`, `reconcile`, MedDRA mapping, CIOMS mapping, signal aggregation) all have unit tests:
+Core pure functions (`parseJsonLoose`, `reconcile`, MedDRA mapping, CIOMS mapping, signal aggregation, plus AE case validity / seriousness / regulatory clock / duplicate detection / CIOMS-E2B mapping) all have unit tests. Translation coverage for dynamic i18n keys (`ae.issue.*`, `ae.status.*`) is enforced by tests too:
 ```bash
 npm test        # run unit tests with vitest
 npm run typecheck  # type-check with tsc --noEmit
@@ -87,6 +107,13 @@ Once started, open `http://localhost:3000` in your browser to begin using the sy
 3.  **Pending Review**: Once the task is complete, the system will automatically switch to the "Pending Review" tab. Here you can view the AI-generated summaries and clinical conclusions.
 4.  **Confirm Import**: After confirming the literature has PV value, click "Confirm Import to Master Database".
 5.  **Master Database Management**: In the "Master Database" tab, you can search historical records and click "Export CSV Report" in the top right corner to download the data.
+
+### Adverse event case reporting
+
+6.  **Share the reporting link**: In the Case Intake tab, tap the phone icon to open the form, or the link icon to copy the `#/report` URL (turning it into a QR code for the field team works well).
+7.  **Field submission**: The rep opens the link on a phone and works through six steps. Leaving mid-way loses nothing (drafts auto-save); submitting without signal queues the case and retries automatically once back online.
+8.  **Intake**: Cases appear in the inbox, sorted by regulatory time pressure. Work each one through validity → duplicate detection → seriousness → MedDRA coding → follow-up → submission.
+9.  **Produce submission documents**: Click "Generate CIOMS-I" for a copyable/downloadable draft, review it, submit to the authority, then record the receipt number and close the case.
 
 ## 🔌 LLM Provider (OpenAI-compatible)
 

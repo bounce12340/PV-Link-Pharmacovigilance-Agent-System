@@ -90,3 +90,51 @@ export async function saveRecords(key: string, records: any[]): Promise<void> {
     try { localStorage.setItem(lsKey(key), JSON.stringify(records)); } catch { /* 儲存滿了也不擋 UI */ }
   }
 }
+
+// ── AE（不良反應個案）通報用的鍵 ─────────────────────────────
+/** 後台個案庫：業務端送出後落地的個案清單 */
+export const AE_CASES_KEY = 'ae_cases';
+/** 業務端手機本機草稿（單筆，未送出） */
+export const AE_DRAFT_KEY = 'ae_draft';
+/** 離線送出佇列：網路不通時暫存，恢復連線後再落地 */
+export const AE_OUTBOX_KEY = 'ae_outbox';
+
+/**
+ * 讀取任意型別的單一值（非陣列）。用於手機端草稿這類單物件狀態。
+ * 與 loadRecords 相同的 IndexedDB → localStorage 退路策略。
+ */
+export async function loadValue<T>(key: string): Promise<T | undefined> {
+  try {
+    return await idbGet<T>(key);
+  } catch {
+    try {
+      const ls = localStorage.getItem(lsKey(key));
+      if (ls) return JSON.parse(ls) as T;
+    } catch { /* ignore */ }
+    return undefined;
+  }
+}
+
+/** 寫入任意型別的單一值；IndexedDB 失敗時退回 localStorage。 */
+export async function saveValue(key: string, value: any): Promise<void> {
+  try {
+    await idbSet(key, value);
+  } catch {
+    try { localStorage.setItem(lsKey(key), JSON.stringify(value)); } catch { /* 儲存滿了也不擋 UI */ }
+  }
+}
+
+/** 刪除單一鍵（草稿送出後清除）。 */
+export async function removeValue(key: string): Promise<void> {
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    try { localStorage.removeItem(lsKey(key)); } catch { /* ignore */ }
+  }
+}

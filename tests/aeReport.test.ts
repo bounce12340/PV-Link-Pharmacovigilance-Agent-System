@@ -1,0 +1,391 @@
+import { describe, it, expect } from 'vitest';
+import {
+  emptyAEReport, emptyEvent, emptyDrug, nextCaseNumber,
+  checkMinimumCriteria, assessSeriousness, validateAEReport, computeCompleteness,
+  computeRegulatoryClock, parseIsoDate, addDays, daysBetween,
+  findDuplicates, aeToCIOMSText, aeToE2B, aeReportsToCSV, aeToSignalRecords,
+  autoNarrative, patientAgeText, therapyDurationText,
+  AE_ISSUE_CODES, AE_CASE_STATUSES, AE_DUPLICATE_REASONS, MAH_SERIOUS_REPORT_DAYS,
+  AEReport,
+} from '../services/aeReport';
+import { aggregateSignals } from '../services/signals';
+import { translations } from '../i18n/translations';
+
+const TODAY = '2026-09-08';
+
+/** 產一份「四要素齊備」的最小有效個案，各測試再依需要覆寫欄位。 */
+function validCase(over: Partial<AEReport> = {}): AEReport {
+  const base = emptyAEReport(TODAY);
+  return {
+    ...base,
+    caseNumber: 'PV-2026-0001',
+    reporterName: '林業務',
+    reporterPhone: '0912345678',
+    reporterOrg: '某某藥品股份有限公司',
+    reportSource: 'health_professional',
+    awarenessDate: '2026-09-01',
+    patientInitials: 'W.T.M.',
+    patientSex: 'female',
+    patientAgeValue: '62',
+    patientAgeUnit: 'year',
+    events: [{ ...emptyEvent(), id: 'ev1', verbatim: '全身紅疹合併搔癢', onsetDate: '2026-08-30', outcome: 'recovering' }],
+    drugs: [{
+      ...emptyDrug(true), id: 'dr1',
+      brandName: 'Lipanthyl', activeIngredient: 'Fenofibrate',
+      lotNumber: 'A1234', dailyDose: '200 mg QD', route: 'oral',
+      indication: '高血脂', therapyStart: '2026-08-20', dechallenge: 'yes',
+    }],
+    ...over,
+  };
+}
+
+describe('日期工具', () => {
+  it('parseIsoDate 只接受 YYYY-MM-DD 並拒絕溢位日期', () => {
+    expect(parseIsoDate('2026-09-08')?.toISOString().slice(0, 10)).toBe('2026-09-08');
+    expect(parseIsoDate('2026-02-30')).toBeNull();
+    expect(parseIsoDate('2026/09/08')).toBeNull();
+    expect(parseIsoDate('')).toBeNull();
+    expect(parseIsoDate(undefined as any)).toBeNull();
+  });
+  it('addDays 正確跨月與跨年', () => {
+    expect(addDays('2026-09-01', 15)).toBe('2026-09-16');
+    expect(addDays('2026-12-25', 15)).toBe('2027-01-09');
+    expect(addDays('bad', 15)).toBe('');
+  });
+  it('daysBetween 回傳有號天數', () => {
+    expect(daysBetween('2026-09-01', '2026-09-08')).toBe(7);
+    expect(daysBetween('2026-09-08', '2026-09-01')).toBe(-7);
+    expect(daysBetween('2026-09-08', 'bad')).toBeNull();
+  });
+});
+
+describe('四要素效度檢核', () => {
+  it('齊備時 valid=true', () => {
+    expect(checkMinimumCriteria(validCase()).valid).toBe(true);
+  });
+  it('缺懷疑藥品時不成案', () => {
+    const r = validCase({ drugs: [{ ...emptyDrug(true), brandName: '', activeIngredient: '' }] });
+    const m = checkMinimumCriteria(r);
+    expect(m.valid).toBe(false);
+    expect(m.missing).toContain('suspectProduct');
+  });
+  it('只有併用藥不算懷疑藥品', () => {
+    const r = validCase({ drugs: [{ ...emptyDrug(false), brandName: 'Aspirin' }] });
+    expect(checkMinimumCriteria(r).suspectProduct).toBe(false);
+  });
+  it('性別填 unknown 不足以識別病人', () => {
+    const r = validCase({ patientInitials: '', patientId: '', patientBirthDate: '', patientAgeValue: '', patientSex: 'unknown' });
+    expect(checkMinimumCriteria(r).identifiablePatient).toBe(false);
+  });
+  it('原始通報者姓名也可構成可識別通報者', () => {
+    const r = validCase({ reporterName: '', primaryReporterName: '張醫師' });
+    expect(checkMinimumCriteria(r).identifiableReporter).toBe(true);
+  });
+});
+
+describe('嚴重性判定', () => {
+  it('未勾選任何準則為非嚴重', () => {
+    expect(assessSeriousness(validCase()).serious).toBe(false);
+  });
+  it('任一事件勾選任一準則即為嚴重', () => {
+    const r = validCase();
+    r.events[0].seriousnessCriteria = ['hospitalization'];
+    const a = assessSeriousness(r);
+    expect(a.serious).toBe(true);
+    expect(a.criteria).toEqual(['hospitalization']);
+    expect(a.overridden).toBe(false);
+  });
+  it('後台可覆寫為嚴重並標記 overridden', () => {
+    const r = validCase();
+    r.triage.seriousnessOverride = 'serious';
+    const a = assessSeriousness(r);
+    expect(a.serious).toBe(true);
+    expect(a.overridden).toBe(true);
+  });
+  it('後台可覆寫為非嚴重（誤勾的情況）', () => {
+    const r = validCase();
+    r.events[0].seriousnessCriteria = ['death'];
+    r.triage.seriousnessOverride = 'non_serious';
+    const a = assessSeriousness(r);
+    expect(a.serious).toBe(false);
+    expect(a.overridden).toBe(true);
+  });
+  it('多個事件的準則會去重合併', () => {
+    const r = validCase();
+    r.events = [
+      { ...emptyEvent(), verbatim: 'A', seriousnessCriteria: ['death'] },
+      { ...emptyEvent(), verbatim: 'B', seriousnessCriteria: ['death', 'life_threatening'] },
+    ];
+    expect(assessSeriousness(r).criteria.sort()).toEqual(['death', 'life_threatening']);
+  });
+});
+
+describe('法定時限', () => {
+  it('嚴重個案到期日 = 首次獲知日 + 15 天', () => {
+    const r = validCase({ awarenessDate: '2026-09-01' });
+    r.events[0].seriousnessCriteria = ['death'];
+    const c = computeRegulatoryClock(r, TODAY);
+    expect(MAH_SERIOUS_REPORT_DAYS).toBe(15);
+    expect(c.dueDate).toBe('2026-09-16');
+    expect(c.daysRemaining).toBe(8);
+    expect(c.overdue).toBe(false);
+  });
+  it('非嚴重個案沒有個案別到期日（併入定期安全性報告）', () => {
+    const c = computeRegulatoryClock(validCase(), TODAY);
+    expect(c.dueDate).toBe('');
+    expect(c.daysRemaining).toBeNull();
+    expect(c.overdue).toBe(false);
+  });
+  it('超過期限且未送件即為逾期', () => {
+    const r = validCase({ awarenessDate: '2026-08-01' });
+    r.events[0].seriousnessCriteria = ['hospitalization'];
+    const c = computeRegulatoryClock(r, TODAY);
+    expect(c.overdue).toBe(true);
+    expect(c.daysRemaining! < 0).toBe(true);
+  });
+  it('已送件者不再判定為逾期', () => {
+    const r = validCase({ awarenessDate: '2026-08-01' });
+    r.events[0].seriousnessCriteria = ['hospitalization'];
+    r.triage.submittedToAuthorityAt = '2026-08-10T09:00:00.000Z';
+    const c = computeRegulatoryClock(r, TODAY);
+    expect(c.submitted).toBe(true);
+    expect(c.overdue).toBe(false);
+  });
+  it('獲知日缺漏時不硬算到期日', () => {
+    const r = validCase({ awarenessDate: '' });
+    r.events[0].seriousnessCriteria = ['death'];
+    expect(computeRegulatoryClock(r, TODAY).dueDate).toBe('');
+  });
+});
+
+describe('送出前檢核', () => {
+  it('有效個案無 error', () => {
+    expect(validateAEReport(validCase(), TODAY).filter(i => i.level === 'error')).toEqual([]);
+  });
+  it('缺聯絡方式視為 error', () => {
+    const codes = validateAEReport(validCase({ reporterPhone: '', reporterEmail: '' }), TODAY).map(i => i.code);
+    expect(codes).toContain('reporterContactRequired');
+  });
+  it('反應結束日早於發生日為 error', () => {
+    const r = validCase();
+    r.events[0].endDate = '2026-08-01';
+    const issue = validateAEReport(r, TODAY).find(i => i.code === 'endBeforeOnset');
+    expect(issue?.level).toBe('error');
+  });
+  it('反應早於用藥開始只給 warning（仍可送出，由藥安人員判斷）', () => {
+    const r = validCase();
+    r.drugs[0].therapyStart = '2026-09-05';
+    const issue = validateAEReport(r, TODAY).find(i => i.code === 'onsetBeforeTherapy');
+    expect(issue?.level).toBe('warning');
+  });
+  it('未來日期一律 error', () => {
+    const r = validCase({ awarenessDate: '2027-01-01' });
+    const codes = validateAEReport(r, TODAY).filter(i => i.level === 'error').map(i => i.code);
+    expect(codes).toContain('awarenessDateFuture');
+  });
+  it('勾選死亡但未填死亡日給 warning', () => {
+    const r = validCase();
+    r.events[0].seriousnessCriteria = ['death'];
+    expect(validateAEReport(r, TODAY).map(i => i.code)).toContain('deathDateMissing');
+  });
+  it('缺漏欄位帶出 step，UI 才能直接跳轉', () => {
+    const r = validCase({ patientInitials: '', patientId: '', patientBirthDate: '', patientAgeValue: '', patientSex: '' });
+    const issue = validateAEReport(r, TODAY).find(i => i.code === 'patientRequired');
+    expect(issue?.step).toBe(1);
+  });
+  it('所有回傳的 code 都在 AE_ISSUE_CODES 白名單內', () => {
+    const messy = validCase({
+      reporterName: '', reporterPhone: '', reporterEmail: '', awarenessDate: '',
+      reportSource: '', patientInitials: '', patientSex: '', patientAgeValue: '',
+      events: [{ ...emptyEvent(), verbatim: '' }],
+      drugs: [{ ...emptyDrug(true) }],
+    });
+    for (const i of validateAEReport(messy, TODAY)) {
+      expect(AE_ISSUE_CODES as readonly string[]).toContain(i.code);
+    }
+  });
+});
+
+describe('完整度', () => {
+  it('空白個案接近 0，完整個案明顯較高', () => {
+    expect(computeCompleteness(emptyAEReport(TODAY))).toBeLessThan(10);
+    expect(computeCompleteness(validCase())).toBeGreaterThan(50);
+  });
+  it('回傳值恆在 0–100', () => {
+    const c = computeCompleteness(validCase());
+    expect(c).toBeGreaterThanOrEqual(0);
+    expect(c).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('重複個案偵測', () => {
+  const a = validCase({ id: 'a', caseNumber: 'PV-2026-0001' });
+  it('同病人 + 同藥 + 同反應會被抓出來', () => {
+    const b = validCase({ id: 'b', caseNumber: 'PV-2026-0002' });
+    const dup = findDuplicates(a, [b]);
+    expect(dup).toHaveLength(1);
+    expect(dup[0].score).toBeGreaterThanOrEqual(50);
+    expect(dup[0].reasons).toEqual(expect.arrayContaining(['patient', 'drug', 'event']));
+  });
+  it('只有藥品相同不足以判定重複', () => {
+    const b = validCase({ id: 'b', patientInitials: 'L.S.H.' });
+    b.events = [{ ...emptyEvent(), verbatim: '肝指數上升' }];
+    expect(findDuplicates(a, [b])).toEqual([]);
+  });
+  it('不與自己比對，也略過不成案', () => {
+    const invalid = validCase({ id: 'c', status: 'invalid' });
+    expect(findDuplicates(a, [a, invalid])).toEqual([]);
+  });
+  it('所有 reason 都在白名單內', () => {
+    const b = validCase({ id: 'b' });
+    for (const r of findDuplicates(a, [b])[0].reasons) {
+      expect(AE_DUPLICATE_REASONS as readonly string[]).toContain(r);
+    }
+  });
+});
+
+describe('個案編號', () => {
+  it('依年度遞增流水號', () => {
+    expect(nextCaseNumber([], TODAY)).toBe('PV-2026-0001');
+    expect(nextCaseNumber([{ caseNumber: 'PV-2026-0007' } as any], TODAY)).toBe('PV-2026-0008');
+  });
+  it('忽略他年度與格式不符的編號', () => {
+    const pool = [{ caseNumber: 'PV-2025-0099' }, { caseNumber: 'X' }, { caseNumber: 'PV-2026-0003' }] as any[];
+    expect(nextCaseNumber(pool, TODAY)).toBe('PV-2026-0004');
+  });
+});
+
+describe('CIOMS-I 輸出', () => {
+  const text = aeToCIOMSText(validCase(), TODAY);
+  it('保留官方欄號，方便逐欄對照謄寫', () => {
+    for (const marker of ['1. 病人姓名縮寫', '4-6.', '7+13.', '14.', '15.', '16.', '17.', '18.', '20.', '21.', '22.', '23.', '24c.', '24d.', '25a.', '26.']) {
+      expect(text).toContain(marker);
+    }
+  });
+  it('嚴重性勾選以 [X] 呈現', () => {
+    const r = validCase();
+    r.events[0].seriousnessCriteria = ['hospitalization'];
+    const out = aeToCIOMSText(r, TODAY);
+    expect(out).toContain('[X] Involved or prolonged inpatient hospitalisation');
+    expect(out).toContain('嚴重 SERIOUS');
+  });
+  it('缺懷疑藥品時明講不成案而非留白', () => {
+    const r = validCase({ drugs: [] });
+    expect(aeToCIOMSText(r, TODAY)).toContain('個案不成立');
+  });
+});
+
+describe('E2B(R3) 對照', () => {
+  const map = aeToE2B(validCase(), TODAY);
+  it('關鍵資料元素齊備', () => {
+    expect(map['E.i.1.1a (Reaction as reported by primary source)']).toBe('全身紅疹合併搔癢');
+    expect(map['G.k.2.3.r.1 (Substance name)']).toBe('Fenofibrate');
+    expect(map['G.k.2.4 (Batch/lot number)']).toBe('A1234');
+    expect(map['C.1.4 (Date report first received from source)']).toBe('2026-09-01');
+  });
+  it('快速通報旗標跟著嚴重性走', () => {
+    expect(map['C.1.7 (Does this case fulfil the local criteria for an expedited report?)']).toBe('No');
+    const r = validCase();
+    r.events[0].seriousnessCriteria = ['death'];
+    const m2 = aeToE2B(r, TODAY);
+    expect(m2['C.1.7 (Does this case fulfil the local criteria for an expedited report?)']).toBe('Yes');
+    expect(m2['E.i.3.2a (Patient died)']).toBe('Yes');
+    expect(m2['E.i.3.2b (Life threatening)']).toBe('No');
+  });
+});
+
+describe('CSV 匯出', () => {
+  it('含 BOM 與標題列', () => {
+    const csv = aeReportsToCSV([validCase()], TODAY);
+    expect(csv.startsWith('﻿')).toBe(true);
+    expect(csv.split('\n')[0]).toContain('"個案編號"');
+  });
+  it('中和 Excel 公式注入', () => {
+    const csv = aeReportsToCSV([validCase({ patientInitials: '=cmd|calc' })], TODAY);
+    expect(csv).toContain('"\'=cmd|calc"');
+  });
+});
+
+describe('訊號聚合橋接', () => {
+  it('自發性個案可與文獻個案共用同一套聚合', () => {
+    const r = validCase({ status: 'submitted' });
+    r.events[0].meddraPt = 'Rash';
+    const records = aeToSignalRecords([r]);
+    expect(records).toHaveLength(1);
+    const report = aggregateSignals(records);
+    expect(report.groups[0].ingredient).toBe('Fenofibrate');
+    expect(report.groups[0].pt).toBe('Rash');
+  });
+  it('草稿與不成案不納入訊號', () => {
+    expect(aeToSignalRecords([validCase({ status: 'draft' })])).toEqual([]);
+    expect(aeToSignalRecords([validCase({ status: 'invalid' })])).toEqual([]);
+  });
+  it('嚴重個案在聚合中被計為 serious', () => {
+    const r = validCase({ status: 'submitted' });
+    r.events[0].seriousnessCriteria = ['death'];
+    expect(aggregateSignals(aeToSignalRecords([r])).groups[0].seriousCount).toBe(1);
+  });
+});
+
+describe('敘述與衍生欄位', () => {
+  it('autoNarrative 會帶出藥品、反應與嚴重性結論', () => {
+    const n = autoNarrative(validCase(), TODAY);
+    expect(n).toContain('Lipanthyl');
+    expect(n).toContain('全身紅疹合併搔癢');
+    expect(n).toContain('非嚴重');
+  });
+  it('patientAgeText 優先採用填寫的年齡', () => {
+    expect(patientAgeText(validCase(), TODAY)).toBe('62歲');
+  });
+  it('patientAgeText 無年齡時由出生日期推算（生日當天不可少算一歲）', () => {
+    expect(patientAgeText(validCase({ patientAgeValue: '', patientBirthDate: '1964-09-08' }), TODAY)).toBe('62歲');
+    expect(patientAgeText(validCase({ patientAgeValue: '', patientBirthDate: '1964-09-09' }), TODAY)).toBe('61歲');
+    expect(patientAgeText(validCase({ patientAgeValue: '', patientBirthDate: '2027-01-01' }), TODAY)).toBe('');
+  });
+  it('therapyDurationText 由起訖日推算（含首尾兩日）', () => {
+    expect(therapyDurationText({ ...emptyDrug(), therapyStart: '2026-08-20', therapyEnd: '2026-08-24' })).toBe('5 天');
+    expect(therapyDurationText({ ...emptyDrug(), therapyDuration: '約兩週' })).toBe('約兩週');
+  });
+});
+
+describe('i18n 動態鍵覆蓋率', () => {
+  // UI 以 `ae.issue.<code>`、`ae.status.<value>` 這類動態鍵取字串，型別檢查抓不到漏譯，
+  // 因此在這裡逐一驗證：新增檢核碼或狀態卻忘了補翻譯，會在此失敗。
+  const langs = ['zh', 'en'] as const;
+  it('每個檢核碼在 zh / en 都有對應字串', () => {
+    for (const lang of langs) {
+      for (const code of AE_ISSUE_CODES) {
+        expect(translations[lang][`ae.issue.${code}` as keyof typeof translations['zh']]).toBeTruthy();
+      }
+    }
+  });
+  it('每個個案狀態在 zh / en 都有對應字串', () => {
+    for (const lang of langs) {
+      for (const st of AE_CASE_STATUSES) {
+        expect(translations[lang][`ae.status.${st}` as keyof typeof translations['zh']]).toBeTruthy();
+      }
+    }
+  });
+  it('每個重複比對維度在 zh / en 都有對應字串', () => {
+    for (const lang of langs) {
+      for (const reason of AE_DUPLICATE_REASONS) {
+        expect(translations[lang][`ae.console.dupReason.${reason}` as keyof typeof translations['zh']]).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe('CIOMS 編碼可信度標示', () => {
+  it('未經詞典驗證的 MedDRA PT 在送件文件上必須標示出來', () => {
+    const r = validCase();
+    r.events[0].meddraPt = '全身紅疹合併搔癢';
+    r.events[0].meddraVerified = false;
+    expect(aeToCIOMSText(r, TODAY)).toContain('未經詞典驗證');
+  });
+  it('已驗證的 PT 不加註記', () => {
+    const r = validCase();
+    r.events[0].meddraPt = 'Rash';
+    r.events[0].meddraVerified = true;
+    expect(aeToCIOMSText(r, TODAY)).not.toContain('未經詞典驗證');
+  });
+});
