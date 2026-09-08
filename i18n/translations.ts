@@ -316,7 +316,6 @@ const zh = {
   'ae.console.daysLeft': '剩餘時間',
   'ae.console.submitted': '已送件',
   'ae.console.psurOnly': '併入定期安全性報告',
-  'ae.console.clockNote': '本案為嚴重不良反應，須於首次獲知日起 {days} 日內完成主管機關通報。',
   'ae.console.validity': '效度判定（ICSR 四要素）',
   'ae.console.confirmValidity': '確認個案有效',
   'ae.console.validityConfirmed': '已確認有效',
@@ -358,6 +357,29 @@ const zh = {
   'ae.console.showE2b': '顯示 E2B(R3) 欄位對照',
   'ae.console.hideE2b': '收合 E2B(R3) 欄位對照',
   'ae.console.auditTrail': '稽核軌跡',
+
+  // ── AE：境外個案國別 ───────────────────────────
+  'ae.f.country': '反應發生國別',
+  'ae.f.countryHint': '不良反應「發生在哪一國」，不是通報者所在國。原廠轉知或國外文獻的境外個案請據實選填——選錯會讓後台判錯送件路徑。',
+  'ae.f.countryOther': '國別（請填國名）',
+  'ae.f.countryOtherPlaceholder': '例：韓國、新加坡',
+  'ae.issue.countryRequired': '請選擇反應發生國別',
+  'ae.issue.countryOtherRequired': '已選「其他」，請填寫國名',
+
+  // ── AE 後台：追蹤報告與期限依據 ─────────────────
+  'ae.console.foreignCase': '境外個案',
+  'ae.console.createFollowUp': '建立追蹤報告',
+  'ae.console.createFollowUpHint': '複製本案內容為一份新的追蹤報告，Day 0 設為今天（獲知新資訊日）',
+  'ae.console.followUpChain': '追蹤報告鏈',
+  'ae.console.parentCase': '原始報告',
+  'ae.console.childFollowUps': '本案的追蹤報告',
+  'ae.console.significantNewInfo': '本次帶來重要新資訊（重啟 15 日時鐘）',
+  'ae.console.significantNewInfoHint': '勾選代表本次追蹤帶來足以改變評估的新資訊（例如非嚴重轉嚴重、新增死亡結果），{days} 日時鐘自本次獲知日重新起算；未勾選則不重啟，收錄於定期安全性報告。',
+  'ae.console.noExpedited': '無快速通報期限',
+  'ae.console.basis.expedited': '本案為嚴重不良反應，須於首次獲知日起 {days} 日內完成主管機關通報。',
+  'ae.console.basis.non_serious': '非嚴重個案：無個案別快速通報期限，收錄於定期安全性報告 (PSUR/PBRER)。',
+  'ae.console.basis.followup_no_new_info': '追蹤報告但未帶來重要新資訊：不重啟快速通報時鐘，收錄於定期安全性報告。',
+  'ae.console.basis.no_day0': '尚未填寫首次獲知日，無法起算法定期限——這是最優先要補的欄位。',
 } as const;
 
 export type TransKey = keyof typeof zh;
@@ -678,7 +700,6 @@ const en: Record<TransKey, string> = {
   'ae.console.daysLeft': 'Time remaining',
   'ae.console.submitted': 'Submitted',
   'ae.console.psurOnly': 'Periodic report only',
-  'ae.console.clockNote': 'This is a serious adverse reaction and must be reported to the authority within {days} days of first awareness.',
   'ae.console.validity': 'Validity check (four ICSR criteria)',
   'ae.console.confirmValidity': 'Confirm case is valid',
   'ae.console.validityConfirmed': 'Validity confirmed',
@@ -720,6 +741,29 @@ const en: Record<TransKey, string> = {
   'ae.console.showE2b': 'Show E2B(R3) mapping',
   'ae.console.hideE2b': 'Hide E2B(R3) mapping',
   'ae.console.auditTrail': 'Audit trail',
+
+  // ── AE: country of occurrence ──────────────────
+  'ae.f.country': 'Country where the reaction occurred',
+  'ae.f.countryHint': 'Where the reaction happened — not where you are. Record foreign cases (relayed by the originator, or from overseas literature) truthfully; getting this wrong sends the case down the wrong submission path.',
+  'ae.f.countryOther': 'Country (specify)',
+  'ae.f.countryOtherPlaceholder': 'e.g. South Korea, Singapore',
+  'ae.issue.countryRequired': 'Country of occurrence is required',
+  'ae.issue.countryOtherRequired': '"Other" selected — please name the country',
+
+  // ── AE console: follow-up reports & clock basis ─
+  'ae.console.foreignCase': 'Foreign case',
+  'ae.console.createFollowUp': 'Create follow-up',
+  'ae.console.createFollowUpHint': 'Copy this case into a new follow-up report, with Day 0 set to today (the date the new information was received)',
+  'ae.console.followUpChain': 'Follow-up chain',
+  'ae.console.parentCase': 'Initial report',
+  'ae.console.childFollowUps': 'Follow-up reports',
+  'ae.console.significantNewInfo': 'Contains significant new information (restarts the 15-day clock)',
+  'ae.console.significantNewInfoHint': 'Tick when this follow-up brings information that changes the assessment (non-serious becoming serious, a fatal outcome added). The {days}-day clock then restarts from this receipt date; leave it unticked and no new expedited clock starts — the case goes into the periodic report.',
+  'ae.console.noExpedited': 'no expedited deadline',
+  'ae.console.basis.expedited': 'Serious adverse reaction — must be reported to the authority within {days} days of first awareness.',
+  'ae.console.basis.non_serious': 'Non-serious: no case-level expedited deadline; included in the periodic safety report (PSUR/PBRER).',
+  'ae.console.basis.followup_no_new_info': 'Follow-up without significant new information: no new expedited clock; included in the periodic safety report.',
+  'ae.console.basis.no_day0': 'No first-awareness date recorded, so the statutory deadline cannot be computed — this is the highest-priority gap to fill.',
 };
 
 export const translations: Record<Lang, Record<TransKey, string>> = { zh, en };

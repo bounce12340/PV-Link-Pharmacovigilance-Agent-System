@@ -13,7 +13,7 @@ import {
   emptyAEReport, emptyEvent, emptyDrug, newId, nextCaseNumber,
   checkMinimumCriteria, validateAEReport, assessSeriousness, computeCompleteness,
   SERIOUSNESS_CRITERIA, OUTCOME_OPTIONS, ROUTE_OPTIONS, REPORT_SOURCE_OPTIONS,
-  YES_NO_UNK_OPTIONS, ACTION_TAKEN_OPTIONS, SEX_OPTIONS, AGE_UNIT_OPTIONS,
+  YES_NO_UNK_OPTIONS, ACTION_TAKEN_OPTIONS, SEX_OPTIONS, AGE_UNIT_OPTIONS, COUNTRY_OPTIONS,
   MAH_SERIOUS_REPORT_DAYS, autoNarrative,
 } from '../services/aeReport';
 import {
@@ -386,6 +386,17 @@ const StepReporter: React.FC<StepProps> = ({ report, patch, t, lang }) => (
         <ChipGroup options={REPORT_SOURCE_OPTIONS} value={report.reportSource} lang={lang} cols={1}
           onChange={v => patch({ reportSource: v })} />
       </Field>
+      {/* 國別預設台灣，境內通報一次也不用點；境外個案（原廠轉知、國外文獻）才需要改。 */}
+      <Field label={t('ae.f.country')} required tag="CIOMS 1a" hint={t('ae.f.countryHint')}>
+        <ChipGroup options={COUNTRY_OPTIONS} value={report.country} lang={lang} clearable={false}
+          onChange={v => patch({ country: v })} />
+      </Field>
+      {report.country === 'other' && (
+        <Field label={t('ae.f.countryOther')} required>
+          <TextInput value={report.countryOther} placeholder={t('ae.f.countryOtherPlaceholder')}
+            onChange={e => patch({ countryOther: e.target.value })} />
+        </Field>
+      )}
     </SectionCard>
 
     <SectionCard title={t('ae.section.primaryReporter')} note={t('ae.section.primaryReporterNote')}>

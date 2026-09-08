@@ -57,6 +57,8 @@ A spontaneous reporting channel, covering the half of ICSR intake that literatur
     *   **Regulatory clock**: 15-day countdown from the date of first awareness for serious cases; red when overdue, amber within five days.
     *   One-click **CIOMS-I text form** and **E2B(R3) element mapping**; case list exports to CSV.
     *   Full **audit trail** (who, when, what) across the workflow.
+    *   **Follow-up reports**: create one from the initial case in a click (numbered `PARENT-F1`), with Day 0 set to the date the new information was received. Significant new information restarts the 15-day clock; otherwise no new expedited deadline and the case goes into the periodic report. Follow-up chains are excluded from duplicate detection.
+    *   **Foreign cases**: the reporting form captures the country of occurrence (CIOMS 1a); the console flags foreign cases and maps them into CIOMS and E2B `E.i.9`.
     *   Cases feed the existing **ingredient × MedDRA PT signal aggregation** alongside literature cases.
 
 > 📖 Field derivation, regulatory notes and the back-office workflow: [`docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md`](docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md) (Traditional Chinese).

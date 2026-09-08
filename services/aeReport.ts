@@ -122,6 +122,21 @@ export const EXPECTEDNESS_OPTIONS = [
   { value: 'unknown', zh: '尚未比對', en: 'Not yet assessed' },
 ] as const;
 
+/**
+ * 反應發生國別（CIOMS 1a / E2B C.2.r.5）。
+ * 藥商對國內、外發生的嚴重不良反應都有蒐集與通報義務，境外個案的判定與送件路徑不同，
+ * 因此國別不能沿用預設值——沒有這一欄，原廠轉來的境外個案會被全部記成本國案。
+ * 只列常見來源，其餘走 'other' 自填，避免塞進 200 個國家的下拉選單。
+ */
+export const COUNTRY_OPTIONS = [
+  { value: 'TW', zh: '台灣', en: 'Taiwan' },
+  { value: 'JP', zh: '日本', en: 'Japan' },
+  { value: 'US', zh: '美國', en: 'United States' },
+  { value: 'CN', zh: '中國大陸', en: 'China' },
+  { value: 'DE', zh: '德國', en: 'Germany' },
+  { value: 'other', zh: '其他（自填）', en: 'Other (specify)' },
+] as const;
+
 export const SEX_OPTIONS = [
   { value: 'male', zh: '男', en: 'Male' },
   { value: 'female', zh: '女', en: 'Female' },
@@ -239,8 +254,16 @@ export interface AEReport {
   status: AECaseStatus;
   /** CIOMS 25a REPORT TYPE */
   reportType: 'initial' | 'follow_up';
-  /** 追蹤報告所補充的原始個案編號 */
+  /** 追蹤報告所補充的原始個案編號（人可讀，印在 CIOMS 25a） */
   followUpOf: string;
+  /** 追蹤報告指向的原始個案 id（機器可讀的真正連結，供串接追蹤鏈與排除重複偵測） */
+  followUpOfId: string;
+  /**
+   * 本次追蹤報告是否帶來「重要新資訊」（例如非嚴重轉為嚴重、新增死亡結果、補上因果關係關鍵資料）。
+   * 這個旗標直接決定 15 日快速通報時鐘要不要重新起算——見 computeRegulatoryClock。
+   * 僅在 reportType === 'follow_up' 時有意義。
+   */
+  hasSignificantNewInfo: boolean;
 
   // ── 通報者（業務端）──────────────────────────────
   reporterName: string;
@@ -267,6 +290,8 @@ export interface AEReport {
   reportDate: string;
   /** CIOMS 1a COUNTRY（反應發生國別） */
   country: string;
+  /** country === 'other' 時的自填國別 */
+  countryOther: string;
 
   // ── 病人（CIOMS 第 I 節）────────────────────────
   /** CIOMS 1 PATIENT INITIALS。避免蒐集全名：個資最小化原則 */
@@ -343,12 +368,12 @@ export function emptyAEReport(todayIso = ''): AEReport {
     caseNumber: '',
     status: 'draft',
     reportType: 'initial',
-    followUpOf: '',
+    followUpOf: '', followUpOfId: '', hasSignificantNewInfo: false,
     reporterName: '', reporterEmployeeId: '', reporterPhone: '', reporterEmail: '',
     reporterOrg: '', reporterTerritory: '',
     reportSource: '', primaryReporterName: '', primaryReporterProfession: '',
     primaryReporterOrg: '', primaryReporterContact: '', primaryReporterConsentFollowUp: false,
-    awarenessDate: todayIso, reportDate: todayIso, country: 'TW',
+    awarenessDate: todayIso, reportDate: todayIso, country: 'TW', countryOther: '',
     patientInitials: '', patientId: '', patientBirthDate: '',
     patientAgeValue: '', patientAgeUnit: 'year', patientSex: '',
     patientWeightKg: '', patientHeightCm: '', pregnancy: '', lastMenstrualPeriod: '',
@@ -480,17 +505,29 @@ export function daysBetween(a: string, b: string): number | null {
   return Math.round((db.getTime() - da.getTime()) / 86400000);
 }
 
+/** 為什麼有／沒有快速通報期限。讓 UI 能說明理由，而不是只顯示一個空白的到期日。 */
+export type ClockBasis =
+  | 'expedited'              // 嚴重個案，15 日快速通報
+  | 'non_serious'            // 非嚴重，併入定期安全性報告
+  | 'followup_no_new_info'   // 追蹤報告但未帶來重要新資訊，不重啟時鐘
+  | 'no_day0';               // 未填首次獲知日，無法起算
+
+/** 全部依據值。UI 以 `ae.console.basis.<value>` 取字串，覆蓋率由單元測試把關。 */
+export const CLOCK_BASES: ClockBasis[] = ['expedited', 'non_serious', 'followup_no_new_info', 'no_day0'];
+
 export interface RegulatoryClock {
   serious: boolean;
-  /** Day 0：首次獲知日 */
+  /** Day 0：首次獲知日（追蹤報告為「獲知新資訊日」） */
   day0: string;
-  /** 法定應通報期限；非嚴重個案為 ''（併入定期安全性報告，無個案快速通報期限） */
+  /** 法定應通報期限；無快速通報義務時為 ''（見 basis） */
   dueDate: string;
   /** 距到期日剩餘天數；負數代表逾期。無到期日時為 null */
   daysRemaining: number | null;
   overdue: boolean;
   /** 已送出者不再倒數 */
   submitted: boolean;
+  /** 期限（或沒有期限）的依據 */
+  basis: ClockBasis;
 }
 
 /**
@@ -503,15 +540,105 @@ export function computeRegulatoryClock(r: AEReport, todayIso: string): Regulator
   const { serious } = assessSeriousness(r);
   const day0 = r.awarenessDate || '';
   const submitted = has(r.triage?.submittedToAuthorityAt);
-  if (!serious || !parseIsoDate(day0)) {
-    return { serious, day0, dueDate: '', daysRemaining: null, overdue: false, submitted };
-  }
+  const none = (basis: ClockBasis): RegulatoryClock =>
+    ({ serious, day0, dueDate: '', daysRemaining: null, overdue: false, submitted, basis });
+
+  if (!serious) return none('non_serious');
+  if (!parseIsoDate(day0)) return none('no_day0');
+  // 追蹤報告只有在帶來「重要新資訊」時才重啟 15 日時鐘；純補件的追蹤報告
+  // 沒有新的快速通報義務，收錄於定期安全性報告即可。誤把每一份追蹤報告都當成
+  // 新的 15 日案件，會讓真正該急的案子淹沒在假期限裡。
+  if (r.reportType === 'follow_up' && !r.hasSignificantNewInfo) return none('followup_no_new_info');
+
   const dueDate = addDays(day0, MAH_SERIOUS_REPORT_DAYS);
   const daysRemaining = daysBetween(todayIso, dueDate);
   return {
     serious, day0, dueDate, daysRemaining,
     overdue: !submitted && daysRemaining !== null && daysRemaining < 0,
     submitted,
+    basis: 'expedited',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 追蹤報告（Follow-up）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 找出一筆個案所屬追蹤鏈的根（初始報告）id。
+ * 沿 followUpOfId 往上走，並以已訪問集合擋住資料損毀造成的環，避免無限迴圈。
+ */
+export function chainRootId(report: AEReport, pool: AEReport[]): string {
+  const byId = new Map((pool || []).map(r => [r.id, r]));
+  const seen = new Set<string>();
+  let cur: AEReport | undefined = report;
+  while (cur && has(cur.followUpOfId) && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    const parent: AEReport | undefined = byId.get(cur.followUpOfId);
+    if (!parent) break;
+    cur = parent;
+  }
+  return cur ? cur.id : report.id;
+}
+
+/** 取得某筆個案的所有追蹤報告（直接子代），依獲知日排序。 */
+export function followUpsOf(report: AEReport, pool: AEReport[]): AEReport[] {
+  return (pool || [])
+    .filter(r => r.followUpOfId === report.id)
+    .sort((a, b) => (a.awarenessDate || '').localeCompare(b.awarenessDate || ''));
+}
+
+/**
+ * 由原案建立一份追蹤報告。
+ *
+ * 刻意「複製」而非「就地修改原案」：主管機關收到的是一份份獨立報告，
+ * 原案送出時的內容必須保持原樣以供稽核比對，追蹤報告是另一份文件。
+ *
+ * awarenessDate 設為 todayIso —— 對追蹤報告而言，Day 0 是**獲知新資訊的日期**，
+ * 不是原案的首次獲知日。這是最容易搞錯、也最有法律後果的一點。
+ *
+ * 附件不複製：原案已保存，複製 dataURL 會讓儲存量隨追蹤次數線性膨脹。
+ */
+export function createFollowUp(
+  parent: AEReport,
+  pool: AEReport[],
+  todayIso: string,
+  actor = 'pv-officer',
+): AEReport {
+  const existing = followUpsOf(parent, pool).length;
+  const base = parent.caseNumber || parent.id.slice(0, 12);
+  const now = new Date().toISOString();
+  return {
+    ...parent,
+    id: newId('ae'),
+    caseNumber: `${base}-F${existing + 1}`,
+    status: 'triage',
+    reportType: 'follow_up',
+    followUpOf: parent.caseNumber,
+    followUpOfId: parent.id,
+    hasSignificantNewInfo: true,
+    awarenessDate: todayIso,
+    reportDate: todayIso,
+    // 深拷貝可變的子結構，避免與原案共用參考而互相污染
+    events: (parent.events || []).map(e => ({ ...e, id: newId('ev'), seriousnessCriteria: [...(e.seriousnessCriteria || [])] })),
+    drugs: (parent.drugs || []).map(d => ({ ...d, id: newId('dr') })),
+    attachments: [],
+    triage: {
+      ...parent.triage,
+      validityConfirmed: false,
+      submittedToAuthorityAt: '',
+      authorityReceiptNo: '',
+      followUpRequestedAt: '',
+      duplicateOfId: '',
+    },
+    auditTrail: [{
+      at: now,
+      actor,
+      action: 'follow_up_created',
+      detail: `由原案 ${base} 建立追蹤報告；Day 0 設為獲知新資訊日 ${todayIso}`,
+    }],
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
@@ -521,7 +648,7 @@ export function computeRegulatoryClock(r: AEReport, todayIso: string): Regulator
  */
 export const AE_ISSUE_CODES = [
   'reporterRequired', 'reporterContactRequired', 'awarenessDateRequired', 'awarenessDateFuture',
-  'reportSourceRequired',
+  'reportSourceRequired', 'countryRequired', 'countryOtherRequired',
   'patientRequired', 'patientSexMissing', 'patientAgeMissing',
   'eventRequired', 'onsetDateMissing', 'onsetDateFuture', 'outcomeMissing', 'endBeforeOnset',
   'deathDateMissing',
@@ -557,6 +684,9 @@ export function validateAEReport(r: AEReport, todayIso = ''): ValidationIssue[] 
   if (!has(r.reporterPhone) && !has(r.reporterEmail)) issues.push({ code: 'reporterContactRequired', level: 'error', step: 0 });
   if (!has(r.awarenessDate)) issues.push({ code: 'awarenessDateRequired', level: 'error', step: 0 });
   if (!has(r.reportSource)) issues.push({ code: 'reportSourceRequired', level: 'warning', step: 0 });
+  if (!has(r.country)) issues.push({ code: 'countryRequired', level: 'error', step: 0 });
+  // 選了「其他」卻沒填國名，等於沒有國別——境外個案的送件路徑就判不出來
+  if (r.country === 'other' && !has(r.countryOther)) issues.push({ code: 'countryOtherRequired', level: 'error', step: 0 });
 
   if (!min.identifiablePatient) issues.push({ code: 'patientRequired', level: 'error', step: 1 });
   if (!has(r.patientSex)) issues.push({ code: 'patientSexMissing', level: 'warning', step: 1 });
@@ -652,6 +782,9 @@ export interface DuplicateCandidate {
  * 用「病人識別 + 懷疑藥品 + 反應詞 + 發生日」四個維度加權比對，不做模糊字串比對以維持可解釋性。
  */
 export function findDuplicates(target: AEReport, pool: AEReport[], threshold = 50): DuplicateCandidate[] {
+  // 追蹤報告與其原案本來就會在病人／藥品／反應三個維度完全相同，
+  // 不排除的話每一份追蹤報告都會被標成重複個案，示警很快就會被無視。
+  const targetRoot = chainRootId(target, pool);
   const tPatient = normKey(target.patientInitials || target.patientId);
   const tDrugs = new Set((target.drugs || []).filter(d => d.isSuspect)
     .flatMap(d => [normKey(d.brandName), normKey(d.activeIngredient)]).filter(Boolean));
@@ -662,6 +795,7 @@ export function findDuplicates(target: AEReport, pool: AEReport[], threshold = 5
   for (const p of pool || []) {
     if (!p || p.id === target.id) continue;
     if (p.status === 'invalid') continue;
+    if (chainRootId(p, pool) === targetRoot) continue; // 同一追蹤鏈，不是重複個案
     let score = 0;
     const reasons: AEDuplicateReason[] = [];
 
@@ -700,6 +834,20 @@ const label = (opts: readonly { value: string; zh: string; en: string }[], v: st
 };
 
 export const optionLabel = label;
+
+/** 反應發生國別的可讀字串；'other' 時取自填值。 */
+export function countryText(r: AEReport, lang: 'zh' | 'en' = 'zh'): string {
+  if (r.country === 'other') return r.countryOther || '';
+  return label(COUNTRY_OPTIONS, r.country, lang) || r.country || '';
+}
+
+/** 是否為境外個案（非台灣發生）。境外個案的送件路徑與資料來源不同，需在後台標示出來。 */
+export function isForeignCase(r: AEReport): boolean {
+  const c = (r.country || '').trim();
+  if (!c) return false;
+  if (c === 'other') return has(r.countryOther) && normKey(r.countryOther) !== 'taiwan' && r.countryOther.trim() !== '台灣';
+  return c !== 'TW';
+}
 
 /** 病人年齡的可讀字串（優先用填寫的年齡，其次由出生日期推算）。 */
 export function patientAgeText(r: AEReport, todayIso = '', lang: 'zh' | 'en' = 'zh'): string {
@@ -745,7 +893,7 @@ export function aeToCIOMSText(r: AEReport, todayIso = ''): string {
     line,
     'I. REACTION INFORMATION',
     `1. 病人姓名縮寫 (PATIENT INITIALS)   : ${na(r.patientInitials)}`,
-    `1a. 國別 (COUNTRY)                  : ${na(r.country)}`,
+    `1a. 國別 (COUNTRY)                  : ${na(countryText(r))}${isForeignCase(r) ? '  ← 境外個案' : ''}`,
     `2. 出生日期 (DATE OF BIRTH)         : ${na(r.patientBirthDate)}`,
     `2a. 年齡 (AGE)                      : ${na(patientAgeText(r, todayIso))}`,
     `3. 性別 (SEX)                       : ${na(label(SEX_OPTIONS, r.patientSex))}`,
@@ -801,7 +949,10 @@ export function aeToCIOMSText(r: AEReport, todayIso = ''): string {
     `24b. 公司個案編號 (MFR CONTROL NO.): ${na(r.caseNumber)}`,
     `24c. 首次獲知日 (DATE RECEIVED)   : ${na(r.awarenessDate)}   ← 法定 ${MAH_SERIOUS_REPORT_DAYS} 日時鐘起算日`,
     `24d. 通報來源 (REPORT SOURCE)     : ${na(label(REPORT_SOURCE_OPTIONS, r.reportSource))}`,
-    `25a. 報告類型 (REPORT TYPE)       : ${r.reportType === 'follow_up' ? 'FOLLOW-UP' : 'INITIAL'}${has(r.followUpOf) ? `（原案 ${r.followUpOf}）` : ''}`,
+    `25a. 報告類型 (REPORT TYPE)       : ${r.reportType === 'follow_up' ? 'FOLLOW-UP' : 'INITIAL'}${has(r.followUpOf) ? `（原案 ${r.followUpOf}）` : ''}` +
+      (r.reportType === 'follow_up'
+        ? `\n      本次是否帶來重要新資訊       : ${r.hasSignificantNewInfo ? '是 —— 15 日時鐘自本次獲知日重新起算' : '否 —— 不重啟快速通報時鐘，收錄於定期安全性報告'}`
+        : ''),
     `26. 通報者 (REPORTER)             : ${na(r.primaryReporterName || r.reporterName)}${has(r.primaryReporterProfession) ? `／${r.primaryReporterProfession}` : ''}`,
     `    服務單位 / 聯絡方式           : ${na(r.primaryReporterOrg || r.reporterOrg)}｜${na(r.primaryReporterContact || r.reporterPhone || r.reporterEmail)}`,
     `    公司內部通報人（業務）        : ${na(r.reporterName)}${has(r.reporterEmployeeId) ? `（工號 ${r.reporterEmployeeId}）` : ''}｜${na(r.reporterTerritory)}`,
@@ -859,7 +1010,10 @@ export function aeToE2B(r: AEReport, todayIso = ''): Record<string, string> {
     'C.1.8.1 (Worldwide unique case identification)': r.id,
     'C.2.r.1 (Reporter name)': r.primaryReporterName || r.reporterName || 'N/A',
     'C.2.r.4 (Reporter organisation)': r.primaryReporterOrg || r.reporterOrg || 'N/A',
-    'C.2.r.5 (Reporter country)': r.country || 'N/A',
+    'C.1.5 (Date of most recent information)': r.reportDate || todayIso || 'N/A',
+    'C.1.8.2 (First sender of this case)': r.reportType === 'follow_up' ? 'Follow-up' : 'Initial',
+    'C.2.r.5 (Reporter country)': countryText(r, 'en') || 'N/A',
+    'E.i.9 (Identification of the country where the reaction occurred)': countryText(r, 'en') || 'N/A',
     'C.3.1 (Sender type)': 'Pharmaceutical company',
     'C.3.4.1 (Sender organisation)': r.reporterOrg || 'N/A',
     'D.1 (Patient initials)': r.patientInitials || 'N/A',
@@ -907,9 +1061,10 @@ const csvCell = (v: any) => {
 /** 匯出後台個案清單為 CSV（稽核與月報用）。 */
 export function aeReportsToCSV(reports: AEReport[], todayIso = ''): string {
   const headers = [
-    '個案編號', '狀態', '報告類型', '首次獲知日(Day0)', '法定到期日', '剩餘天數', '嚴重性',
+    '個案編號', '狀態', '報告類型', '原案編號', '重要新資訊', '期限依據',
+    '首次獲知日(Day0)', '法定到期日', '剩餘天數', '嚴重性',
     '嚴重性準則', '預期性', '因果關係', '完整度%', '四要素齊備',
-    '病人縮寫', '性別', '年齡', '國別',
+    '病人縮寫', '性別', '年齡', '國別', '境外個案',
     '不良反應(Verbatim)', 'MedDRA PT', 'MedDRA SOC', '發生日', '結果',
     '懷疑藥品', '成分', '批號', '劑量', '途徑', '適應症', '用藥起', '用藥迄', '停藥後改善', '再投與再現',
     '併用藥品', '病史',
@@ -924,13 +1079,17 @@ export function aeReportsToCSV(reports: AEReport[], todayIso = ''): string {
     const sd = (r.drugs || []).find(d => d.isSuspect) || emptyDrug();
     const con = (r.drugs || []).filter(d => !d.isSuspect).map(d => d.brandName || d.activeIngredient).filter(Boolean).join('; ');
     return [
-      r.caseNumber, r.status, r.reportType, r.awarenessDate, clock.dueDate,
+      r.caseNumber, r.status, r.reportType, r.followUpOf,
+      r.reportType === 'follow_up' ? (r.hasSignificantNewInfo ? 'Y' : 'N') : '',
+      clock.basis,
+      r.awarenessDate, clock.dueDate,
       clock.daysRemaining ?? '', serious ? '嚴重' : '非嚴重',
       criteria.map(c => label(SERIOUSNESS_CRITERIA as any, c)).join('; '),
       label(EXPECTEDNESS_OPTIONS, r.triage?.expectedness || ''),
       label(CAUSALITY_OPTIONS, r.triage?.causality || ''),
       computeCompleteness(r), min.valid ? 'Y' : 'N',
-      r.patientInitials, label(SEX_OPTIONS, r.patientSex), patientAgeText(r, todayIso), r.country,
+      r.patientInitials, label(SEX_OPTIONS, r.patientSex), patientAgeText(r, todayIso),
+      countryText(r), isForeignCase(r) ? 'Y' : 'N',
       ev.verbatim, ev.meddraPt || '', ev.meddraSoc || '', ev.onsetDate, label(OUTCOME_OPTIONS, ev.outcome),
       sd.brandName, sd.activeIngredient, sd.lotNumber, sd.dailyDose,
       sd.route === 'other' ? sd.routeOther : label(ROUTE_OPTIONS, sd.route),

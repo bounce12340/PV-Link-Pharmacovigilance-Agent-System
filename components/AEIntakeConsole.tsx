@@ -18,6 +18,7 @@ import {
   assessSeriousness, checkMinimumCriteria, computeCompleteness, computeRegulatoryClock,
   validateAEReport, findDuplicates, aeToCIOMSText, aeToE2B, aeReportsToCSV,
   autoNarrative, patientAgeText, optionLabel, withAudit,
+  createFollowUp, followUpsOf, countryText, isForeignCase,
   AE_CASE_STATUS_FLOW, AECaseStatus,
   SERIOUSNESS_CRITERIA, OUTCOME_OPTIONS, SEX_OPTIONS, REPORT_SOURCE_OPTIONS,
   CAUSALITY_OPTIONS, EXPECTEDNESS_OPTIONS, ROUTE_OPTIONS, YES_NO_UNK_OPTIONS,
@@ -30,7 +31,7 @@ import {
   ArrowDownTrayIcon, ClipboardDocumentIcon, CheckIcon, DocumentTextIcon,
   ExclamationTriangleIcon, TrashIcon, LinkIcon, DevicePhoneMobileIcon,
   MagnifyingGlassIcon, SparklesIcon, XMarkIcon, ShieldExclamationIcon,
-  ClockIcon, InboxIcon,
+  ClockIcon, InboxIcon, DocumentDuplicateIcon, ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -202,7 +203,9 @@ const AEIntakeConsole: React.FC<{
               }`}>
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <span className="text-xs font-black tabular-nums">{r.caseNumber || r.id.slice(0, 12)}</span>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap justify-end">
+                  {isForeignCase(r) && <Badge tone="indigo">{countryText(r, lang)}</Badge>}
+                  {r.reportType === 'follow_up' && <Badge tone="indigo">F/U</Badge>}
                   {serious && <Badge tone="rose">{t('ae.console.serious')}</Badge>}
                   <Badge tone={STATUS_TONE[r.status]}>{t(`ae.status.${r.status}` as any)}</Badge>
                 </div>
@@ -250,6 +253,12 @@ const AEIntakeConsole: React.FC<{
               onUpdate={(m, a) => updateCase(selected.id, m, a)}
               onDelete={() => removeCase(selected.id)}
               onShowCioms={setCiomsText}
+              onCreateFollowUp={() => {
+                const fu = createFollowUp(selected, cases, today, actor);
+                onChange([fu, ...cases]);
+                setSelectedId(fu.id);
+              }}
+              onSelectCase={setSelectedId}
             />}
       </div>
 
@@ -324,7 +333,9 @@ const CaseDetail: React.FC<{
   onUpdate: (mutate: (r: AEReport) => AEReport, audit?: Omit<AEAuditEntry, 'at' | 'actor'>) => void;
   onDelete: () => void;
   onShowCioms: (text: string) => void;
-}> = ({ report, allCases, today, t, lang, onUpdate, onDelete, onShowCioms }) => {
+  onCreateFollowUp: () => void;
+  onSelectCase: (id: string) => void;
+}> = ({ report, allCases, today, t, lang, onUpdate, onDelete, onShowCioms, onCreateFollowUp, onSelectCase }) => {
   const clock = computeRegulatoryClock(report, today);
   const seriousness = assessSeriousness(report);
   const minCriteria = checkMinimumCriteria(report);
@@ -335,6 +346,8 @@ const CaseDetail: React.FC<{
   const duplicates = useMemo(() => findDuplicates(report, allCases), [report, allCases]);
   const suspects = report.drugs.filter(d => d.isSuspect);
   const concomitant = report.drugs.filter(d => !d.isSuspect);
+  const followUps = useMemo(() => followUpsOf(report, allCases), [report, allCases]);
+  const parent = report.followUpOfId ? allCases.find(c => c.id === report.followUpOfId) : undefined;
   const [showE2b, setShowE2b] = useState(false);
 
   const patchTriage = (p: Partial<AEReport['triage']>, action: string, detail?: string) =>
@@ -362,6 +375,9 @@ const CaseDetail: React.FC<{
             <Badge tone={STATUS_TONE[report.status]}>{t(`ae.status.${report.status}`)}</Badge>
             {seriousness.serious && <Badge tone="rose">{t('ae.console.serious')}</Badge>}
             {report.reportType === 'follow_up' && <Badge tone="indigo">{t('ae.console.followUpReport')}</Badge>}
+            {isForeignCase(report) && (
+              <Badge tone="indigo">🌐 {t('ae.console.foreignCase')}：{countryText(report, lang)}</Badge>
+            )}
           </div>
           <p className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1">
             {t('ae.console.receivedFrom')}: {report.reporterName || '—'}
@@ -372,6 +388,10 @@ const CaseDetail: React.FC<{
           <button onClick={() => onShowCioms(aeToCIOMSText(report, today))}
             className="min-h-[44px] px-4 rounded-2xl bg-indigo-600 text-white text-xs font-black flex items-center gap-2 shadow">
             <DocumentTextIcon className="w-4 h-4" />{t('ae.console.cioms')}
+          </button>
+          <button onClick={onCreateFollowUp} title={t('ae.console.createFollowUpHint')}
+            className="min-h-[44px] px-4 rounded-2xl border-2 border-indigo-400 text-indigo-700 dark:text-indigo-300 text-xs font-black flex items-center gap-2">
+            <DocumentDuplicateIcon className="w-4 h-4" />{t('ae.console.createFollowUp')}
           </button>
           <button onClick={onDelete} title={t('ae.console.deleteCase')}
             className="w-11 h-11 rounded-2xl border-2 border-rose-300 dark:border-rose-500/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
@@ -406,12 +426,71 @@ const CaseDetail: React.FC<{
             <p className="text-lg font-black tabular-nums">{completeness}%</p>
           </div>
         </div>
-        {seriousness.serious && !clock.submitted && (
-          <p className="text-[11px] font-bold mt-3 text-slate-600 dark:text-slate-300">
-            {t('ae.console.clockNote').replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
-          </p>
-        )}
+        <p className="text-[11px] font-bold mt-3 text-slate-600 dark:text-slate-300">
+          {t(`ae.console.basis.${clock.basis}`).replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
+        </p>
       </div>
+
+      {/* 追蹤鏈：只在這個個案確實有上下游時才出現，避免對單純的初始報告製造雜訊 */}
+      {(parent || followUps.length > 0 || report.reportType === 'follow_up') && (
+        <Card className="p-5 space-y-4">
+          <h3 className="text-sm font-black tracking-tight flex items-center gap-2">
+            <DocumentDuplicateIcon className="w-4 h-4" />{t('ae.console.followUpChain')}
+          </h3>
+
+          {parent && (
+            <button onClick={() => onSelectCase(parent.id)}
+              className="w-full text-left min-h-[44px] px-4 py-2.5 rounded-2xl border-2 border-slate-300 dark:border-slate-600 text-xs font-black flex items-center gap-2 hover:border-indigo-400">
+              <ArrowUturnLeftIcon className="w-4 h-4 shrink-0" />
+              {t('ae.console.parentCase')}：{parent.caseNumber || parent.id.slice(0, 12)}
+            </button>
+          )}
+
+          {report.reportType === 'follow_up' && (
+            <>
+              <button type="button"
+                onClick={() => onUpdate(
+                  r => ({ ...r, hasSignificantNewInfo: !r.hasSignificantNewInfo }),
+                  { action: 'significant_new_info', detail: report.hasSignificantNewInfo ? 'false' : 'true' },
+                )}
+                className={`w-full min-h-[48px] px-4 rounded-2xl text-xs font-black border-2 flex items-center gap-3 text-left ${
+                  report.hasSignificantNewInfo
+                    ? 'bg-rose-600 text-white border-rose-600'
+                    : 'bg-white/70 dark:bg-slate-800/70 border-slate-300 dark:border-slate-600'
+                }`}>
+                <span className={`w-5 h-5 shrink-0 rounded-md border-2 flex items-center justify-center ${
+                  report.hasSignificantNewInfo ? 'bg-white/25 border-white' : 'border-slate-400'
+                }`}>{report.hasSignificantNewInfo ? '✓' : ''}</span>
+                {t('ae.console.significantNewInfo')}
+              </button>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                {t('ae.console.significantNewInfoHint').replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
+              </p>
+            </>
+          )}
+
+          {followUps.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                {t('ae.console.childFollowUps')}（{followUps.length}）
+              </p>
+              {followUps.map(f => {
+                const fc = computeRegulatoryClock(f, today);
+                return (
+                  <button key={f.id} onClick={() => onSelectCase(f.id)}
+                    className="w-full text-left min-h-[44px] px-4 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-600 text-xs font-bold flex items-center justify-between gap-2 hover:border-indigo-400">
+                    <span className="font-black">{f.caseNumber}</span>
+                    <span className="text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
+                      {f.awarenessDate}
+                      {fc.dueDate ? `　→ ${fc.dueDate}` : `　${t('ae.console.noExpedited')}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* 2. 效度判定 */}
       <Panel step={1} title={t('ae.console.validity')}>
@@ -639,6 +718,7 @@ const CaseDetail: React.FC<{
             <KV k={t('ae.f.patientSex')} v={optionLabel(SEX_OPTIONS, report.patientSex, lang)} />
             <KV k={t('ae.f.patientAge')} v={patientAgeText(report, today, lang)} />
             <KV k={t('ae.f.patientWeight')} v={report.patientWeightKg} />
+            <KV k={t('ae.f.country')} v={`${countryText(report, lang)}${isForeignCase(report) ? `（${t('ae.console.foreignCase')}）` : ''}`} />
             <KV k={t('ae.f.medicalHistory')} v={report.medicalHistory} />
             <KV k={t('ae.f.allergies')} v={report.allergies} />
           </div>
