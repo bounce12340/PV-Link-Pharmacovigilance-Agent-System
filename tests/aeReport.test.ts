@@ -6,6 +6,7 @@ import {
   findDuplicates, aeToCIOMSText, aeToE2B, aeReportsToCSV, aeToSignalRecords,
   autoNarrative, patientAgeText, therapyDurationText,
   AE_ISSUE_CODES, AE_CASE_STATUSES, AE_DUPLICATE_REASONS, MAH_SERIOUS_REPORT_DAYS,
+  CLOCK_BASES, createFollowUp, followUpsOf, chainRootId, countryText, isForeignCase,
   AEReport,
 } from '../services/aeReport';
 import { aggregateSignals } from '../services/signals';
@@ -373,6 +374,13 @@ describe('i18n 動態鍵覆蓋率', () => {
       }
     }
   });
+  it('每個期限依據在 zh / en 都有對應字串', () => {
+    for (const lang of langs) {
+      for (const basis of CLOCK_BASES) {
+        expect(translations[lang][`ae.console.basis.${basis}` as keyof typeof translations['zh']]).toBeTruthy();
+      }
+    }
+  });
 });
 
 describe('CIOMS 編碼可信度標示', () => {
@@ -387,5 +395,167 @@ describe('CIOMS 編碼可信度標示', () => {
     r.events[0].meddraPt = 'Rash';
     r.events[0].meddraVerified = true;
     expect(aeToCIOMSText(r, TODAY)).not.toContain('未經詞典驗證');
+  });
+});
+
+describe('境外個案國別', () => {
+  it('預設為台灣，不算境外', () => {
+    const r = validCase();
+    expect(r.country).toBe('TW');
+    expect(countryText(r)).toBe('台灣');
+    expect(isForeignCase(r)).toBe(false);
+  });
+  it('非台灣即為境外個案', () => {
+    expect(isForeignCase(validCase({ country: 'JP' }))).toBe(true);
+    expect(countryText(validCase({ country: 'JP' }), 'en')).toBe('Japan');
+  });
+  it('other 取自填國名', () => {
+    const r = validCase({ country: 'other', countryOther: '韓國' });
+    expect(countryText(r)).toBe('韓國');
+    expect(isForeignCase(r)).toBe(true);
+  });
+  it('選 other 卻沒填國名是 error，且不算境外（資訊不足）', () => {
+    const r = validCase({ country: 'other', countryOther: '' });
+    const issue = validateAEReport(r, TODAY).find(i => i.code === 'countryOtherRequired');
+    expect(issue?.level).toBe('error');
+    expect(isForeignCase(r)).toBe(false);
+  });
+  it('國別空白是 error', () => {
+    const codes = validateAEReport(validCase({ country: '' }), TODAY)
+      .filter(i => i.level === 'error').map(i => i.code);
+    expect(codes).toContain('countryRequired');
+  });
+  it('CIOMS 1a 印出國別並標示境外', () => {
+    const out = aeToCIOMSText(validCase({ country: 'JP' }), TODAY);
+    expect(out).toContain('日本');
+    expect(out).toContain('境外個案');
+  });
+});
+
+describe('追蹤報告', () => {
+  const parent = validCase({ id: 'p1', caseNumber: 'PV-2026-0001', awarenessDate: '2026-08-01' });
+
+  it('由原案建立，Day 0 設為獲知新資訊日而非原案獲知日', () => {
+    const fu = createFollowUp(parent, [parent], TODAY);
+    expect(fu.reportType).toBe('follow_up');
+    expect(fu.awarenessDate).toBe(TODAY);
+    expect(fu.awarenessDate).not.toBe(parent.awarenessDate);
+    expect(fu.followUpOfId).toBe('p1');
+    expect(fu.followUpOf).toBe('PV-2026-0001');
+    expect(fu.caseNumber).toBe('PV-2026-0001-F1');
+  });
+  it('追蹤報告編號依既有數量遞增', () => {
+    const f1 = createFollowUp(parent, [parent], TODAY);
+    const f2 = createFollowUp(parent, [parent, f1], TODAY);
+    expect(f2.caseNumber).toBe('PV-2026-0001-F2');
+  });
+  it('不繼承原案的送件紀錄與附件，且子結構為深拷貝', () => {
+    const p2: AEReport = {
+      ...parent,
+      attachments: [{ id: 'a1', name: 'x.jpg', mime: 'image/jpeg', size: 1, dataUrl: 'data:', addedAt: '' }],
+      triage: { ...parent.triage, submittedToAuthorityAt: '2026-08-05T00:00:00Z', authorityReceiptNo: 'R-1', validityConfirmed: true },
+    };
+    const fu = createFollowUp(p2, [p2], TODAY);
+    expect(fu.attachments).toEqual([]);
+    expect(fu.triage.submittedToAuthorityAt).toBe('');
+    expect(fu.triage.authorityReceiptNo).toBe('');
+    expect(fu.triage.validityConfirmed).toBe(false);
+    // 深拷貝：改追蹤報告不得污染原案
+    fu.events[0].verbatim = '改過的描述';
+    fu.drugs[0].lotNumber = 'B999';
+    expect(p2.events[0].verbatim).toBe('全身紅疹合併搔癢');
+    expect(p2.drugs[0].lotNumber).toBe('A1234');
+    expect(fu.events[0].id).not.toBe(p2.events[0].id);
+  });
+  it('建立時就留下稽核紀錄', () => {
+    const fu = createFollowUp(parent, [parent], TODAY, '王藥師');
+    expect(fu.auditTrail).toHaveLength(1);
+    expect(fu.auditTrail[0].action).toBe('follow_up_created');
+    expect(fu.auditTrail[0].actor).toBe('王藥師');
+  });
+  it('followUpsOf 找出直接子代並依獲知日排序', () => {
+    const f1 = { ...createFollowUp(parent, [parent], '2026-09-02'), id: 'f1', awarenessDate: '2026-09-02' };
+    const f2 = { ...createFollowUp(parent, [parent], '2026-09-01'), id: 'f2', awarenessDate: '2026-09-01' };
+    const list = followUpsOf(parent, [parent, f1, f2]);
+    expect(list.map(x => x.id)).toEqual(['f2', 'f1']);
+  });
+  it('chainRootId 沿鏈上溯到初始報告', () => {
+    const f1 = { ...createFollowUp(parent, [parent], TODAY), id: 'f1' };
+    const f2 = { ...createFollowUp(f1, [parent, f1], TODAY), id: 'f2', followUpOfId: 'f1' };
+    expect(chainRootId(f2, [parent, f1, f2])).toBe('p1');
+  });
+  it('chainRootId 遇到環狀資料不會無限迴圈', () => {
+    const a: AEReport = { ...validCase({ id: 'a' }), followUpOfId: 'b' };
+    const b: AEReport = { ...validCase({ id: 'b' }), followUpOfId: 'a' };
+    expect(() => chainRootId(a, [a, b])).not.toThrow();
+  });
+});
+
+describe('追蹤報告的法定時鐘', () => {
+  const serious = (over: Partial<AEReport> = {}): AEReport => {
+    const r = validCase({ awarenessDate: '2026-09-01', ...over });
+    r.events[0].seriousnessCriteria = ['hospitalization'];
+    return r;
+  };
+
+  it('帶來重要新資訊的追蹤報告，15 日時鐘自本次獲知日重新起算', () => {
+    const r = serious({ reportType: 'follow_up', hasSignificantNewInfo: true, awarenessDate: '2026-09-05' });
+    const c = computeRegulatoryClock(r, TODAY);
+    expect(c.basis).toBe('expedited');
+    expect(c.dueDate).toBe('2026-09-20');
+  });
+  it('未帶來重要新資訊的追蹤報告不重啟時鐘', () => {
+    const r = serious({ reportType: 'follow_up', hasSignificantNewInfo: false });
+    const c = computeRegulatoryClock(r, TODAY);
+    expect(c.basis).toBe('followup_no_new_info');
+    expect(c.dueDate).toBe('');
+    expect(c.overdue).toBe(false);
+  });
+  it('初始報告不受 hasSignificantNewInfo 影響', () => {
+    const c = computeRegulatoryClock(serious({ reportType: 'initial', hasSignificantNewInfo: false }), TODAY);
+    expect(c.basis).toBe('expedited');
+    expect(c.dueDate).toBe('2026-09-16');
+  });
+  it('非嚴重與缺 Day 0 各自有可辨識的依據', () => {
+    expect(computeRegulatoryClock(validCase(), TODAY).basis).toBe('non_serious');
+    expect(computeRegulatoryClock(serious({ awarenessDate: '' }), TODAY).basis).toBe('no_day0');
+  });
+  it('回傳的 basis 都在白名單內', () => {
+    for (const r of [validCase(), serious(), serious({ reportType: 'follow_up', hasSignificantNewInfo: false }), serious({ awarenessDate: '' })]) {
+      expect(CLOCK_BASES as readonly string[]).toContain(computeRegulatoryClock(r, TODAY).basis);
+    }
+  });
+});
+
+describe('重複偵測排除追蹤鏈', () => {
+  it('追蹤報告不會被標成原案的重複個案', () => {
+    const parent = validCase({ id: 'p1', caseNumber: 'PV-2026-0001' });
+    const fu = createFollowUp(parent, [parent], TODAY);
+    // 內容幾乎完全相同，若不排除追蹤鏈必定超過門檻
+    expect(findDuplicates(fu, [parent, fu])).toEqual([]);
+    expect(findDuplicates(parent, [parent, fu])).toEqual([]);
+  });
+  it('同一鏈的孫代也排除', () => {
+    const parent = validCase({ id: 'p1', caseNumber: 'PV-2026-0001' });
+    const f1 = { ...createFollowUp(parent, [parent], TODAY), id: 'f1' };
+    const f2 = { ...createFollowUp(f1, [parent, f1], TODAY), id: 'f2', followUpOfId: 'f1' };
+    expect(findDuplicates(f2, [parent, f1, f2])).toEqual([]);
+  });
+  it('不同鏈的真重複仍然抓得到', () => {
+    const a = validCase({ id: 'a', caseNumber: 'PV-2026-0001' });
+    const b = validCase({ id: 'b', caseNumber: 'PV-2026-0002' });
+    expect(findDuplicates(a, [b])).toHaveLength(1);
+  });
+});
+
+describe('CSV 的追蹤報告欄位', () => {
+  it('輸出原案編號、重要新資訊與期限依據', () => {
+    const parent = validCase({ id: 'p1', caseNumber: 'PV-2026-0001' });
+    const fu = createFollowUp(parent, [parent], TODAY);
+    const csv = aeReportsToCSV([fu], TODAY);
+    expect(csv.split('\n')[0]).toContain('"原案編號"');
+    expect(csv.split('\n')[0]).toContain('"重要新資訊"');
+    expect(csv.split('\n')[0]).toContain('"境外個案"');
+    expect(csv).toContain('"PV-2026-0001"');
   });
 });
