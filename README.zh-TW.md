@@ -157,10 +157,10 @@ npx wrangler deploy
 ```
 接著設定 `VITE_AE_API_ENDPOINT=/api/ae-reports`（`.env.production` 已內建）並重新 build。個案存於 D1、附件存於 R2；稽核軌跡為獨立資料表，**只增不改由資料庫 trigger 強制**，不靠應用層自律。
 
-業務端以 **Cloudflare Access Email OTP** 登入——沒有密碼可外洩、可共用、可要求重設。
+業務端以**公司信箱**透過 **Cloudflare Access Email OTP** 登入——沒有密碼可外洩、可共用、可要求重設；且離職即失效是自動的：信箱一停用就收不到一次性代碼，即使沒人記得清理 policy 也進不來。
 
-> ⚠️ Access policy 必須逐一列舉個別 email。設 `@gmail.com` **網域**規則等於全世界有 Gmail 的人都能進來。
-> ⚠️ 私人 Gmail 不會隨離職失效，「從 Access policy 移除 email」必須寫進離職檢查表。
+> ⚠️ 必須逐一列舉個別 email。設 `Emails ending in @公司網域` 等於**全公司每個人**（含財會、人資、工讀生）都能讀病人不良反應個案。名單變長請改用 Access Group，不是退回網域規則。
+> ⚠️ **尚無角色分權**：通過 Access 的人都能開後台、讀取全部個案。hash 路由（`#/report`）無法用 Access 的路徑規則分權——`#` 後的片段不會送到伺服器——需在應用層做角色對照表。在那之前，名單上每個人都等同藥安人員。
 
 > 📖 完整 runbook、實機測試步驟與上線前檢查表：[`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md)
 

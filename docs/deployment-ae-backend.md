@@ -79,32 +79,61 @@ VITE_AE_API_ENDPOINT=/api/ae-reports
 
 ---
 
-## 5. Cloudflare Access（Email OTP）
+## 5. Cloudflare Access（公司信箱 Email OTP）
 
 業務端不自建帳號密碼。多一套密碼＝多一組會外洩、會被共用、要負責重設的憑證。
-改用 Access 的 **One-time PIN**：使用者輸入 email → 收一次性代碼 → 登入完成。
+改用 Access 的 **One-time PIN**：使用者輸入**公司信箱** → 收一次性代碼 → 登入完成。
+
+### 為什麼是公司信箱
+
+因為**離職即失效是自動的**。公司信箱在離職當天由 IT 停用，停用後就收不到 OTP，
+Access policy 即使忘了清也進不來——安全性不依賴任何人記得去做某件事。
+
+（相對地，私人 Gmail 沒有這個性質：離職業務的信箱誰也停不掉，
+一把鑰匙會永遠留在他手上。這是本專案不採用私人信箱的唯一原因，也是充分的原因。）
 
 ### 設定步驟
 
 1. Zero Trust → **Settings → Authentication → Login methods** → 確認 **One-time PIN** 已啟用。
 2. Zero Trust → **Access → Applications** → 選 `PV-Link Auditor`（或新建 Self-hosted application）。
 3. Application domain 設為 `pvlink.uic-ai.com`（含 `/api` 路徑，Worker 掛在同一網域下）。
-4. Policy：Action = **Allow**，Include = **Emails**，逐一列出允許的 email。
+4. Policy：Action = **Allow**，Include = **Emails**，**逐一列出**需要使用本系統的公司信箱。
 5. Session duration 建議 **24 小時**：業務一天跑客戶不必重登，隔天要重新驗證。
 
-### ⚠️ 三個不可犯的錯
+### ⚠️ 逐一列舉，不要用網域規則
 
-1. **絕不可用 `@gmail.com` 網域規則**（Include → Emails ending in）。
-   那等於全世界擁有 Gmail 帳號的人都能進來讀取病人資料。
-   個人 Gmail 只能用 **Emails**（個別列舉）。
+Access 的 **Emails ending in `@公司網域`** 看起來省事，但它的意思是
+**全公司每一個人都能讀取病人不良反應個案**——包含財會、人資、工讀生。
 
-2. **私人 Gmail 沒有離職自動失效**。公司信箱可隨離職一併停用，私人信箱不會——
-   離職業務會永遠留著一把鑰匙。**必須把「從 Access policy 移除 email」寫進離職檢查表。**
-   可行的話優先用公司信箱，私人 Gmail 僅作為公司信箱無法收信時的例外。
+個案內容是《個人資料保護法》第 6 條的特種個資（病歷、醫療、健康檢查）：
+姓名縮寫、年齡、性別、事件描述，附件還可能有藥盒照與檢驗單。
+存取範圍應該是「業務 + 藥安人員」，不是「有公司信箱的人」。
 
-3. **`pv-link-auditor.pages.dev` 目前未受 Access 保護**，可直接開啟。
-   在輸入任何真實病人資料之前必須先處理：把該 `*.pages.dev` 網域也納入 Access application，
-   或在 Pages 專案設定關閉該子網域。⚠️ **這是上線前的阻斷條件。**
+實際要列的人數大概是十幾到數十人，逐一列舉的維護成本，遠低於「全公司可讀病歷」的風險。
+人數多到難以維護時，正確做法是建 Access Group（Zero Trust → Access → Groups）
+再讓 policy 引用該 group，而不是退回網域規則。
+
+> ⚠️ 若公司會**回收離職者的信箱**再指派給新人，該新人會直接繼承 Access 權限。
+> 有這個慣例的話，離職流程仍需移除 policy 中的該筆 email。
+
+### ⚠️ `pv-link-auditor.pages.dev` 尚未受保護
+
+該網址目前可直接開啟，繞過 Access。在輸入任何真實病人資料之前必須先處理：
+把該 `*.pages.dev` 網域也納入 Access application，或在 Pages 專案設定關閉該子網域。
+**這是上線前的阻斷條件。**
+
+### ⚠️ 目前沒有角色區分：業務登入後看得到所有個案
+
+Access 只回答「這個 email 是不是自己人」，不回答「這個人該看到什麼」。
+本系統目前**任何通過 Access 的人都能開啟後台**（`#/` 收案處理台）並讀取全部個案，
+`GET /api/ae-reports` 也對任何已驗證身分回傳完整清單。
+
+hash 路由（`#/report`）**無法**用 Access 的路徑規則分權——`#` 後面的片段
+依 HTTP 規範不會送到伺服器，Cloudflare 看不到它。要分權必須在應用層做：
+D1 開一張 email → 角色（`rep` / `pv`）對照表，Worker 依角色決定
+「只能新增個案」或「可讀全部個案」，前端據此隱藏後台頁籤。
+
+⚠️ **在做這件事之前，允許名單上的每一個人都等於藥安人員**——請以此為前提決定名單。
 
 ### 身分與稽核軌跡的關係
 
@@ -144,7 +173,8 @@ VITE_AE_API_ENDPOINT=/api/ae-reports
 
 - [ ] `ae_audit` 的 append-only trigger 已實測（步驟 2）
 - [ ] `pv-link-auditor.pages.dev` 已鎖上或關閉
-- [ ] Access policy 用**個別 email**，沒有 `@gmail.com` 網域規則
-- [ ] 離職檢查表已加入「移除 Access policy 的 email」
+- [ ] Access policy 用**公司信箱、個別列舉**，沒有 `Emails ending in` 網域規則
+- [ ] 名單上每個人都可接受「看得到全部個案」（角色分權尚未實作）
+- [ ] 若公司會回收信箱：離職流程已加入「移除 Access policy 的 email」
 - [ ] 換裝置驗收通過（手機送、電腦收）
 - [ ] 測試個案已清除
