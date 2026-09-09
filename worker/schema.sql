@@ -104,3 +104,25 @@ CREATE TABLE IF NOT EXISTS ae_attachments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ae_attachments_case ON ae_attachments (case_id, deleted_at);
+
+-- ── 使用者角色 ──────────────────────────────────────────────────────────
+--
+-- Cloudflare Access 只回答「這個 email 是不是自己人」，不回答「這個人該看到什麼」。
+-- 分權必須在應用層做，而且不能靠 hash 路由：`#/report` 的片段依 HTTP 規範
+-- 不會送到伺服器，Cloudflare 看不到它，路徑規則分不了權。
+--
+-- 兩種角色：
+--   rep —— 業務。只能新增個案、只讀得到自己送的個案。
+--   pv  —— 藥安人員。讀寫全部個案。
+--
+-- **查無此人時視為 rep**（最小權限）。藥安人員必須被明確列出，
+-- 漏設的後果是「某人看不到全部個案」，而不是「某人看得到全部個案」——
+-- 預設值選錯邊，出事的方式會完全不同。
+CREATE TABLE IF NOT EXISTS ae_users (
+  email        TEXT PRIMARY KEY,   -- 一律小寫，與 JWT 的 email 比對前正規化
+  role         TEXT NOT NULL DEFAULT 'rep' CHECK (role IN ('rep', 'pv')),
+  display_name TEXT,
+  created_at   TEXT NOT NULL,
+  created_by   TEXT,
+  updated_at   TEXT
+);

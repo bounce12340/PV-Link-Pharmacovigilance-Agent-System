@@ -12,7 +12,7 @@ import { loadRecords, saveRecords, DB_KEY, PENDING_KEY } from './services/storag
 import { buildCIOMS, ciomsToText } from './services/cioms';
 import { aggregateSignals } from './services/signals';
 import { AEReport, aeToSignalRecords } from './services/aeReport';
-import { listAECases, saveAECase, deleteAECase, hasRemoteEndpoint } from './services/aeApi';
+import { listAECases, saveAECase, deleteAECase, hasRemoteEndpoint, fetchIdentity } from './services/aeApi';
 import AEIntakeConsole from './components/AEIntakeConsole';
 import { lookupMeddra } from './services/meddra';
 import { useTheme } from './theme/ThemeContext';
@@ -176,6 +176,18 @@ const App: React.FC = () => {
       alert(`個案刪除失敗：${e?.message || e}`);
     }
   };
+
+  // 目前登入者，寫進稽核軌跡的樂觀更新。
+  // ⚠️ 這只是顯示用：後端一律以 Access JWT 的 email 覆寫 actor，前端送什麼都不算數。
+  // 這裡取真實 email 是為了讓畫面與資料庫最終一致，而不是讓前端決定身分。
+  const [actorEmail, setActorEmail] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    fetchIdentity()
+      .then(me => { if (!cancelled) setActorEmail(me.email); })
+      .catch(() => { /* 取不到身分不影響作業；稽核軌跡的真實 actor 仍由後端寫入 */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // 視窗重新取得焦點時重讀個案庫。
   // 遠端模式：把別人（或業務手機）剛送出／更新的個案抓進來。
@@ -901,6 +913,7 @@ const App: React.FC = () => {
               onSaveCase={persistAeCase}
               onDeleteCase={removeAeCase}
               remote={hasRemoteEndpoint()}
+              actor={actorEmail || undefined}
             />
           )}
 

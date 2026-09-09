@@ -122,24 +122,61 @@ Access 的 **Emails ending in `@公司網域`** 看起來省事，但它的意�
 把該 `*.pages.dev` 網域也納入 Access application，或在 Pages 專案設定關閉該子網域。
 **這是上線前的阻斷條件。**
 
-### ⚠️ 目前沒有角色區分：業務登入後看得到所有個案
-
-Access 只回答「這個 email 是不是自己人」，不回答「這個人該看到什麼」。
-本系統目前**任何通過 Access 的人都能開啟後台**（`#/` 收案處理台）並讀取全部個案，
-`GET /api/ae-reports` 也對任何已驗證身分回傳完整清單。
-
-hash 路由（`#/report`）**無法**用 Access 的路徑規則分權——`#` 後面的片段
-依 HTTP 規範不會送到伺服器，Cloudflare 看不到它。要分權必須在應用層做：
-D1 開一張 email → 角色（`rep` / `pv`）對照表，Worker 依角色決定
-「只能新增個案」或「可讀全部個案」，前端據此隱藏後台頁籤。
-
-⚠️ **在做這件事之前，允許名單上的每一個人都等於藥安人員**——請以此為前提決定名單。
-
 ### 身分與稽核軌跡的關係
 
 稽核軌跡的 `actor` **只**取自已驗證的 Access JWT（`identity.email`），
 前端送什麼身分一律不採信。沒有可信身分時 API 回 **401** 而不是「以匿名記錄」——
 可被偽造的稽核軌跡比沒有稽核軌跡更糟，因為它會製造「有在管控」的錯覺。
+
+---
+
+## 5A. 角色設定（誰是業務、誰是藥安）
+
+Access 只回答「這個 email 是不是自己人」。「這個人該看到什麼」由 D1 的 `ae_users` 決定：
+
+| 角色 | 能做的事 |
+|---|---|
+| `rep`（業務） | 送出個案；**只讀得到自己送的個案** |
+| `pv`（藥安人員） | 讀寫全部個案：判定、編碼、追蹤報告、軟刪除 |
+
+**查無此人一律視為 `rep`。** 藥安人員必須被明確列出——設定漏了的後果是
+「某人看不到全部個案」（他會來反映），而不是「某人看得到全部個案」（沒人會來反映）。
+
+### 第一位藥安人員（開機）
+
+`ae_users` 一開始是空的，沒有人有權限去新增第一個有權限的人。用 secret 打破死結：
+
+```bash
+cd worker
+npx wrangler secret put AE_PV_EMAILS
+# 貼上逗號分隔的藥安人員信箱，例：alice@company.com,bob@company.com
+npx wrangler deploy
+```
+
+用 secret 而非 `wrangler.toml` 的 `[vars]`，因為那是真實人員信箱，不該進 git。
+
+### 之後的人員異動
+
+```bash
+# 新增一位藥安人員
+npx wrangler d1 execute pv-link-ae --remote --command \
+  "INSERT INTO ae_users (email, role, display_name, created_at) \
+   VALUES ('carol@company.com', 'pv', '王藥安', datetime('now'))"
+
+# 把某人降回業務
+npx wrangler d1 execute pv-link-ae --remote --command \
+  "UPDATE ae_users SET role='rep', updated_at=datetime('now') WHERE email='carol@company.com'"
+
+# 看目前有誰是藥安人員（含 secret 裡的 bootstrap 名單，那份要另外看）
+npx wrangler d1 execute pv-link-ae --remote --command \
+  "SELECT email, role, display_name FROM ae_users ORDER BY role, email"
+```
+
+業務端不必登錄——沒有列在 `ae_users` 裡的人本來就是 `rep`。
+只要他在 Access 允許名單上，就能通報並看到自己的通報紀錄。
+
+> 離職時**兩邊都要清**：Access policy 移除該 email（若公司會回收信箱）、
+> 並把 `ae_users` 的該筆刪除或降為 `rep`。前者擋掉登入，後者是萬一信箱被回收時的第二道。
 
 ---
 
@@ -151,6 +188,13 @@ D1 開一張 email → 角色（`rep` / `pv`）對照表，Worker 依角色決�
    四要素齊備才送得出去：可辨識病人、可辨識通報者、可疑藥品、不良事件。
 3. **換裝置驗收**：在辦公室電腦開 `https://pvlink.uic-ai.com/#/`，切到「個案收案」頁籤。
    **看得到那筆個案 = 後端確實通了**；看不到就是還在本機模式（回頭檢查步驟 4）。
+   （這一步必須用**藥安人員**的帳號；業務帳號開 `#/` 只會看到通報表單。）
+3b. **驗角色分權**（這一步不能跳過，它是「業務看不到別人個案」的唯一證明）：
+   - 用業務帳號的手機開 `#/`，應該**仍是通報表單**，進不去後台。
+   - 用業務帳號點右上角的清單圖示 →「我的通報紀錄」，應**只看到自己送的那一筆**。
+   - 請第二位業務也送一筆，確認第一位業務在「我的通報紀錄」裡**看不到**第二筆。
+   - 進階（可選）：用業務帳號直接打 `https://pvlink.uic-ai.com/api/ae-reports`，
+     回傳的 `cases` 應只含自己送的個案——這才是真正驗到後端，前端畫面不算數。
 4. **驗離線補送**：手機開飛航模式，再送一筆 → 應顯示「已排入待送佇列」；
    關掉飛航模式重開頁面 → 佇列自動補送。
 5. **驗附件**：上傳一張藥盒照，後台點得開 = R2 通了。
@@ -166,6 +210,8 @@ D1 開一張 email → 角色（`rep` / `pv`）對照表，Worker 依角色決�
 | 後台看不到手機送出的個案 | 前端仍是本機模式 | `.env.production` 是否有 `VITE_AE_API_ENDPOINT`；build 後是否真的重新部署 |
 | 附件點不開 | R2 未綁定 | 檢查 `[[r2_buckets]]`，重新 deploy |
 | 業務登入後看到「拒絕存取」 | email 不在允許名單 | Access policy 的 Emails 清單加入該 email |
+| 藥安人員登入後只看到通報表單 | 該 email 未被設為 `pv` | 加進 `AE_PV_EMAILS` secret 或 `ae_users`（見 §5A） |
+| API 回 **403** `requires PV role` | 以業務身分呼叫藥安專用的操作 | 這是預期行為；確認該帳號是否應為 `pv` |
 
 ---
 
@@ -174,7 +220,8 @@ D1 開一張 email → 角色（`rep` / `pv`）對照表，Worker 依角色決�
 - [ ] `ae_audit` 的 append-only trigger 已實測（步驟 2）
 - [ ] `pv-link-auditor.pages.dev` 已鎖上或關閉
 - [ ] Access policy 用**公司信箱、個別列舉**，沒有 `Emails ending in` 網域規則
-- [ ] 名單上每個人都可接受「看得到全部個案」（角色分權尚未實作）
+- [ ] `AE_PV_EMAILS` 或 `ae_users` 已設好藥安人員，且**只有**該設的人是 `pv`
+- [ ] 已用業務帳號實測：進不去後台、「我的通報紀錄」只有自己的個案（§6 步驟 3b）
 - [ ] 若公司會回收信箱：離職流程已加入「移除 Access policy 的 email」
 - [ ] 換裝置驗收通過（手機送、電腦收）
 - [ ] 測試個案已清除

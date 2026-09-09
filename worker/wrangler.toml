@@ -47,6 +47,11 @@ id = "f335d67ab7e7432ca69dc181224bb535"
 #   npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
 #
 # 未綁定 DB 時，/api/ae-reports 會回 501 並說明原因，LLM proxy 不受影響。
+#
+# 角色分權：藥安人員（可讀寫全部個案）記在 D1 的 ae_users 表，查無此人一律視為業務。
+# 但表一開始是空的，沒有人有權限去新增第一個有權限的人——用這個 secret 打破死結：
+#   npx wrangler secret put AE_PV_EMAILS   # 逗號分隔，例 alice@company.com,bob@company.com
+# 用 secret 而非 [vars]，是因為那是真實的人員信箱，不該進 git。
 [[d1_databases]]
 binding = "DB"
 database_name = "pv-link-ae"

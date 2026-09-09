@@ -18,7 +18,7 @@ import {
 } from '../services/aeReport';
 import {
   submitAEReport, flushOutbox, outboxCount, compressImage, attachmentSrc,
-  MAX_ATTACHMENTS, hasRemoteEndpoint,
+  listAECases, MAX_ATTACHMENTS, hasRemoteEndpoint,
 } from '../services/aeApi';
 import {
   loadValue, saveValue, removeValue, loadRecords,
@@ -30,7 +30,7 @@ import { Field, TextInput, TextArea, ChipGroup, CheckGroup, Card, Badge, Option 
 import {
   ChevronLeftIcon, ChevronRightIcon, PaperAirplaneIcon, PlusIcon, TrashIcon,
   CheckCircleIcon, ExclamationTriangleIcon, CloudArrowUpIcon, CameraIcon,
-  ShieldExclamationIcon, ArrowPathIcon,
+  ShieldExclamationIcon, ArrowPathIcon, ClipboardDocumentListIcon, XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -67,6 +67,7 @@ const AEReportMobile: React.FC = () => {
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [pending, setPending] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // ── 草稿還原 ──────────────────────────────────────────
@@ -210,6 +211,7 @@ const AEReportMobile: React.FC = () => {
   };
 
   // ─────────────────────────────────────────────────────
+  if (showHistory) return <MyReportsScreen onClose={() => setShowHistory(false)} t={t} />;
   if (done) return <DoneScreen done={done} onNew={startNew} t={t} />;
 
   return (
@@ -232,6 +234,10 @@ const AEReportMobile: React.FC = () => {
           <div className="flex items-center gap-1.5 shrink-0">
             {!online && <Badge tone="amber">{t('ae.offline.badge')}</Badge>}
             {pending > 0 && <Badge tone="rose">{pending} {t('ae.outbox.pending')}</Badge>}
+            <button onClick={() => setShowHistory(true)} aria-label={t('ae.mobile.myReports')}
+              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center">
+              <ClipboardDocumentListIcon className="w-5 h-5" />
+            </button>
             <button onClick={toggle} aria-label={t('header.themeToggle')}
               className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-sm">
               {theme === 'dark' ? '☀️' : '🌙'}
@@ -819,6 +825,107 @@ const StepReview: React.FC<StepProps & {
         {t('ae.review.privacy')}
       </p>
     </>
+  );
+};
+
+/**
+ * 「我的通報紀錄」——業務查看自己送出的個案。
+ *
+ * 清單由後端過濾：Worker 依 Access JWT 的身分只回傳 submitted_by 是本人的個案，
+ * 前端沒有、也不需要有「篩掉別人資料」的邏輯。前端做篩選等於把別人的病人資料
+ * 先下載到這支手機上再假裝看不到。
+ *
+ * 刻意唯讀：個案送出後的判定、編碼、送件都是藥安人員的職責，
+ * 通報者這一端能改，稽核上就說不清楚哪一版才是原始通報內容。
+ */
+const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> = ({ onClose, t }) => {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [cases, setCases] = useState<AEReport[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listAECases();
+        if (cancelled) return;
+        setCases(list);
+        setState('ready');
+      } catch {
+        if (!cancelled) setState('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-[#f8fafc] dark:bg-[#0b1020]">
+      <header className="sticky top-0 z-30 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl border-b border-white/60 dark:border-white/10">
+        <div className="px-4 py-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-base font-black tracking-tight truncate">{t('ae.mobile.myReports')}</h1>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              {t('ae.mobile.myReportsHint')}
+            </p>
+          </div>
+          <button onClick={onClose} aria-label={t('ae.mobile.backToForm')}
+            className="w-11 h-11 shrink-0 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center">
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        {state === 'loading' && (
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 py-8 justify-center">
+            <ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.mobile.myReportsLoading')}
+          </p>
+        )}
+
+        {state === 'error' && (
+          <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40">
+            <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+              <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.mobile.myReportsError')}
+            </p>
+          </div>
+        )}
+
+        {state === 'ready' && cases.length === 0 && (
+          <p className="text-sm font-bold text-slate-500 dark:text-slate-400 text-center py-10">
+            {t('ae.mobile.myReportsEmpty')}
+          </p>
+        )}
+
+        {state === 'ready' && cases.map(c => {
+          const drug = c.drugs?.find(d => d.isSuspect) || c.drugs?.[0];
+          const serious = assessSeriousness(c).serious;
+          return (
+            <Card key={c.id} className="p-4 space-y-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-black text-sm truncate">{c.caseNumber || '—'}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {serious && <Badge tone="rose">{t('ae.console.serious')}</Badge>}
+                  <Badge tone="indigo">{t(`ae.status.${c.status}`)}</Badge>
+                </div>
+              </div>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {c.events?.map(e => e.verbatim).filter(Boolean).join('、') || '—'}
+              </p>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                {drug?.brandName || drug?.activeIngredient || '—'}
+                {c.awarenessDate ? `　·　${t('ae.f.awarenessDate')} ${c.awarenessDate}` : ''}
+              </p>
+            </Card>
+          );
+        })}
+
+        {state === 'ready' && cases.length > 0 && (
+          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 leading-relaxed">
+            {t('ae.mobile.myReportsReadOnly')}
+          </p>
+        )}
+      </div>
+    </div>
   );
 };
 

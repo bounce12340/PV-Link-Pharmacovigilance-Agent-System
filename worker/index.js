@@ -20,8 +20,11 @@
 //
 // 本 Worker 同時承載兩件事：
 //   POST /api                  → LLM proxy（本檔）
-//   /api/ae-reports*           → 不良反應個案收案 API（見 ae.js，需 D1 與 R2 綁定）
+//   /api/ae-reports*、/api/me  → 不良反應個案收案 API（見 ae.js，需 D1 與 R2 綁定）
 // 兩者共用同一套 Access 驗證與速率限制。
+//
+// Access 只回答「是不是自己人」；「這個人該看到什麼」由 ae.js 依角色決定
+// （業務只讀得到自己送的個案，藥安人員讀寫全部）。
 
 import { handleAeRequest } from './ae.js';
 
@@ -128,7 +131,8 @@ export default {
       console.log('rate limit check failed (fail-open):', e); // KV 異常時放行，不阻斷正常使用
     }
 
-    // AE 收案 API：認領 /api/ae-reports* 的請求；其餘路徑回 null 交還給下方 LLM proxy。
+    // AE 收案 API：認領 /api/ae-reports* 與 /api/me；其餘路徑回 null 交還給下方 LLM proxy。
+    // 必須排在下面的「僅接受 POST」之前，否則 GET 個案清單會被擋成 405。
     const url = new URL(request.url);
     const aeResponse = await handleAeRequest(request, env, url, identity, cors);
     if (aeResponse) return aeResponse;

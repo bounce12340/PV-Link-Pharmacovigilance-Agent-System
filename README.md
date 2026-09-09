@@ -158,7 +158,16 @@ Then set `VITE_AE_API_ENDPOINT=/api/ae-reports` (already in `.env.production`) a
 Reps sign in with **Cloudflare Access Email OTP** using their **company mailbox** — no passwords to leak, share, or reset, and offboarding is automatic: a disabled mailbox cannot receive the one-time code, so access ends even if nobody remembers to prune the policy.
 
 > ⚠️ List individual addresses. An `Emails ending in @yourcompany.com` rule means **everyone in the company** — finance, HR, interns — can read patient adverse-event data. Use an Access Group if the list grows, not a domain rule.
-> ⚠️ **No role separation yet**: anyone who passes Access can open the console and read every case. Hash routes (`#/report`) cannot be split by Access path rules — the fragment never reaches the server — so this needs an application-level role table. Until then, treat every address on the list as PV staff.
+**Roles** are held in D1, because Access answers "is this person one of us", not "what may this person see":
+
+| Role | Can do |
+|---|---|
+| `rep` (field rep) | Submit cases; read **only their own** |
+| `pv` (PV staff) | Read and write every case |
+
+An email absent from `ae_users` is a `rep` — a missing entry means someone *cannot* see all cases (they will complain) rather than someone who *can* (nobody complains). Bootstrap the first PV user with `wrangler secret put AE_PV_EMAILS`.
+
+> ⚠️ Enforcement lives in the Worker, not the UI. Hash routes (`#/report`) cannot be split by Access path rules — the fragment never reaches the server — so the frontend's role check is presentation only; every API route checks the role itself, and the list is filtered in SQL rather than in JS.
 
 > 📖 Full runbook, real-device test procedure and go-live checklist: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (Traditional Chinese).
 

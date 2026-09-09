@@ -19,6 +19,8 @@ import {
 
 // 集合端點（不含個案 id），例：/api/ae-reports
 const ENDPOINT: string = ((import.meta as any)?.env?.VITE_AE_API_ENDPOINT || '').replace(/\/+$/, '');
+// 身分端點：與收案端點同源同層，例 /api/ae-reports → /api/me
+const ME_ENDPOINT: string = ENDPOINT.replace(/\/[^/]*$/, '/me');
 /** 與後端共享的簡易存取權杖（若後端有設）。非機密等級的憑證，僅防開放式代理。 */
 const TOKEN: string = (import.meta as any)?.env?.VITE_AE_API_TOKEN || '';
 
@@ -138,6 +140,32 @@ export async function deleteAECase(id: string, reason = ''): Promise<void> {
     return;
   }
   await callApi(`/${encodeURIComponent(id)}?reason=${encodeURIComponent(reason)}`, { method: 'DELETE' });
+}
+
+// ── 身分與角色 ────────────────────────────────────────────────────────
+
+export type AERole = 'rep' | 'pv';
+
+export interface AEIdentity {
+  email: string;
+  role: AERole;
+}
+
+/**
+ * 取得目前登入者的身分與角色（遠端模式向 `/api/me` 問）。
+ *
+ * 本機模式沒有後端也就沒有身分，一律當作 pv：那是單機展示情境，
+ * 把展示用的瀏覽器鎖成業務端只會讓人以為系統壞了。
+ *
+ * ⚠️ 這個角色**只用來決定畫面顯示什麼**。真正的守門在 Worker：
+ * 每一條 API 都自己查角色，前端就算被改也拿不到別人的個案。
+ */
+export async function fetchIdentity(): Promise<AEIdentity> {
+  if (!ENDPOINT) return { email: '', role: 'pv' };
+  const res = await fetch(`${ME_ENDPOINT}`, { credentials: 'same-origin', headers: headers() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return { email: String(data?.email || ''), role: data?.role === 'pv' ? 'pv' : 'rep' };
 }
 
 /** 附件的顯示來源：本機模式是 dataURL，遠端模式是後端的附件網址。 */
