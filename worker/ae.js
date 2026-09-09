@@ -7,12 +7,16 @@
 //   PATCH  /api/ae-reports/:id                      後台判定更新
 //   DELETE /api/ae-reports/:id                      軟刪除（標記作廢，軌跡永遠留著）
 //   GET    /api/ae-reports/:id/attachments/:attId   取附件本體（R2）
+//   GET    /api/me                                  目前登入者的 email 與角色
 //
-// 貫穿全檔的兩條規則：
+// 貫穿全檔的三條規則：
 //   1. **actor 一律取自已驗證的 Access JWT，永不採信請求內容。** 前端送來的
 //      auditTrail[].actor 一概忽略並改寫。稽核軌跡若能被前端自報身分，就等於沒有軌跡。
 //   2. **個案不做實體刪除。** DELETE 只寫 deleted_at；稽核軌跡表另有資料庫層 trigger
 //      擋掉任何 UPDATE / DELETE。
+//   3. **分權在這裡執行，不在前端。** 業務（rep）只讀得到自己送的個案，
+//      藥安人員（pv）讀寫全部。前端的頁面切換只是體驗，不是防線——
+//      任何人都能直接打 API，所以每一條路由都自己檢查角色。
 
 const MAH_SERIOUS_REPORT_DAYS = 15;
 
@@ -73,6 +77,81 @@ export function indexColumns(report) {
     suspect_drug: str(suspect.brandName || suspect.activeIngredient) || null,
     patient_key: str(report?.patientInitials || report?.patientId).toLowerCase().trim() || null,
   };
+}
+
+// ── 角色與權限 ──────────────────────────────────────────────────────────
+//
+// 這一段刻意全是純函式（唯一的 I/O 是 resolveRole 查表），
+// 好讓權限規則能被單元測試逐條驗證，而不是只能靠部署後手動點點看。
+
+/** email 比對一律小寫去空白：JWT 的大小寫不保證與資料表一致。 */
+export const normalizeEmail = (v) => str(v).trim().toLowerCase();
+
+/**
+ * 正規化角色。**任何無法辨識的值都降級為 rep**——包含 null、空字串、拼錯的字串。
+ * 這個預設值是刻意選的：設定漏了會讓人「看不到全部個案」（會有人來反映），
+ * 而不是「看得到全部個案」（沒人會來反映）。
+ */
+export const normalizeRole = (v) => (str(v).trim().toLowerCase() === 'pv' ? 'pv' : 'rep');
+
+/**
+ * 開機用的藥安人員清單（環境變數 AE_PV_EMAILS，逗號分隔）。
+ *
+ * 為什麼需要它：ae_users 一開始是空的，若只認資料表，第一個藥安人員永遠設不進去
+ * ——沒有人有權限去新增第一個有權限的人。這是典型的開機死結。
+ * 請用 `wrangler secret put AE_PV_EMAILS` 設定，別寫進 wrangler.toml（那會進 git）。
+ */
+export function bootstrapRole(email, listRaw) {
+  const target = normalizeEmail(email);
+  if (!target) return null;
+  const list = str(listRaw).split(',').map(normalizeEmail).filter(Boolean);
+  return list.includes(target) ? 'pv' : null;
+}
+
+/**
+ * rep 只看得到自己送的個案；pv 看全部。
+ *
+ * 兩邊都必須是非空字串才算相符：否則「沒有 actor」對上「沒有 submitted_by」
+ * 會因為 '' === '' 而放行。路由層雖已擋掉空 actor，但這個函式是獨立可測的
+ * 權限判斷，不該把安全性押在呼叫端記得先檢查。
+ */
+export function canReadCase(role, actor, row) {
+  if (role === 'pv') return true;
+  if (!row) return false;
+  const owner = normalizeEmail(row.submitted_by);
+  const me = normalizeEmail(actor);
+  return Boolean(owner) && Boolean(me) && owner === me;
+}
+
+/**
+ * rep 是否可以覆寫一筆已存在的個案。
+ *
+ * 放行的唯一情境是「自己送的、而且藥安還沒動過」：離線 outbox 補送時，
+ * 前一次 POST 可能其實已經寫進去只是回應沒收到，重送必須成功而非報錯。
+ * 一旦藥安開始處理（狀態離開 draft/submitted），通報者就不能再覆寫——
+ * 否則業務按一下重送，就把藥安的判定與編碼整份洗掉。
+ */
+export function canRepOverwrite(actor, row) {
+  if (!row) return true; // 新個案
+  const owner = normalizeEmail(row.submitted_by);
+  const me = normalizeEmail(actor);
+  if (!owner || !me || owner !== me) return false;   // 同上：空字串不算相符
+  return row.status === 'submitted' || row.status === 'draft';
+}
+
+/** 查角色：bootstrap 清單優先，其次 ae_users，查無此人一律 rep。 */
+async function resolveRole(env, email) {
+  const boot = bootstrapRole(email, env.AE_PV_EMAILS);
+  if (boot) return boot;
+  try {
+    const row = await env.DB.prepare(`SELECT role FROM ae_users WHERE email = ?`)
+      .bind(normalizeEmail(email)).first();
+    return normalizeRole(row?.role);
+  } catch (e) {
+    // ae_users 還沒建（schema 未更新）時不應整個 API 掛掉，但也不能因此放寬權限。
+    console.log('resolveRole failed, defaulting to rep:', e?.message || e);
+    return 'rep';
+  }
 }
 
 // ── 附件：把 dataURL 搬到 R2 ─────────────────────────────────────────────
@@ -179,15 +258,26 @@ function rowToReport(row, audit) {
   };
 }
 
-async function listCases(env, url) {
-  const includeDeleted = url.searchParams.get('include_deleted') === '1';
+/**
+ * 列出個案。**過濾寫在 SQL 的 WHERE 裡，不是取出全部再於 JS 篩掉**——
+ * 後者只要哪天有人改了迴圈就會整份外洩，而且真的把別人的病人資料讀進了記憶體。
+ */
+async function listCases(env, url, role, actor) {
+  // include_deleted 只對藥安人員有意義；業務端一律看不到已作廢個案。
+  const includeDeleted = role === 'pv' && url.searchParams.get('include_deleted') === '1';
   const limit = Math.min(Number(url.searchParams.get('limit') || '500') || 500, 1000);
+
+  const where = [];
+  const binds = [];
+  if (!includeDeleted) where.push('deleted_at IS NULL');
+  if (role !== 'pv') { where.push('LOWER(submitted_by) = ?'); binds.push(normalizeEmail(actor)); }
+
   const { results } = await env.DB.prepare(
     `SELECT * FROM ae_cases
-      ${includeDeleted ? '' : 'WHERE deleted_at IS NULL'}
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY (due_date IS NULL) ASC, due_date ASC, created_at DESC
       LIMIT ?`
-  ).bind(limit).all();
+  ).bind(...binds, limit).all();
 
   const cases = [];
   for (const row of results || []) {
@@ -254,7 +344,8 @@ class HttpError extends Error {
  */
 export async function handleAeRequest(request, env, url, identity, cors) {
   const path = url.pathname.replace(/\/+$/, '');
-  if (!path.startsWith('/api/ae-reports')) return null;
+  const isMe = path === '/api/me';
+  if (!isMe && !path.startsWith('/api/ae-reports')) return null;
 
   if (!env.DB) {
     return json({ error: 'AE backend not configured: D1 binding "DB" is missing' }, 501, cors);
@@ -266,6 +357,15 @@ export async function handleAeRequest(request, env, url, identity, cors) {
     return json({ error: 'unauthorized: no verified identity' }, 401, cors);
   }
 
+  const role = await resolveRole(env, actor);
+  const forbidden = () => json({ error: 'forbidden: requires PV role' }, 403, cors);
+
+  // /api/me —— 前端據此決定顯示通報表單還是後台。真正的守門仍在每一條路由上。
+  if (isMe) {
+    if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405, cors);
+    return json({ email: actor, role }, 200, cors);
+  }
+
   const rest = path.slice('/api/ae-reports'.length);      // '' | '/:id' | '/:id/attachments/:attId'
   const seg = rest.split('/').filter(Boolean);
 
@@ -273,10 +373,18 @@ export async function handleAeRequest(request, env, url, identity, cors) {
     // /api/ae-reports
     if (seg.length === 0) {
       if (request.method === 'GET') {
-        return json({ cases: await listCases(env, url) }, 200, cors);
+        return json({ cases: await listCases(env, url, role, actor) }, 200, cors);
       }
       if (request.method === 'POST') {
         const report = await readJson(request);
+        // 業務可以新增，但不能藉由重送覆寫別人的個案，也不能洗掉藥安已開始的處理。
+        if (role !== 'pv') {
+          const existing = await env.DB.prepare(`SELECT submitted_by, status FROM ae_cases WHERE id = ?`)
+            .bind(str(report?.id)).first();
+          if (!canRepOverwrite(actor, existing)) {
+            return json({ error: 'forbidden: case already exists and is not yours to overwrite' }, 403, cors);
+          }
+        }
         const id = await upsertCase(env, report, actor, { isNew: true });
         return json({ ok: true, id }, 201, cors);
       }
@@ -288,6 +396,9 @@ export async function handleAeRequest(request, env, url, identity, cors) {
     // /api/ae-reports/:id/attachments/:attId
     if (seg.length === 3 && seg[1] === 'attachments') {
       if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405, cors);
+      // 先確認這個人讀得到這個「個案」，才談附件——附件的權限跟著個案走。
+      const owner = await env.DB.prepare(`SELECT submitted_by FROM ae_cases WHERE id = ?`).bind(caseId).first();
+      if (!canReadCase(role, actor, owner)) return json({ error: 'not found' }, 404, cors);
       const row = await env.DB.prepare(
         `SELECT r2_key, mime, name FROM ae_attachments WHERE id = ? AND case_id = ? AND deleted_at IS NULL`
       ).bind(seg[2], caseId).first();
@@ -308,11 +419,15 @@ export async function handleAeRequest(request, env, url, identity, cors) {
     if (seg.length === 1) {
       if (request.method === 'GET') {
         const row = await env.DB.prepare(`SELECT * FROM ae_cases WHERE id = ?`).bind(caseId).first();
-        if (!row) return json({ error: 'not found' }, 404, cors);
+        // 讀不到別人的個案時回 404 而非 403：403 等於告訴對方「這個 id 存在」，
+        // 個案編號是可猜的序號，這點差別足以讓人推敲出通報量。
+        if (!row || !canReadCase(role, actor, row)) return json({ error: 'not found' }, 404, cors);
         return json({ case: rowToReport(row, await loadAudit(env, caseId)) }, 200, cors);
       }
 
       if (request.method === 'PATCH') {
+        // 判定、編碼、送件都是藥安的工作；通報者送出後就不再改動個案。
+        if (role !== 'pv') return forbidden();
         const row = await env.DB.prepare(`SELECT id FROM ae_cases WHERE id = ?`).bind(caseId).first();
         if (!row) return json({ error: 'not found' }, 404, cors);
         const report = await readJson(request);
@@ -321,6 +436,7 @@ export async function handleAeRequest(request, env, url, identity, cors) {
       }
 
       if (request.method === 'DELETE') {
+        if (role !== 'pv') return forbidden();
         // 軟刪除。個案從收件匣消失，但列與稽核軌跡都留著，日後查核仍看得到發生過什麼。
         const reason = url.searchParams.get('reason') || '';
         const now = new Date().toISOString();
