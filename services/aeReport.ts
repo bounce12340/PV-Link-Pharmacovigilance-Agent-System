@@ -207,13 +207,21 @@ export interface AEDrug {
   actionTaken: string;
 }
 
-/** 附件（藥盒照片、檢驗報告、病歷摘要）。以 dataURL 保存，上傳前已在前端壓縮。 */
+/**
+ * 附件（藥盒照片、檢驗報告、病歷摘要）。上傳前已在前端壓縮。
+ *
+ * 本機模式帶 dataUrl；送到後端後，blob 移入 R2，改帶 url 指標（dataUrl 不再回傳），
+ * 否則每次讀取個案都會把幾 MB 的照片一起拖出來。顯示時用 attachmentSrc() 取來源。
+ */
 export interface AEAttachment {
   id: string;
   name: string;
   mime: string;
   size: number;
-  dataUrl: string;
+  /** 本機模式的內嵌資料；遠端模式為 undefined */
+  dataUrl?: string;
+  /** 遠端模式的附件網址（/api/ae-reports/:id/attachments/:attId） */
+  url?: string;
   addedAt: string;
 }
 
@@ -331,6 +339,11 @@ export interface AEReport {
   auditTrail: AEAuditEntry[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * 送出者，由後端從已驗證的 Access JWT 填入，前端唯讀。
+   * 本機模式沒有這個欄位——本機模式本來就沒有可信身分。
+   */
+  submittedBy?: string;
 }
 
 // ─────────────────────────────────────────────────────────────

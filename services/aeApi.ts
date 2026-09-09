@@ -1,9 +1,12 @@
-// AE 個案的送出通道與附件處理。
+// AE 個案的資料通道（送出、讀取、更新、刪除）與附件處理。
 //
-// 送出策略（依序）：
-//   1. 若設定了 VITE_AE_API_ENDPOINT → POST 到後端（正式部署應走這條，個案才會離開手機）。
-//   2. 未設定端點 → 直接寫入本機 IndexedDB 個案庫（單機 / 展示 / 離線試用模式）。
-//   3. 上述失敗（斷網、伺服器 5xx）→ 進入 outbox 佇列，恢復連線後由 flushOutbox 補送。
+// 兩種模式，由 VITE_AE_API_ENDPOINT 是否設定決定：
+//   • **遠端模式**（正式部署）：讀寫都走 Cloudflare Worker 的 /api/ae-reports。
+//     業務手機送出的個案才會真的離開那支手機，辦公室的後台才看得到。
+//   • **本機模式**（未設端點）：讀寫都在瀏覽器的 IndexedDB。只適合單機試用與展示——
+//     通報端與後台必須是同一台裝置的同一個瀏覽器。
+//
+// 送出失敗（斷網、5xx）一律進 outbox 佇列，恢復連線後由 flushOutbox 補送。
 //
 // ⚠️ 業務在外面跑客戶，訊號不穩是常態。「送出失敗就把資料丟掉」是這類表單最常見也最致命的缺陷，
 //    所以送出路徑上的每一個失敗分支都必須落地到 outbox，不得只顯示錯誤訊息。
@@ -14,7 +17,8 @@ import {
   AE_CASES_KEY, AE_OUTBOX_KEY,
 } from './storage';
 
-const ENDPOINT: string = (import.meta as any)?.env?.VITE_AE_API_ENDPOINT || '';
+// 集合端點（不含個案 id），例：/api/ae-reports
+const ENDPOINT: string = ((import.meta as any)?.env?.VITE_AE_API_ENDPOINT || '').replace(/\/+$/, '');
 /** 與後端共享的簡易存取權杖（若後端有設）。非機密等級的憑證，僅防開放式代理。 */
 const TOKEN: string = (import.meta as any)?.env?.VITE_AE_API_TOKEN || '';
 
@@ -28,16 +32,28 @@ export interface SubmitResult {
 
 export const hasRemoteEndpoint = () => Boolean(ENDPOINT);
 
-async function postRemote(report: AEReport): Promise<void> {
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(TOKEN ? { 'X-PV-Token': TOKEN } : {}),
-    },
-    body: JSON.stringify(report),
+const headers = () => ({
+  'Content-Type': 'application/json',
+  ...(TOKEN ? { 'X-PV-Token': TOKEN } : {}),
+});
+
+/**
+ * 呼叫後端。同源部署下，Cloudflare Access 的 CF_Authorization cookie 由瀏覽器自動帶上，
+ * Worker 據此驗證身分——前端不持有、也不需要任何憑證。
+ * credentials: 'same-origin' 是預設值，此處明寫以表明這條依賴。
+ */
+async function callApi(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(`${ENDPOINT}${path}`, {
+    credentials: 'same-origin',
+    headers: headers(),
+    ...init,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res;
+}
+
+async function postRemote(report: AEReport): Promise<void> {
+  await callApi('', { method: 'POST', body: JSON.stringify(report) });
 }
 
 async function saveLocal(report: AEReport): Promise<void> {
@@ -72,6 +88,61 @@ export async function submitAEReport(report: AEReport): Promise<SubmitResult> {
       return { ok: false, channel: 'outbox', message: `佇列寫入失敗：${e2?.message || String(e2)}` };
     }
   }
+}
+
+/**
+ * 讀出所有個案。遠端模式向後端要，本機模式讀 IndexedDB。
+ * 遠端失敗時**不**靜默退回本機資料——那會讓後台顯示一份過時且不完整的清單，
+ * 而藥安人員無從得知。寧可讓錯誤浮上來。
+ */
+export async function listAECases(): Promise<AEReport[]> {
+  if (!ENDPOINT) return (await loadRecords(AE_CASES_KEY)) as AEReport[];
+  const res = await callApi('');
+  const data = await res.json();
+  return Array.isArray(data?.cases) ? data.cases : [];
+}
+
+/**
+ * 新增或更新個案（後台判定、追蹤報告建立都走這裡）。
+ *
+ * `create` 決定遠端用哪個動詞：追蹤報告是在後台產生的**新**個案，後端還沒有這一筆，
+ * PATCH 會回 404。反過來，更新既有個案不用 POST，是為了保留 PATCH 對「個案不存在
+ * （例如已被別人軟刪除）」回 404 的守門作用——靜默建回一筆已刪除的個案更糟。
+ */
+export async function saveAECase(report: AEReport, opts: { create?: boolean } = {}): Promise<void> {
+  if (!ENDPOINT) {
+    const cases = (await loadRecords(AE_CASES_KEY)) as AEReport[];
+    const idx = cases.findIndex(c => c?.id === report.id);
+    if (idx >= 0) cases[idx] = report; else cases.unshift(report);
+    await saveRecords(AE_CASES_KEY, cases);
+    return;
+  }
+  if (opts.create) {
+    await callApi('', { method: 'POST', body: JSON.stringify(report) });
+    return;
+  }
+  await callApi(`/${encodeURIComponent(report.id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(report),
+  });
+}
+
+/**
+ * 刪除個案。遠端是**軟刪除**：個案從收件匣消失，但資料列與稽核軌跡都留著，
+ * 日後查核仍看得到發生過什麼。本機模式沒有這個保證（僅供展示）。
+ */
+export async function deleteAECase(id: string, reason = ''): Promise<void> {
+  if (!ENDPOINT) {
+    const cases = (await loadRecords(AE_CASES_KEY)) as AEReport[];
+    await saveRecords(AE_CASES_KEY, cases.filter(c => c?.id !== id));
+    return;
+  }
+  await callApi(`/${encodeURIComponent(id)}?reason=${encodeURIComponent(reason)}`, { method: 'DELETE' });
+}
+
+/** 附件的顯示來源：本機模式是 dataURL，遠端模式是後端的附件網址。 */
+export function attachmentSrc(a: { dataUrl?: string; url?: string }): string {
+  return a?.dataUrl || a?.url || '';
 }
 
 export async function outboxCount(): Promise<number> {

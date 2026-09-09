@@ -8,10 +8,11 @@ import {
 } from './types';
 import { now } from './services/tools';
 import { PVLLMService } from './services/llmService';
-import { loadRecords, saveRecords, DB_KEY, PENDING_KEY, AE_CASES_KEY } from './services/storage';
+import { loadRecords, saveRecords, DB_KEY, PENDING_KEY } from './services/storage';
 import { buildCIOMS, ciomsToText } from './services/cioms';
 import { aggregateSignals } from './services/signals';
 import { AEReport, aeToSignalRecords } from './services/aeReport';
+import { listAECases, saveAECase, deleteAECase, hasRemoteEndpoint } from './services/aeApi';
 import AEIntakeConsole from './components/AEIntakeConsole';
 import { lookupMeddra } from './services/meddra';
 import { useTheme } from './theme/ThemeContext';
@@ -119,7 +120,9 @@ const App: React.FC = () => {
     let cancelled = false;
     (async () => {
       const [db, pending, ae] = await Promise.all([
-        loadRecords(DB_KEY), loadRecords(PENDING_KEY), loadRecords(AE_CASES_KEY),
+        loadRecords(DB_KEY), loadRecords(PENDING_KEY),
+        // 遠端模式向 Worker 取；本機模式讀 IndexedDB。失敗不吞——後台顯示過時清單比顯示錯誤更危險。
+        listAECases().catch(e => { addLog(`[錯誤] 讀取個案庫失敗：${e?.message || e}`); return [] as AEReport[]; }),
       ]);
       if (cancelled) return;
       setMasterDatabase(db as PVRecord[]);
@@ -140,20 +143,51 @@ const App: React.FC = () => {
     if (hydrated) saveRecords(PENDING_KEY, records);
   }, [records, hydrated]);
 
-  // 持久化：不良反應個案庫
-  useEffect(() => {
-    if (hydrated) saveRecords(AE_CASES_KEY, aeCases);
-  }, [aeCases, hydrated]);
+  // 個案庫刻意**不**做「整個陣列一起寫回」的持久化。
+  // 遠端模式下那會在每次判定時把整份清單推上去，覆蓋掉別人同時間的更新；
+  // 改為下方的細粒度操作：先呼叫後端，成功才更新本地畫面。
+
+  /** 新增或更新單一個案。畫面在後端確認後才更新，避免顯示一個其實沒存進去的狀態。 */
+  const persistAeCase = async (next: AEReport) => {
+    // 清單裡沒有這個 id ＝ 新個案（後台建立的追蹤報告），遠端要用 POST 而非 PATCH。
+    const isNew = !aeCases.some(c => c.id === next.id);
+    try {
+      await saveAECase(next, { create: isNew });
+      setAeCases(prev => {
+        const idx = prev.findIndex(c => c.id === next.id);
+        if (idx < 0) return [next, ...prev];
+        const copy = prev.slice();
+        copy[idx] = next;
+        return copy;
+      });
+    } catch (e: any) {
+      addLog(`[錯誤] 個案儲存失敗：${e?.message || e}`);
+      alert(`個案儲存失敗：${e?.message || e}\n\n畫面未更新，請重試。`);
+    }
+  };
+
+  /** 刪除個案。遠端模式為軟刪除（資料列與稽核軌跡都留著）。 */
+  const removeAeCase = async (id: string, reason = '') => {
+    try {
+      await deleteAECase(id, reason);
+      setAeCases(prev => prev.filter(c => c.id !== id));
+    } catch (e: any) {
+      addLog(`[錯誤] 個案刪除失敗：${e?.message || e}`);
+      alert(`個案刪除失敗：${e?.message || e}`);
+    }
+  };
 
   // 視窗重新取得焦點時重讀個案庫。
-  // 未設定 VITE_AE_API_ENDPOINT 時，業務端與後台共用同一個瀏覽器的 IndexedDB；
-  // 少了這一步，後台分頁會一直停在開啟當下的快照，還可能用舊陣列覆寫手機剛送出的個案。
+  // 遠端模式：把別人（或業務手機）剛送出／更新的個案抓進來。
+  // 本機模式：通報端與後台共用同一個瀏覽器的 IndexedDB，少了這一步後台會停在舊快照。
   useEffect(() => {
     if (!hydrated) return;
     const refresh = async () => {
       if (document.visibilityState !== 'visible') return;
-      const fresh = (await loadRecords(AE_CASES_KEY)) as PVRecord[] as unknown as AEReport[];
-      setAeCases(prev => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+      try {
+        const fresh = await listAECases();
+        setAeCases(prev => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+      } catch { /* 背景重整失敗不打擾使用者，保留現有畫面 */ }
     };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
@@ -862,7 +896,12 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'intake' && (
-            <AEIntakeConsole cases={aeCases} onChange={setAeCases} />
+            <AEIntakeConsole
+              cases={aeCases}
+              onSaveCase={persistAeCase}
+              onDeleteCase={removeAeCase}
+              remote={hasRemoteEndpoint()}
+            />
           )}
 
           {activeTab === 'logs' && (

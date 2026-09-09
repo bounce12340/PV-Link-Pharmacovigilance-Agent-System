@@ -24,6 +24,7 @@ import {
   CAUSALITY_OPTIONS, EXPECTEDNESS_OPTIONS, ROUTE_OPTIONS, YES_NO_UNK_OPTIONS,
   MAH_SERIOUS_REPORT_DAYS,
 } from '../services/aeReport';
+import { attachmentSrc } from '../services/aeApi';
 import { lookupMeddra } from '../services/meddra';
 import { useLang, useT } from '../i18n/LangContext';
 import { Badge, Card, Field, TextInput, TextArea, ChipGroup, Option } from './ui';
@@ -45,10 +46,18 @@ const STATUS_TONE: Record<AECaseStatus, 'slate' | 'emerald' | 'amber' | 'rose' |
 
 const AEIntakeConsole: React.FC<{
   cases: AEReport[];
-  onChange: (next: AEReport[]) => void;
+  /** 存單一個案；遠端模式下由呼叫端 PATCH 到後端，成功才更新畫面 */
+  onSaveCase: (report: AEReport) => void | Promise<void>;
+  /** 刪除個案；遠端模式為軟刪除，reason 會寫進稽核軌跡 */
+  onDeleteCase: (id: string, reason?: string) => void | Promise<void>;
+  /**
+   * 是否連到後端。遠端模式下 actor 由後端從 Access JWT 覆寫，
+   * 前端傳的值只是樂觀更新用的暫時顯示值。
+   */
+  remote?: boolean;
   /** 目前操作者，寫入稽核軌跡 */
   actor?: string;
-}> = ({ cases, onChange, actor = 'pv-officer' }) => {
+}> = ({ cases, onSaveCase, onDeleteCase, remote = false, actor = 'pv-officer' }) => {
   // 同 AEReportMobile：ae.status.* / ae.console.dupReason.* 為動態鍵，改由單元測試把關。
   const t = useT() as (k: string) => string;
   const { lang } = useLang();
@@ -103,19 +112,28 @@ const AEIntakeConsole: React.FC<{
     followUp: enriched.filter(e => e.report.status === 'follow_up').length,
   }), [enriched]);
 
+  // 改一件事就存一件事：整陣列覆寫在遠端模式下會把所有個案重送一次，
+  // 既浪費頻寬也會讓稽核軌跡出現一堆沒有實質變更的寫入。
   const updateCase = (id: string, mutate: (r: AEReport) => AEReport, audit?: Omit<AEAuditEntry, 'at' | 'actor'>) => {
-    onChange(cases.map(c => {
-      if (c.id !== id) return c;
-      let next = mutate(c);
-      next = { ...next, updatedAt: new Date().toISOString() };
-      if (audit) next = withAudit(next, { at: new Date().toISOString(), actor, ...audit });
-      return next;
-    }));
+    const current = cases.find(c => c.id === id);
+    if (!current) return;
+    let next = mutate(current);
+    next = { ...next, updatedAt: new Date().toISOString() };
+    if (audit) next = withAudit(next, { at: new Date().toISOString(), actor, ...audit });
+    void onSaveCase(next);
   };
 
   const removeCase = (id: string) => {
-    if (!window.confirm(t('ae.console.deleteConfirm'))) return;
-    onChange(cases.filter(c => c.id !== id));
+    if (!window.confirm(t(remote ? 'ae.console.deleteConfirmRemote' : 'ae.console.deleteConfirm'))) return;
+    // 遠端模式是軟刪除：個案留在資料庫、只標記 deleted_at，理由寫進稽核軌跡。
+    // GxP 下「刪除」本來就不該是真的消失。
+    let reason = '';
+    if (remote) {
+      const answer = window.prompt(t('ae.console.deleteReason'));
+      if (answer === null) return; // 取消
+      reason = answer.trim();
+    }
+    void onDeleteCase(id, reason);
     if (selectedId === id) setSelectedId(null);
   };
 
@@ -255,8 +273,7 @@ const AEIntakeConsole: React.FC<{
               onShowCioms={setCiomsText}
               onCreateFollowUp={() => {
                 const fu = createFollowUp(selected, cases, today, actor);
-                onChange([fu, ...cases]);
-                setSelectedId(fu.id);
+                void Promise.resolve(onSaveCase(fu)).then(() => setSelectedId(fu.id));
               }}
               onSelectCase={setSelectedId}
             />}
@@ -763,10 +780,10 @@ const CaseDetail: React.FC<{
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('ae.f.attachments')}</p>
             <div className="flex gap-2 flex-wrap">
               {report.attachments.map(a => (
-                <a key={a.id} href={a.dataUrl} target="_blank" rel="noreferrer"
+                <a key={a.id} href={attachmentSrc(a)} target="_blank" rel="noreferrer"
                   className="w-24 h-24 rounded-xl overflow-hidden border-2 border-slate-300 dark:border-slate-600 block">
                   {a.mime.startsWith('image/')
-                    ? <img src={a.dataUrl} alt={a.name} className="w-full h-full object-cover" />
+                    ? <img src={attachmentSrc(a)} alt={a.name} className="w-full h-full object-cover" />
                     : <span className="w-full h-full flex items-center justify-center text-[10px] font-black p-1 text-center break-all">{a.name}</span>}
                 </a>
               ))}

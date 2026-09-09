@@ -65,7 +65,8 @@
 
 ## 🧪 测试 (Testing)
 
-核心纯函数（`parseJsonLoose`、`reconcile`、MedDRA 对照、CIOMS 映射、信号聚合）皆有单元测试：
+核心纯函数（`parseJsonLoose`、`reconcile`、MedDRA 对照、CIOMS 映射、信号聚合）皆有单元测试。
+Worker 无法导入前端的 TypeScript 模块，其严重性与到期日判定是刻意的镜像——`tests/worker.ae.test.ts` 用同一批个案喂给两边逐案比对，因为镜像一旦漂移，症状就是法定期限算错：
 ```bash
 npm test        # vitest 执行单元测试
 npm run typecheck  # tsc --noEmit 类型检查
@@ -128,11 +129,31 @@ AI 层（`services/llmService.ts`）是 provider 无关的：它走标准 **Open
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # 将上游密钥存成 secret
-npx wrangler secret put PROXY_TOKEN   # 与前端 VITE_PV_PROXY_TOKEN 同值，防开放式代理
 npx wrangler kv namespace create RATE_LIMIT   # 创建速率限制 KV，将返回的 id 填入 wrangler.toml
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL 于 wrangler.toml 设定
 ```
 接着在前端把 `VITE_PV_PROXY_ENDPOINT` 设为部署后的 Worker URL 并重新 build。此时前端**不含**任何 LLM 密钥。速率限制的 KV 未绑定时 Worker 会自动跳过、照常运作。
+
+
+### 不良反应收案后端（Worker + D1 + R2）
+
+AE 收案 API 挂在**同一个** Worker、走**同一套** Cloudflare Access 验证，不必再维护第二套登录。
+
+```bash
+cd worker
+npx wrangler d1 create pv-link-ae                 # 将返回的 database_id 填入 wrangler.toml
+npx wrangler r2 bucket create pv-link-ae-attachments
+npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+npx wrangler deploy
+```
+接着设置 `VITE_AE_API_ENDPOINT=/api/ae-reports`（`.env.production` 已内置）并重新 build。个案存于 D1、附件存于 R2；稽核轨迹为独立数据表，**只增不改由数据库 trigger 强制**，不依赖应用层自律。
+
+业务端以 **Cloudflare Access Email OTP** 登录——没有密码可泄露、可共用、可要求重置。
+
+> ⚠️ Access policy 必须逐一列举个别 email。设 `@gmail.com` **域名**规则等于全世界有 Gmail 的人都能进来。
+> ⚠️ 私人 Gmail 不会随离职失效，「从 Access policy 移除 email」必须写进离职检查表。
+
+> 📖 完整 runbook、实机测试步骤与上线前检查表：[`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md)（繁体中文）
 
 ## 📄 授权条款 (License)
 MIT License

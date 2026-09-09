@@ -67,7 +67,8 @@
 ## 🧪 測試 (Testing)
 
 核心純函式（`parseJsonLoose`、`reconcile`、MedDRA 對照、CIOMS 映射、訊號聚合，以及 AE 個案的效度／嚴重性／法定時限／重複偵測／CIOMS-E2B 映射）皆有單元測試；
-動態 i18n 鍵（`ae.issue.*`、`ae.status.*`）的中英翻譯覆蓋率也由測試把關：
+動態 i18n 鍵（`ae.issue.*`、`ae.status.*`）的中英翻譯覆蓋率也由測試把關。
+Worker 無法匯入前端的 TypeScript 模組，其嚴重性與到期日判定是刻意的鏡像——`tests/worker.ae.test.ts` 用同一批個案餵給兩邊逐案比對，因為鏡像一旦漂移，症狀就是法定期限算錯：
 ```bash
 npm test        # vitest 執行單元測試
 npm run typecheck  # tsc --noEmit 型別檢查
@@ -137,11 +138,31 @@ AI 層（`services/llmService.ts`）是 provider 無關的：它走標準 **Open
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # 將上游金鑰存成 secret
-npx wrangler secret put PROXY_TOKEN   # 與前端 VITE_PV_PROXY_TOKEN 同值，防開放式代理
 npx wrangler kv namespace create RATE_LIMIT   # 建速率限制 KV，將回傳 id 填入 wrangler.toml
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL 於 wrangler.toml 設定
 ```
 接著在前端把 `VITE_PV_PROXY_ENDPOINT` 設為部署後的 Worker URL 並重新 build。此時前端**不含**任何 LLM 金鑰。速率限制的 KV 未綁定時 Worker 會自動略過、照常運作。
+
+
+### 不良反應收案後端（Worker + D1 + R2）
+
+AE 收案 API 掛在**同一支** Worker、走**同一套** Cloudflare Access 驗證，不必再養第二套登入。
+
+```bash
+cd worker
+npx wrangler d1 create pv-link-ae                 # 將回傳的 database_id 填入 wrangler.toml
+npx wrangler r2 bucket create pv-link-ae-attachments
+npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+npx wrangler deploy
+```
+接著設定 `VITE_AE_API_ENDPOINT=/api/ae-reports`（`.env.production` 已內建）並重新 build。個案存於 D1、附件存於 R2；稽核軌跡為獨立資料表，**只增不改由資料庫 trigger 強制**，不靠應用層自律。
+
+業務端以 **Cloudflare Access Email OTP** 登入——沒有密碼可外洩、可共用、可要求重設。
+
+> ⚠️ Access policy 必須逐一列舉個別 email。設 `@gmail.com` **網域**規則等於全世界有 Gmail 的人都能進來。
+> ⚠️ 私人 Gmail 不會隨離職失效，「從 Access policy 移除 email」必須寫進離職檢查表。
+
+> 📖 完整 runbook、實機測試步驟與上線前檢查表：[`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md)
 
 ## 📄 授權條款 (License)
 MIT License

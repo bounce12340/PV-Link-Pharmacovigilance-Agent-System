@@ -17,11 +17,18 @@
 //   ACCESS_TEAM_DOMAIN  Access team 網域，例 uic-ai.cloudflareaccess.com
 //   ACCESS_AUD          此 Access application 的 Audience (AUD) tag
 //   （未設 ACCESS_TEAM_DOMAIN/ACCESS_AUD 時跳過驗證，僅供本機開發）
+//
+// 本 Worker 同時承載兩件事：
+//   POST /api                  → LLM proxy（本檔）
+//   /api/ae-reports*           → 不良反應個案收案 API（見 ae.js，需 D1 與 R2 綁定）
+// 兩者共用同一套 Access 驗證與速率限制。
+
+import { handleAeRequest } from './ae.js';
 
 function corsHeaders(env) {
   return {
     'Access-Control-Allow-Origin': env.ALLOW_ORIGIN || '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }
@@ -93,18 +100,19 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: cors });
     }
-    if (request.method !== 'POST') {
-      return new Response('Method Not Allowed', { status: 405, headers: cors });
-    }
 
     // Cloudflare Access 驗證（有設定 team domain + aud 才啟用）。
     // Access 於登入後注入 Cf-Access-Jwt-Assertion；亦支援 CF_Authorization cookie 作為後備。
+    //
+    // 驗證後保留 payload：裡面的 email 是**唯一可信的身分來源**，AE 收案 API 用它當
+    // 稽核軌跡的 actor。前端送什麼身分一律不採信。
+    let identity = null;
     if (env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
       const jwt = request.headers.get('Cf-Access-Jwt-Assertion')
         || (request.headers.get('Cookie') || '').match(/CF_Authorization=([^;]+)/)?.[1];
       if (!jwt) return json({ error: 'unauthorized: missing Access token' }, 401, cors);
       try {
-        await verifyAccessJwt(jwt, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
+        identity = await verifyAccessJwt(jwt, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
       } catch (e) {
         console.log('access jwt verify failed:', e.message);
         return json({ error: 'unauthorized' }, 401, cors);
@@ -118,6 +126,16 @@ export default {
       }
     } catch (e) {
       console.log('rate limit check failed (fail-open):', e); // KV 異常時放行，不阻斷正常使用
+    }
+
+    // AE 收案 API：認領 /api/ae-reports* 的請求；其餘路徑回 null 交還給下方 LLM proxy。
+    const url = new URL(request.url);
+    const aeResponse = await handleAeRequest(request, env, url, identity, cors);
+    if (aeResponse) return aeResponse;
+
+    // ── 以下為 LLM proxy，僅接受 POST ──
+    if (request.method !== 'POST') {
+      return new Response('Method Not Allowed', { status: 405, headers: cors });
     }
 
     let prompt;
