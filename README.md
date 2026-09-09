@@ -155,10 +155,10 @@ npx wrangler deploy
 ```
 Then set `VITE_AE_API_ENDPOINT=/api/ae-reports` (already in `.env.production`) and rebuild. Cases live in D1; attachments in R2; the audit trail is a separate append-only table enforced by a database trigger, not by application discipline.
 
-Reps sign in with **Cloudflare Access Email OTP** — no passwords to leak, share, or reset.
+Reps sign in with **Cloudflare Access Email OTP** using their **company mailbox** — no passwords to leak, share, or reset, and offboarding is automatic: a disabled mailbox cannot receive the one-time code, so access ends even if nobody remembers to prune the policy.
 
-> ⚠️ List individual addresses in the Access policy. A `@gmail.com` **domain** rule would let anyone with a Gmail account in.
-> ⚠️ Personal Gmail addresses do not expire when someone leaves. Removing them from the Access policy must be on the leaver checklist.
+> ⚠️ List individual addresses. An `Emails ending in @yourcompany.com` rule means **everyone in the company** — finance, HR, interns — can read patient adverse-event data. Use an Access Group if the list grows, not a domain rule.
+> ⚠️ **No role separation yet**: anyone who passes Access can open the console and read every case. Hash routes (`#/report`) cannot be split by Access path rules — the fragment never reaches the server — so this needs an application-level role table. Until then, treat every address on the list as PV staff.
 
 > 📖 Full runbook, real-device test procedure and go-live checklist: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (Traditional Chinese).
 
