@@ -66,7 +66,7 @@ A spontaneous reporting channel, covering the half of ICSR intake that literatur
 
 ## 🧪 Testing
 
-Core pure functions (`parseJsonLoose`, `reconcile`, MedDRA mapping, CIOMS mapping, signal aggregation, plus AE case validity / seriousness / regulatory clock / duplicate detection / CIOMS-E2B mapping) all have unit tests. Translation coverage for dynamic i18n keys (`ae.issue.*`, `ae.status.*`) is enforced by tests too:
+Core pure functions (`parseJsonLoose`, `reconcile`, MedDRA mapping, CIOMS mapping, signal aggregation, plus AE case validity / seriousness / regulatory clock / duplicate detection / CIOMS-E2B mapping) all have unit tests. Translation coverage for dynamic i18n keys (`ae.issue.*`, `ae.status.*`) is enforced by tests too. The Worker cannot import the frontend's TypeScript modules, so its seriousness and due-date logic is a deliberate mirror — `tests/worker.ae.test.ts` feeds both implementations the same cases and compares them case by case, because a drifted mirror shows up as a wrong statutory deadline:
 ```bash
 npm test        # run unit tests with vitest
 npm run typecheck  # type-check with tsc --noEmit
@@ -136,11 +136,31 @@ To avoid shipping any API key to the browser, deploy the thin proxy in `worker/`
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # store the upstream key as a secret
-npx wrangler secret put PROXY_TOKEN   # same value as the frontend's VITE_PV_PROXY_TOKEN, prevents an open proxy
 npx wrangler kv namespace create RATE_LIMIT   # create the rate-limit KV; put the returned id into wrangler.toml
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL are set in wrangler.toml
 ```
 Then set `VITE_PV_PROXY_ENDPOINT` in the frontend to the deployed Worker URL and rebuild. The frontend now carries **no** LLM key. If the rate-limit KV isn't bound, the Worker automatically skips it and works as normal.
+
+
+### Adverse event backend (Worker + D1 + R2)
+
+The AE intake API rides on the **same** Worker, behind the **same** Cloudflare Access check, so there is no second login to maintain.
+
+```bash
+cd worker
+npx wrangler d1 create pv-link-ae                 # put the returned database_id into wrangler.toml
+npx wrangler r2 bucket create pv-link-ae-attachments
+npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+npx wrangler deploy
+```
+Then set `VITE_AE_API_ENDPOINT=/api/ae-reports` (already in `.env.production`) and rebuild. Cases live in D1; attachments in R2; the audit trail is a separate append-only table enforced by a database trigger, not by application discipline.
+
+Reps sign in with **Cloudflare Access Email OTP** — no passwords to leak, share, or reset.
+
+> ⚠️ List individual addresses in the Access policy. A `@gmail.com` **domain** rule would let anyone with a Gmail account in.
+> ⚠️ Personal Gmail addresses do not expire when someone leaves. Removing them from the Access policy must be on the leaver checklist.
+
+> 📖 Full runbook, real-device test procedure and go-live checklist: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (Traditional Chinese).
 
 ## 📄 License
 MIT License

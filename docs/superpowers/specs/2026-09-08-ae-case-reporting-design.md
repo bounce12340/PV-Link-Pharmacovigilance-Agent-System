@@ -228,6 +228,99 @@ Day 0 設為**獲知新資訊之日**而非原案獲知日。刻意複製而非�
 否則後台看不到手機送出的個案。這只適合展示與單機試用；正式上線一定要有真正的後端。
 後台在視窗重新取得焦點時會重讀 IndexedDB，避免分頁停在舊快照或用舊資料覆寫新個案。
 
+---
+
+## 7A. 後端（Cloudflare Worker + D1 + R2）
+
+### 7A.1 為什麼是這個組合
+
+業務在外面跑客戶用手機通報、藥安人員在辦公室收案——這兩件事發生在不同裝置上，
+**沒有後端就不可能成立**。選型上只有一個硬條件：前端已經掛在 Cloudflare Access 後面，
+後端若換到別家，等於再養第二套身分驗證，而稽核軌跡最怕的就是兩套身分來源對不起來。
+
+| 元件 | 用途 | 為什麼不是別的 |
+|---|---|---|
+| Workers | 收案 API（與既有 LLM proxy 同一支 Worker） | 同源、同一份 Access JWT 驗證，不必處理 CORS 與第二套登入 |
+| D1（SQLite） | 個案與稽核軌跡 | ICSR 量級是「每年數百到數千筆」，不是需要 Postgres 的規模；且與 Worker 同一組帳單與權限 |
+| R2 | 附件本體（藥盒照、檢驗單） | D1 有單列大小限制，1MB 的照片塞進 payload 會讓每次列表查詢都把它拖出來 |
+| KV | 速率限制（沿用既有） | 已在用 |
+
+⚠️ 使用者確認**無資料落地（data residency）要求**，故 D1／R2 皆建於 ENAM。
+若日後客戶或主管機關要求資料留在特定法域，這是需要重建資料庫的變更，不是設定調整。
+
+### 7A.2 資料表（`worker/schema.sql`）
+
+三張表：
+
+- **`ae_cases`** —— 個案本體以 JSON `payload` 存放，另外把查詢與排序真正會用到的欄位
+  抽成索引欄（`status`、`report_type`、`follow_up_of_id`、`awareness_date`、`due_date`、
+  `serious`、`country`、`suspect_drug`、`patient_key`、`submitted_by`）。
+
+  **為什麼不完全正規化**：CIOMS/E2B 的個案是深層巢狀結構（事件 n 筆、藥品 n 筆、
+  每筆藥品下又有療程資訊）。完全正規化等於要維護兩份結構定義（TypeScript 型別與資料表），
+  以及一組雙向映射；欄位一改就得同時改三個地方，映射漂移只會在資料寫壞之後才被發現。
+  JSON payload + 索引欄的取捨是：**查詢效能只在真正需要查的欄位上付出代價**，
+  結構演進的成本則留在單一定義（`services/aeReport.ts`）裡。
+  代價是無法用 SQL 對巢狀欄位做 ad-hoc 查詢——目前的用例（收件匣排序、重複偵測、
+  訊號聚合）都不需要。
+
+- **`ae_audit`** —— 稽核軌跡獨立成表，**只增不改**，且在資料庫層強制：
+
+  ```sql
+  CREATE TRIGGER trg_ae_audit_no_update BEFORE UPDATE ON ae_audit
+  BEGIN SELECT RAISE(ABORT, 'audit trail is append-only'); END;
+  ```
+
+  （另有一支對應的 DELETE trigger。）應用層的「我不會去改它」不是保證，
+  是承諾；GxP 要的是前者。已實測驗證：對 `ae_audit` 執行 UPDATE 與 DELETE
+  皆回 `SQLITE_CONSTRAINT_TRIGGER: audit trail is append-only`。
+
+- **`ae_attachments`** —— 只存中繼資料（名稱、MIME、大小、R2 key），blob 在 R2。
+
+### 7A.3 API
+
+全部掛在 `/api/ae-reports`，與 LLM proxy 同一支 Worker、同一套 Access 驗證：
+
+| 方法 | 路徑 | 行為 |
+|---|---|---|
+| GET | `/api/ae-reports` | 列出未刪除個案，依「有期限者優先、到期日近者優先」排序 |
+| POST | `/api/ae-reports` | 收案；附件的 dataURL 於此搬入 R2 |
+| GET | `/api/ae-reports/:id` | 單案（含稽核軌跡） |
+| PATCH | `/api/ae-reports/:id` | 更新單案 |
+| DELETE | `/api/ae-reports/:id?reason=…` | **軟刪除**，理由寫入稽核軌跡 |
+| GET | `/api/ae-reports/:id/attachments/:attId` | 取附件；`Cache-Control: private` |
+
+兩條不可退讓的規則，寫在 `worker/ae.js` 檔頭：
+
+1. **actor 一律來自已驗證的 Access JWT**（`identity.email`），前端送什麼身分都不採信。
+   沒有可信身分時整個 API 回 401 而非「以匿名記錄」——稽核軌跡若能被偽造，
+   它的存在只會製造「有在管控」的錯覺。
+2. **個案永不物理刪除**。DELETE 只設 `deleted_at/by/reason`。
+
+### 7A.4 兩份判定邏輯的鏡像問題
+
+Worker 是 `.js`、跑在 workerd，無法匯入前端的 TypeScript 模組，
+因此 `deriveSerious()` 與 `deriveDueDate()` 在 `worker/ae.js` 裡是**刻意重寫的鏡像**
+（供 D1 索引欄使用）。鏡像會漂移，而漂移的症狀是「收件匣的到期日排序和個案內頁顯示的
+到期日不一致」——很難在測試環境重現，卻直接影響法定時限。
+
+因此 `tests/worker.ae.test.ts` 用同一批個案同時餵給兩邊逐案比對，
+涵蓋非嚴重／自動嚴重／人工覆寫兩向／追蹤報告有無新資訊／缺 Day 0 等分支。
+唯一容許的差異是**空值表示法**：前端回空字串、Worker 回 `null`（要落成 SQL NULL）。
+
+### 7A.5 身分驗證：Cloudflare Access Email OTP
+
+業務端不自建帳號密碼——多一套密碼就是多一組會外洩、會被共用、要負責重設的憑證。
+改用 **Cloudflare Access 的 Email OTP**：使用者輸入 email，收一次性代碼，即完成登入。
+
+- 允許名單必須用**個別 email 逐一列舉**。
+- ⚠️ **絕不可設 `@gmail.com` 網域規則**——那等於全世界有 Gmail 的人都能進來。
+- ⚠️ 私人 Gmail **沒有離職自動失效**機制。公司信箱可隨離職停用，私人信箱不會；
+  這一條必須寫進離職檢查表，否則離職業務永遠留著一把鑰匙。
+
+⚠️ **`pv-link-auditor.pages.dev` 目前未經 Access 保護**，可直接開啟。
+在輸入任何真實病人資料之前必須先鎖上（Access policy 涵蓋該網域，或關閉該 pages.dev 子網域）。
+
 ## 8. 已補齊與仍待處理
 
 **本版已補齊**（原設計文件列為缺口者）：
@@ -235,12 +328,17 @@ Day 0 設為**獲知新資訊之日**而非原案獲知日。刻意複製而非�
 - 境外個案：`country` / `countryOther` 已在手機通報端提供輸入，後台標記境外個案並印入 CIOMS 1a 與 E2B `E.i.9`
 - 追蹤報告：後台可由原案建立，含時鐘重算規則與追蹤鏈檢視
 
+- 後端收案 API：Worker + D1 + R2，稽核軌跡 append-only（見 §7A）
+- 稽核軌跡的 `actor` 改由後端從 Access JWT 取得，前端無法偽造
+- 個案改為軟刪除，刪除理由寫入稽核軌跡（本機模式仍為硬刪，因為本機模式本來就沒有可信身分）
+
 **仍待處理**：
 
 - 文獻管道（`services/cioms.ts`）沒有獲知日概念，與通報管道的法定時鐘尚未統一
-- 稽核軌跡的 `actor` 為寫死預設值；個案為硬刪，會連稽核軌跡一起移除
 - 訊號偵測仍是簡單計數，非不成比例分析（見 §6）
 - 醫療機構／藥局的 7 日、30 日期限未實作
+- ⚠️ `pv-link-auditor.pages.dev` 尚未納入 Access 保護（見 §7A.5）
+- 附件未做自動去識別化（見 §9）
 
 ## 9. 個資考量
 

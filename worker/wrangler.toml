@@ -33,8 +33,26 @@ id = "f335d67ab7e7432ca69dc181224bb535"
 
 # 機密請用 secret，勿寫在這裡：
 #   npx wrangler secret put LLM_API_KEY
-#   npx wrangler secret put PROXY_TOKEN   # 與前端 VITE_PV_PROXY_TOKEN 同值，防開放式代理
+# （PROXY_TOKEN 已由 Cloudflare Access 取代，不再需要）
 #
 # 進階（選配）：Cloudflare Turnstile 防機器人 —— 需你在 CF 後台建立 Turnstile widget 取得
 # site key/secret，前端嵌入 widget、Worker 端驗證 token。因需你的 site key，暫未接線，
 # 已先實作 KV 速率限制作為第一層防護。
+
+# ── 不良反應個案（AE）收案後端 ────────────────────────────────────────────
+# 建立指令（已建好，此處為紀錄）：
+#   npx wrangler d1 create pv-link-ae
+#   npx wrangler r2 bucket create pv-link-ae-attachments
+# 套用資料表：
+#   npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+#
+# 未綁定 DB 時，/api/ae-reports 會回 501 並說明原因，LLM proxy 不受影響。
+[[d1_databases]]
+binding = "DB"
+database_name = "pv-link-ae"
+database_id = "9493b7d2-719a-4fd6-9bd1-465c4ea19756"
+
+# 附件（藥盒照、檢驗單）的本體。D1 只存指標，blob 放 R2。
+[[r2_buckets]]
+binding = "AE_FILES"
+bucket_name = "pv-link-ae-attachments"

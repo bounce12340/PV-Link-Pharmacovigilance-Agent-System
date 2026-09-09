@@ -65,7 +65,8 @@
 
 ## 🧪 테스트 (Testing)
 
-핵심 순수 함수(`parseJsonLoose`, `reconcile`, MedDRA 매핑, CIOMS 매핑, 신호 집계)에는 모두 단위 테스트가 있습니다:
+핵심 순수 함수(`parseJsonLoose`, `reconcile`, MedDRA 매핑, CIOMS 매핑, 신호 집계)에는 모두 단위 테스트가 있습니다.
+Worker는 프런트엔드의 TypeScript 모듈을 가져올 수 없어 중대성·기한 판정이 의도적인 미러 구현입니다. 미러가 어긋나면 법정 기한 오류로 나타나므로, `tests/worker.ae.test.ts`는 동일한 증례 집합을 양쪽에 넣어 건별로 대조합니다:
 ```bash
 npm test        # vitest로 단위 테스트 실행
 npm run typecheck  # tsc --noEmit로 타입 체크
@@ -128,11 +129,31 @@ AI 레이어(`services/llmService.ts`)는 provider에 독립적입니다. 표준
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # 업스트림 키를 secret으로 저장
-npx wrangler secret put PROXY_TOKEN   # 프런트엔드 VITE_PV_PROXY_TOKEN과 동일한 값으로 설정, 오픈 프록시 방지
 npx wrangler kv namespace create RATE_LIMIT   # 속도 제한용 KV 생성, 반환된 id를 wrangler.toml에 입력
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL은 wrangler.toml에서 설정
 ```
 그런 다음 프런트엔드의 `VITE_PV_PROXY_ENDPOINT`를 배포된 Worker URL로 설정하고 다시 빌드합니다. 이제 프런트엔드에는 LLM 키가 **전혀** 포함되지 않습니다. 속도 제한용 KV가 바인딩되지 않은 경우 Worker는 자동으로 건너뛰고 정상적으로 동작합니다.
+
+
+### 이상반응 백엔드 (Worker + D1 + R2)
+
+AE 접수 API는 **동일한** Worker에서 동작하며 **동일한** Cloudflare Access 인증을 거칩니다. 두 번째 로그인 체계를 따로 유지할 필요가 없습니다.
+
+```bash
+cd worker
+npx wrangler d1 create pv-link-ae                 # 반환된 database_id를 wrangler.toml에 입력
+npx wrangler r2 bucket create pv-link-ae-attachments
+npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+npx wrangler deploy
+```
+그런 다음 `VITE_AE_API_ENDPOINT=/api/ae-reports`(`.env.production`에 이미 포함)를 설정하고 다시 빌드합니다. 증례는 D1에, 첨부파일은 R2에 저장됩니다. 감사 추적은 별도 테이블이며 **추가만 가능**하다는 제약을 데이터베이스 트리거가 강제합니다——애플리케이션의 자율 규제에 의존하지 않습니다.
+
+영업 담당자는 **Cloudflare Access Email OTP**로 로그인합니다——유출되거나 공유되거나 재설정이 필요한 비밀번호가 없습니다.
+
+> ⚠️ Access 정책에는 개별 주소를 하나씩 나열하세요. `@gmail.com` **도메인** 규칙은 Gmail 계정을 가진 모든 사람에게 문을 열어 줍니다.
+> ⚠️ 개인 Gmail 주소는 퇴사해도 만료되지 않습니다. "Access 정책에서 주소 제거"를 퇴사 체크리스트에 반드시 포함하세요.
+
+> 📖 전체 실행 매뉴얼, 실기기 테스트 절차, 배포 전 체크리스트: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (번체 중국어)
 
 ## 📄 라이선스 (License)
 MIT License

@@ -17,7 +17,7 @@ import {
   MAH_SERIOUS_REPORT_DAYS, autoNarrative,
 } from '../services/aeReport';
 import {
-  submitAEReport, flushOutbox, outboxCount, compressImage,
+  submitAEReport, flushOutbox, outboxCount, compressImage, attachmentSrc,
   MAX_ATTACHMENTS, hasRemoteEndpoint,
 } from '../services/aeApi';
 import {
@@ -739,7 +739,7 @@ const StepReview: React.FC<StepProps & {
             {report.attachments.map(a => (
               <div key={a.id} className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
                 {a.mime.startsWith('image/')
-                  ? <img src={a.dataUrl} alt={a.name} className="w-full h-full object-cover" />
+                  ? <img src={attachmentSrc(a)} alt={a.name} className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center text-[10px] font-black p-1 text-center break-all">{a.name}</div>}
                 <button type="button" onClick={() => onRemoveAttachment(a.id)}
                   className="absolute top-1 right-1 w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shadow">

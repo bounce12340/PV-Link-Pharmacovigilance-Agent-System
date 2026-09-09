@@ -66,6 +66,7 @@
 ## 🧪 テスト (Testing)
 
 コアの純粋関数(`parseJsonLoose`、`reconcile`、MedDRA 対応、CIOMS マッピング、シグナル集計)にはすべて単体テストがあります。
+Worker はフロントエンドの TypeScript モジュールを読み込めないため、重篤性と期限の判定は意図的なミラー実装です。ミラーがずれると法定期限の誤りとして現れるので、`tests/worker.ae.test.ts` は同一の症例群を両実装に与えて 1 件ずつ突き合わせます。
 ```bash
 npm test        # vitest でユニットテストを実行
 npm run typecheck  # tsc --noEmit による型チェック
@@ -128,11 +129,31 @@ API キーをブラウザに一切送らないようにするため、`worker/` 
 ```bash
 cd worker
 npx wrangler secret put LLM_API_KEY   # 上流のキーを secret として保存
-npx wrangler secret put PROXY_TOKEN   # フロントエンドの VITE_PV_PROXY_TOKEN と同じ値にし、オープンプロキシ化を防止
 npx wrangler kv namespace create RATE_LIMIT   # レート制限用の KV を作成し、返却された id を wrangler.toml に設定
 npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL は wrangler.toml で設定
 ```
 続いてフロントエンドの `VITE_PV_PROXY_ENDPOINT` をデプロイ済みの Worker URL に設定し、再ビルドします。これでフロントエンドには LLM キーが**一切含まれません**。レート制限用の KV が未バインドの場合、Worker は自動的にスキップして通常どおり動作します。
+
+
+### 有害事象バックエンド (Worker + D1 + R2)
+
+AE 受付 API は**同一の** Worker 上で動作し、**同一の** Cloudflare Access 認証を通ります。ログイン基盤を二重に持つ必要はありません。
+
+```bash
+cd worker
+npx wrangler d1 create pv-link-ae                 # 返却された database_id を wrangler.toml に設定
+npx wrangler r2 bucket create pv-link-ae-attachments
+npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+npx wrangler deploy
+```
+続いて `VITE_AE_API_ENDPOINT=/api/ae-reports`(`.env.production` に設定済み)を指定して再ビルドします。症例は D1、添付ファイルは R2 に保存されます。監査証跡は独立したテーブルで、**追記のみ**という制約をデータベースのトリガーが強制します——アプリケーション側の自制に依存しません。
+
+営業担当者は **Cloudflare Access の Email OTP** でログインします——漏洩・共有・再設定の対象となるパスワードが存在しません。
+
+> ⚠️ Access ポリシーには個別のアドレスを列挙してください。`@gmail.com` の**ドメイン**ルールは、Gmail アカウントを持つ全員に入口を開くことになります。
+> ⚠️ 個人の Gmail アドレスは退職しても失効しません。「Access ポリシーからアドレスを削除する」を退職手続きのチェックリストに含めてください。
+
+> 📖 詳細な手順書、実機テスト手順、公開前チェックリスト: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (繁体字中国語)
 
 ## 📄 ライセンス (License)
 MIT License
