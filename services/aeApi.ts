@@ -146,26 +146,101 @@ export async function deleteAECase(id: string, reason = ''): Promise<void> {
 
 export type AERole = 'rep' | 'pv';
 
+/**
+ * 通報者個人檔案：CIOMS 表格裡「誰通報的」那一段，對同一位業務每次都一樣。
+ * 首次登入建檔一次，之後通報表單自動帶入，不必每次重打六個欄位。
+ */
+export interface AEProfile {
+  displayName: string;
+  employeeId: string;
+  phone: string;
+  contactEmail: string;
+  org: string;
+  territory: string;
+}
+
 export interface AEIdentity {
   email: string;
   role: AERole;
+  profile: AEProfile;
+  /** 姓名與電話是否都有——這兩項正是通報驗證對通報者的硬性要求 */
+  profileComplete: boolean;
+}
+
+const EMPTY_PROFILE: AEProfile = {
+  displayName: '', employeeId: '', phone: '', contactEmail: '', org: '', territory: '',
+};
+
+function toProfile(raw: any): AEProfile {
+  return {
+    displayName: String(raw?.displayName || ''),
+    employeeId: String(raw?.employeeId || ''),
+    phone: String(raw?.phone || ''),
+    contactEmail: String(raw?.contactEmail || ''),
+    org: String(raw?.org || ''),
+    territory: String(raw?.territory || ''),
+  };
 }
 
 /**
- * 取得目前登入者的身分與角色（遠端模式向 `/api/me` 問）。
+ * 取得目前登入者的身分、角色與個人檔案（遠端模式向 `/api/me` 問）。
  *
- * 本機模式沒有後端也就沒有身分，一律當作 pv：那是單機展示情境，
- * 把展示用的瀏覽器鎖成業務端只會讓人以為系統壞了。
+ * 本機模式沒有後端也就沒有身分，一律當作 pv 且視為已建檔：那是單機展示情境，
+ * 把展示用的瀏覽器鎖在建檔畫面只會讓人以為系統壞了。
  *
- * ⚠️ 這個角色**只用來決定畫面顯示什麼**。真正的守門在 Worker：
- * 每一條 API 都自己查角色，前端就算被改也拿不到別人的個案。
+ * ⚠️ 角色**只用來決定畫面顯示什麼**，個人檔案**只用來預先填好表格**。
+ * 真正的守門在 Worker，而「誰送的」永遠取自 Access JWT——
+ * 使用者把檔案裡的姓名改成同事的名字，也動不了稽核軌跡裡的身分。
  */
 export async function fetchIdentity(): Promise<AEIdentity> {
-  if (!ENDPOINT) return { email: '', role: 'pv' };
+  if (!ENDPOINT) return { email: '', role: 'pv', profile: EMPTY_PROFILE, profileComplete: true };
   const res = await fetch(`${ME_ENDPOINT}`, { credentials: 'same-origin', headers: headers() });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  return { email: String(data?.email || ''), role: data?.role === 'pv' ? 'pv' : 'rep' };
+  return {
+    email: String(data?.email || ''),
+    role: data?.role === 'pv' ? 'pv' : 'rep',
+    profile: toProfile(data?.profile),
+    profileComplete: Boolean(data?.profileComplete),
+  };
+}
+
+/** 儲存自己的個人檔案。後端只接受白名單欄位，角色改不了。 */
+export async function saveProfile(profile: AEProfile): Promise<AEIdentity> {
+  if (!ENDPOINT) return { email: '', role: 'pv', profile, profileComplete: true };
+  const res = await fetch(`${ME_ENDPOINT}`, {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: headers(),
+    body: JSON.stringify({
+      display_name: profile.displayName,
+      employee_id: profile.employeeId,
+      phone: profile.phone,
+      contact_email: profile.contactEmail,
+      org: profile.org,
+      territory: profile.territory,
+    }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return {
+    email: String(data?.email || ''),
+    role: data?.role === 'pv' ? 'pv' : 'rep',
+    profile: toProfile(data?.profile),
+    profileComplete: Boolean(data?.profileComplete),
+  };
+}
+
+/** 個人檔案 → 通報單裡的通報者欄位。表單第一步據此自動帶入。 */
+export function profileToReporterFields(p: AEProfile) {
+  return {
+    reporterName: p.displayName,
+    reporterEmployeeId: p.employeeId,
+    reporterPhone: p.phone,
+    reporterEmail: p.contactEmail,
+    reporterOrg: p.org,
+    reporterTerritory: p.territory,
+  };
 }
 
 /** 附件的顯示來源：本機模式是 dataURL，遠端模式是後端的附件網址。 */

@@ -31,7 +31,7 @@ import { handleAeRequest } from './ae.js';
 function corsHeaders(env) {
   return {
     'Access-Control-Allow-Origin': env.ALLOW_ORIGIN || '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   };
 }

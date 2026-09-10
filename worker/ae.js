@@ -7,7 +7,8 @@
 //   PATCH  /api/ae-reports/:id                      後台判定更新
 //   DELETE /api/ae-reports/:id                      軟刪除（標記作廢，軌跡永遠留著）
 //   GET    /api/ae-reports/:id/attachments/:attId   取附件本體（R2）
-//   GET    /api/me                                  目前登入者的 email 與角色
+//   GET    /api/me                                  目前登入者的 email、角色與個人檔案
+//   PUT    /api/me                                  更新自己的個人檔案（不含角色）
 //
 // 貫穿全檔的三條規則：
 //   1. **actor 一律取自已驗證的 Access JWT，永不採信請求內容。** 前端送來的
@@ -137,6 +138,92 @@ export function canRepOverwrite(actor, row) {
   const me = normalizeEmail(actor);
   if (!owner || !me || owner !== me) return false;   // 同上：空字串不算相符
   return row.status === 'submitted' || row.status === 'draft';
+}
+
+// ── 通報者個人檔案 ──────────────────────────────────────────────────────
+//
+// CIOMS 表格裡「誰通報的」那一段，對同一位業務每次都一樣。存在個案裡，
+// 等於每通報一次就要重打六個欄位——手機上這是第一屏就讓人放棄的主因。
+// 改為首次登入建檔一次，之後由前端自動帶入。
+//
+// ⚠️ 這是**顯示用**資料，不是身分憑證。「誰送的」永遠以 ae_cases.submitted_by
+// （取自 Access JWT）為準；使用者把這裡的姓名改成同事的名字，也動不了那個欄位。
+
+/**
+ * 允許使用者自行修改的欄位。**白名單而非黑名單**：
+ * 用黑名單的話，日後資料表新增敏感欄位（例如 role）而有人忘了加進排除清單，
+ * 就會變成使用者可以自己升級成藥安人員。白名單漏掉的後果只是「某欄位改不了」。
+ */
+export const PROFILE_FIELDS = ['display_name', 'employee_id', 'phone', 'contact_email', 'org', 'territory'];
+
+/** 從請求內容挑出可寫欄位並修剪空白；未提供的欄位回傳 undefined（代表不更動）。 */
+export function sanitizeProfile(input) {
+  const out = {};
+  for (const key of PROFILE_FIELDS) {
+    if (input && Object.prototype.hasOwnProperty.call(input, key)) {
+      out[key] = str(input[key]).trim().slice(0, 200);
+    }
+  }
+  return out;
+}
+
+/**
+ * 檔案是否算完成。
+ *
+ * 只認姓名與電話兩項，因為這正是 validateAEReport 對通報者的硬性要求
+ * （四要素之一「可辨識的通報者」＋至少一個聯絡方式）。門檻訂得比驗證規則高，
+ * 只會擋住一個其實可以送出通報的人——業務在客戶端遇到不良反應時，
+ * 讓他填不完的資料卡住通報，比少一個轄區欄位嚴重得多。
+ */
+export function isProfileComplete(row) {
+  return Boolean(str(row?.display_name).trim()) && Boolean(str(row?.phone).trim());
+}
+
+/** 資料列 → 前端要的檔案物件。查無此人時回傳空白檔案，不是 null。 */
+export function rowToProfile(row, defaults = {}) {
+  return {
+    displayName: str(row?.display_name),
+    employeeId: str(row?.employee_id),
+    phone: str(row?.phone),
+    contactEmail: str(row?.contact_email),
+    // 公司名稱對全公司都一樣，可由環境變數預設，省下每個人打一次也少一種打錯的方式
+    org: str(row?.org) || str(defaults.org),
+    territory: str(row?.territory),
+  };
+}
+
+async function loadUserRow(env, email) {
+  try {
+    return await env.DB.prepare(`SELECT * FROM ae_users WHERE email = ?`).bind(normalizeEmail(email)).first();
+  } catch (e) {
+    console.log('loadUserRow failed:', e?.message || e);
+    return null;
+  }
+}
+
+/**
+ * 寫入個人檔案。角色**不在**可寫欄位內：既有使用者沿用原角色，
+ * 新使用者一律建為 rep。使用者自己建檔永遠不可能建出一個藥安人員。
+ */
+async function saveProfile(env, email, patch) {
+  const key = normalizeEmail(email);
+  const now = new Date().toISOString();
+  const existing = await loadUserRow(env, key);
+  const merged = { ...(existing || {}), ...patch };
+
+  if (existing) {
+    const sets = PROFILE_FIELDS.map((f) => `${f} = ?`).join(', ');
+    await env.DB.prepare(`UPDATE ae_users SET ${sets}, updated_at = ? WHERE email = ?`)
+      .bind(...PROFILE_FIELDS.map((f) => str(merged[f]) || null), now, key).run();
+  } else {
+    const cols = PROFILE_FIELDS.join(', ');
+    const marks = PROFILE_FIELDS.map(() => '?').join(', ');
+    await env.DB.prepare(
+      `INSERT INTO ae_users (email, role, ${cols}, created_at, created_by, updated_at)
+       VALUES (?, 'rep', ${marks}, ?, ?, ?)`
+    ).bind(key, ...PROFILE_FIELDS.map((f) => str(merged[f]) || null), now, key, now).run();
+  }
+  return await loadUserRow(env, key);
 }
 
 /** 查角色：bootstrap 清單優先，其次 ae_users，查無此人一律 rep。 */
@@ -360,10 +447,38 @@ export async function handleAeRequest(request, env, url, identity, cors) {
   const role = await resolveRole(env, actor);
   const forbidden = () => json({ error: 'forbidden: requires PV role' }, 403, cors);
 
-  // /api/me —— 前端據此決定顯示通報表單還是後台。真正的守門仍在每一條路由上。
+  // /api/me —— 身分、角色與通報者個人檔案。
+  // 前端據此決定顯示通報表單還是後台、以及要不要先請他建檔；
+  // 真正的守門仍在每一條路由上，這裡回什麼都不影響權限。
   if (isMe) {
-    if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405, cors);
-    return json({ email: actor, role }, 200, cors);
+    // 自己的 try：這一段在下方個案路由的 try 之外，少了它，readJson 對格式錯誤
+    // 丟出的 400 會逃逸成一個沒有內容的 500。
+    try {
+      const defaults = { org: env.AE_ORG_NAME };
+      if (request.method === 'GET') {
+        const row = await loadUserRow(env, actor);
+        return json({
+          email: actor, role,
+          profile: rowToProfile(row, defaults),
+          profileComplete: isProfileComplete(row),
+        }, 200, cors);
+      }
+      if (request.method === 'PUT') {
+        // 只寫自己的檔案：目標 email 取自 JWT，請求內容給不了。
+        const patch = sanitizeProfile(await readJson(request));
+        const row = await saveProfile(env, actor, patch);
+        return json({
+          ok: true, email: actor, role,
+          profile: rowToProfile(row, defaults),
+          profileComplete: isProfileComplete(row),
+        }, 200, cors);
+      }
+      return json({ error: 'method not allowed' }, 405, cors);
+    } catch (e) {
+      if (e instanceof HttpError) return json({ error: e.message }, e.status, cors);
+      console.log('me api error:', e?.stack || e);
+      return json({ error: 'internal error' }, 500, cors);
+    }
   }
 
   const rest = path.slice('/api/ae-reports'.length);      // '' | '/:id' | '/:id/attachments/:attId'
