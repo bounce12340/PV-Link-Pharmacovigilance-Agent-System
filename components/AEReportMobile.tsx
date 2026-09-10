@@ -18,8 +18,9 @@ import {
 } from '../services/aeReport';
 import {
   submitAEReport, flushOutbox, outboxCount, compressImage, attachmentSrc,
-  listAECases, MAX_ATTACHMENTS, hasRemoteEndpoint,
+  listAECases, profileToReporterFields, MAX_ATTACHMENTS, hasRemoteEndpoint,
 } from '../services/aeApi';
+import type { AEProfile } from '../services/aeApi';
 import {
   loadValue, saveValue, removeValue, loadRecords,
   AE_DRAFT_KEY, AE_CASES_KEY,
@@ -49,7 +50,12 @@ const AUTOPSY_OPTIONS: readonly Option[] = [
   { value: 'unknown', zh: '不明', en: 'Unknown' },
 ];
 
-const AEReportMobile: React.FC = () => {
+const AEReportMobile: React.FC<{
+  /** 通報者個人檔案；表單第一步據此自動帶入，業務不必每次重打六個欄位 */
+  profile?: AEProfile;
+  /** 開啟建檔畫面修改個人資料 */
+  onEditProfile?: () => void;
+}> = ({ profile, onEditProfile }) => {
   // t 在此放寬為 string 鍵：檢核碼 (ae.issue.*) 是資料驅動的動態鍵，無法用字面型別表達。
   // 對應的存在性由 tests/aeReport.test.ts 逐一驗證，型別安全不是被丟掉而是移到測試層。
   const t = useT() as (k: string) => string;
@@ -76,9 +82,17 @@ const AEReportMobile: React.FC = () => {
     (async () => {
       const draft = await loadValue<AEReport>(AE_DRAFT_KEY);
       if (cancelled) return;
+      // 個人檔案永遠覆蓋通報者欄位，連還原的草稿也一樣：這幾個欄位的真實來源是
+      // 檔案，草稿裡的是它的快照。使用者剛改過檔案卻看到舊草稿的舊電話，
+      // 只會讓人以為改了沒生效。
+      // 認姓名而非物件本身：本機模式（無後端）拿到的是一份空白檔案，
+      // 用它覆蓋等於每次重整都把使用者剛打的通報者欄位清空。
+      const fromProfile = profile?.displayName ? profileToReporterFields(profile) : null;
       if (draft && draft.id) {
-        setReport(draft);
+        setReport(fromProfile ? { ...draft, ...fromProfile } : draft);
         setRestoredDraft(true);
+      } else if (fromProfile) {
+        setReport(r => ({ ...r, ...fromProfile }));
       }
       setPending(await outboxCount());
       setHydrated(true);
@@ -288,7 +302,8 @@ const AEReportMobile: React.FC = () => {
           </div>
         )}
 
-        {step === 0 && <StepReporter report={report} patch={patch} t={t} lang={lang} />}
+        {step === 0 && <StepReporter report={report} patch={patch} t={t} lang={lang}
+          hasProfile={Boolean(profile?.displayName)} onEditProfile={onEditProfile} />}
         {step === 1 && <StepPatient report={report} patch={patch} t={t} lang={lang} />}
         {step === 2 && <StepEvents report={report} patch={patch} patchEvent={patchEvent} setReport={setReport} t={t} lang={lang} />}
         {step === 3 && <StepDrugs report={report} patchDrug={patchDrug} setReport={setReport} t={t} lang={lang} suspect />}
@@ -353,35 +368,89 @@ const SectionCard: React.FC<{ title: string; children: React.ReactNode; note?: s
   </Card>
 );
 
-const StepReporter: React.FC<StepProps> = ({ report, patch, t, lang }) => (
-  <>
+/**
+ * 通報者那一段：有個人檔案時收成一張摘要卡，沒有時退回原本的六個輸入框。
+ *
+ * 為什麼有檔案就不給直接編輯：這幾個欄位的真實來源是個人檔案。若在表單裡也能改，
+ * 兩邊會分岔——這一份通報寫著新電話、檔案裡還是舊的，下一份又變回舊的。
+ * 要改就改檔案，一次改完所有未來的通報。
+ *
+ * 真的要替別人通報時，用下面的「原始通報者」區塊（CIOMS 26 的醫療專業人員），
+ * 那才是這個表格裡代人通報的正確位置。
+ */
+const ReporterSelfSection: React.FC<{
+  report: AEReport;
+  patch: (p: Partial<AEReport>) => void;
+  t: (k: any) => string;
+  hasProfile: boolean;
+  onEditProfile?: () => void;
+}> = ({ report, patch, t, hasProfile, onEditProfile }) => {
+  if (!hasProfile) {
+    return (
+      <SectionCard title={t('ae.section.reporterSelf')}>
+        <Field label={t('ae.f.reporterName')} required tag="CIOMS 26">
+          <TextInput value={report.reporterName} autoComplete="name"
+            onChange={e => patch({ reporterName: e.target.value })} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('ae.f.reporterEmployeeId')}>
+            <TextInput value={report.reporterEmployeeId} inputMode="text"
+              onChange={e => patch({ reporterEmployeeId: e.target.value })} />
+          </Field>
+          <Field label={t('ae.f.reporterTerritory')}>
+            <TextInput value={report.reporterTerritory}
+              onChange={e => patch({ reporterTerritory: e.target.value })} />
+          </Field>
+        </div>
+        <Field label={t('ae.f.reporterPhone')} required>
+          <TextInput type="tel" inputMode="tel" autoComplete="tel" value={report.reporterPhone}
+            onChange={e => patch({ reporterPhone: e.target.value })} />
+        </Field>
+        <Field label={t('ae.f.reporterEmail')}>
+          <TextInput type="email" inputMode="email" autoComplete="email" value={report.reporterEmail}
+            onChange={e => patch({ reporterEmail: e.target.value })} />
+        </Field>
+        <Field label={t('ae.f.reporterOrg')} tag="CIOMS 24a">
+          <TextInput value={report.reporterOrg} onChange={e => patch({ reporterOrg: e.target.value })} />
+        </Field>
+      </SectionCard>
+    );
+  }
+
+  const line2 = [report.reporterEmployeeId, report.reporterTerritory].filter(Boolean).join('　·　');
+  const line3 = [report.reporterPhone, report.reporterEmail].filter(Boolean).join('　·　');
+
+  return (
     <SectionCard title={t('ae.section.reporterSelf')}>
-      <Field label={t('ae.f.reporterName')} required tag="CIOMS 26">
-        <TextInput value={report.reporterName} autoComplete="name"
-          onChange={e => patch({ reporterName: e.target.value })} />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={t('ae.f.reporterEmployeeId')}>
-          <TextInput value={report.reporterEmployeeId} inputMode="text"
-            onChange={e => patch({ reporterEmployeeId: e.target.value })} />
-        </Field>
-        <Field label={t('ae.f.reporterTerritory')}>
-          <TextInput value={report.reporterTerritory}
-            onChange={e => patch({ reporterTerritory: e.target.value })} />
-        </Field>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-0.5">
+          <p className="font-black text-sm truncate">{report.reporterName || '—'}</p>
+          {line2 && <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{line2}</p>}
+          {line3 && <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">{line3}</p>}
+          {report.reporterOrg && (
+            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{report.reporterOrg}</p>
+          )}
+        </div>
+        {onEditProfile && (
+          <button type="button" onClick={onEditProfile}
+            className="shrink-0 min-h-[44px] px-3 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-xs font-black">
+            {t('ae.profile.edit')}
+          </button>
+        )}
       </div>
-      <Field label={t('ae.f.reporterPhone')} required>
-        <TextInput type="tel" inputMode="tel" autoComplete="tel" value={report.reporterPhone}
-          onChange={e => patch({ reporterPhone: e.target.value })} />
-      </Field>
-      <Field label={t('ae.f.reporterEmail')}>
-        <TextInput type="email" inputMode="email" autoComplete="email" value={report.reporterEmail}
-          onChange={e => patch({ reporterEmail: e.target.value })} />
-      </Field>
-      <Field label={t('ae.f.reporterOrg')} tag="CIOMS 24a">
-        <TextInput value={report.reporterOrg} onChange={e => patch({ reporterOrg: e.target.value })} />
-      </Field>
+      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+        {t('ae.profile.autofillNote')}
+      </p>
     </SectionCard>
+  );
+};
+
+const StepReporter: React.FC<StepProps & { hasProfile: boolean; onEditProfile?: () => void }> = ({
+  report, patch, t, lang, hasProfile, onEditProfile,
+}) => (
+  <>
+    <ReporterSelfSection report={report} patch={patch} t={t}
+      hasProfile={hasProfile} onEditProfile={onEditProfile} />
 
     <SectionCard title={t('ae.section.awareness')}>
       <Field label={t('ae.f.awarenessDate')} required tag="CIOMS 24c" hint={t('ae.f.awarenessHint')}>

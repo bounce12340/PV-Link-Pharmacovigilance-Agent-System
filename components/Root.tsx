@@ -15,8 +15,9 @@
 import React, { useEffect, useState } from 'react';
 import App from '../App';
 import AEReportMobile from './AEReportMobile';
+import ProfileSetup from './ProfileSetup';
 import { fetchIdentity, hasRemoteEndpoint } from '../services/aeApi';
-import type { AERole } from '../services/aeApi';
+import type { AEIdentity, AEProfile } from '../services/aeApi';
 
 export function useHashRoute(): string {
   const [hash, setHash] = useState(() => (typeof window === 'undefined' ? '' : window.location.hash));
@@ -28,18 +29,26 @@ export function useHashRoute(): string {
   return hash;
 }
 
+const LOCAL_IDENTITY: AEIdentity = {
+  email: '', role: 'pv',
+  profile: { displayName: '', employeeId: '', phone: '', contactEmail: '', org: '', territory: '' },
+  profileComplete: true,
+};
+
 /**
- * 取得目前使用者的角色。
+ * 取得目前使用者的身分、角色與個人檔案。
  *
- * 本機模式（未設後端端點）沒有身分可問，一律當 pv：那是單機展示情境，
- * 把展示用的瀏覽器鎖成業務端只會讓人以為系統壞了。
+ * 本機模式（未設後端端點）沒有身分可問，一律當已建檔的 pv：那是單機展示情境，
+ * 把展示用的瀏覽器鎖在建檔畫面只會讓人以為系統壞了。
  *
- * 查詢失敗時降級為 rep，而不是 pv。這個方向是刻意的：通報是安全關鍵路徑
- * （業務在外面遇到不良反應必須報得出來，表單本身還有離線佇列），
+ * 查詢失敗時降級為「未建檔的 rep」，而不是 pv。這個方向是刻意的：通報是安全關鍵
+ * 路徑（業務在外面遇到不良反應必須報得出來，表單本身還有離線佇列），
  * 後台則是敏感路徑。不確定身分時，讓人能通報、不讓人讀個案。
  */
-function useRole(): AERole | 'loading' {
-  const [role, setRole] = useState<AERole | 'loading'>(hasRemoteEndpoint() ? 'loading' : 'pv');
+function useIdentity(): [AEIdentity | 'loading', (p: AEProfile) => void] {
+  const [identity, setIdentity] = useState<AEIdentity | 'loading'>(
+    hasRemoteEndpoint() ? 'loading' : LOCAL_IDENTITY
+  );
 
   useEffect(() => {
     if (!hasRemoteEndpoint()) return;
@@ -47,15 +56,19 @@ function useRole(): AERole | 'loading' {
     (async () => {
       try {
         const me = await fetchIdentity();
-        if (!cancelled) setRole(me.role);
+        if (!cancelled) setIdentity(me);
       } catch {
-        if (!cancelled) setRole('rep');
+        if (!cancelled) setIdentity({ ...LOCAL_IDENTITY, role: 'rep', profileComplete: false });
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  return role;
+  // 建檔完成後就地更新，不必重新整理頁面
+  const applyProfile = (profile: AEProfile) =>
+    setIdentity(prev => (prev === 'loading' ? prev : { ...prev, profile, profileComplete: true }));
+
+  return [identity, applyProfile];
 }
 
 const Splash: React.FC = () => (
@@ -66,16 +79,35 @@ const Splash: React.FC = () => (
 
 const Root: React.FC = () => {
   const hash = useHashRoute();
-  const role = useRole();
+  const [identity, applyProfile] = useIdentity();
+  const [editingProfile, setEditingProfile] = useState(false);
 
-  // 角色未定前不渲染任何一邊：先畫後台再抽掉，等於讓不該看到的人瞄到一眼。
-  if (role === 'loading') return <Splash />;
+  // 身分未定前不渲染任何一邊：先畫後台再抽掉，等於讓不該看到的人瞄到一眼。
+  if (identity === 'loading') return <Splash />;
+
+  // 首次登入先建檔。刻意不給跳過：檔案沒填，第一次通報就會卡在
+  // 「可辨識的通報者」驗證上，而那時業務人在客戶端、手上有個真實個案，
+  // 是最不該讓他停下來填基本資料的時刻。
+  if (!identity.profileComplete || editingProfile) {
+    return (
+      <ProfileSetup
+        email={identity.email}
+        initial={identity.profile}
+        onDone={p => { applyProfile(p); setEditingProfile(false); }}
+        onCancel={identity.profileComplete ? () => setEditingProfile(false) : undefined}
+      />
+    );
+  }
 
   // 業務端無論打哪個 hash 都只會拿到通報表單。
-  if (role === 'rep') return <AEReportMobile />;
+  if (identity.role === 'rep') {
+    return <AEReportMobile profile={identity.profile} onEditProfile={() => setEditingProfile(true)} />;
+  }
 
   // startsWith 而非全等：容許 #/report?src=qr 之類的查詢字串（例如追蹤通報入口來源）
-  if (hash.startsWith('#/report')) return <AEReportMobile />;
+  if (hash.startsWith('#/report')) {
+    return <AEReportMobile profile={identity.profile} onEditProfile={() => setEditingProfile(true)} />;
+  }
   return <App />;
 };
 

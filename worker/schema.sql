@@ -121,7 +121,21 @@ CREATE INDEX IF NOT EXISTS idx_ae_attachments_case ON ae_attachments (case_id, d
 CREATE TABLE IF NOT EXISTS ae_users (
   email        TEXT PRIMARY KEY,   -- 一律小寫，與 JWT 的 email 比對前正規化
   role         TEXT NOT NULL DEFAULT 'rep' CHECK (role IN ('rep', 'pv')),
-  display_name TEXT,
+
+  -- ── 通報者個人檔案 ──────────────────────────────────────────────────
+  -- CIOMS 表格裡「誰通報的」這一段（26 通報者、24a 藥商名稱）對同一位業務
+  -- 每次都一樣。放在個案 payload 裡，等於要求他每通報一次就重打六個欄位；
+  -- 手機上這是第一屏就讓人放棄的主因。改為首次登入建檔一次，之後自動帶入。
+  --
+  -- ⚠️ 這裡存的是**顯示用**資料，不是身分憑證。「誰送的」永遠以 ae_cases.submitted_by
+  -- （取自 Access JWT）為準；本表的姓名改掉也動不了那個欄位。
+  display_name TEXT,               -- 姓名 → reporterName（CIOMS 26）
+  employee_id  TEXT,               -- 員工編號 → reporterEmployeeId
+  phone        TEXT,               -- 聯絡電話 → reporterPhone
+  contact_email TEXT,              -- 聯絡信箱 → reporterEmail（可與登入信箱不同）
+  org          TEXT,               -- 公司／單位 → reporterOrg（CIOMS 24a）
+  territory    TEXT,               -- 負責轄區 → reporterTerritory
+
   created_at   TEXT NOT NULL,
   created_by   TEXT,
   updated_at   TEXT

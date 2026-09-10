@@ -20,6 +20,9 @@ LLM_MODEL = "deepseek-v4-pro"
 LLM_JSON_MODE = "0"                                  # Ollama 對 response_format 支援不一,關閉改靠 parseJsonLoose
 ALLOW_ORIGIN = "https://pvlink.uic-ai.com"           # 同源部署網域
 RATE_LIMIT_MAX = "30"                                 # 每 IP 每分鐘最多請求數（需綁定下方 KV 才生效）
+# 通報者個人檔案的「公司／單位」預設值（CIOMS 24a 藥商名稱）。全公司相同，
+# 預設帶入可以少讓每個人打一次，也少一種打錯的方式；使用者仍可自行修改。
+AE_ORG_NAME = "天義企業股份有限公司"
 # Cloudflare Access 驗證（Access application: PV-Link Auditor）——取代已失效的前端 PROXY_TOKEN
 ACCESS_TEAM_DOMAIN = "uic-ai.cloudflareaccess.com"
 ACCESS_AUD = "9e0d8727ca721895cfd720c1753edef64f6469ed2888920137a7658e6a957a9c"

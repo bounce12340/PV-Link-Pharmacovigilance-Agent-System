@@ -155,6 +155,8 @@ npx wrangler deploy
 ```
 Then set `VITE_AE_API_ENDPOINT=/api/ae-reports` (already in `.env.production`) and rebuild. Cases live in D1; attachments in R2; the audit trail is a separate append-only table enforced by a database trigger, not by application discipline.
 
+On first sign-in a rep fills in their **reporter details** once — name, employee ID, phone, company (CIOMS 26 / 24a). Every later report is pre-filled from that profile, turning the form's first screen from six inputs into a summary card. The writable fields are an explicit allow-list, so nobody can promote themselves to PV staff by editing their own profile.
+
 Reps sign in with **Cloudflare Access Email OTP** using their **company mailbox** — no passwords to leak, share, or reset, and offboarding is automatic: a disabled mailbox cannot receive the one-time code, so access ends even if nobody remembers to prune the policy.
 
 > ⚠️ List individual addresses. An `Emails ending in @yourcompany.com` rule means **everyone in the company** — finance, HR, interns — can read patient adverse-event data. Use an Access Group if the list grows, not a domain rule.

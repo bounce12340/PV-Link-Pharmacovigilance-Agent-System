@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   deriveSerious, deriveDueDate, indexColumns, parseIsoDate, addDays,
   normalizeEmail, normalizeRole, bootstrapRole, canReadCase, canRepOverwrite,
+  sanitizeProfile, isProfileComplete, rowToProfile, PROFILE_FIELDS,
 } from '../worker/ae.js';
 import {
   emptyAEReport, emptyEvent, emptyDrug,
@@ -216,5 +217,90 @@ describe('canRepOverwrite：離線補送要成功，但不能洗掉藥安的處�
   });
   it('別人送的個案一律擋下，即使狀態還是 submitted', () => {
     expect(canRepOverwrite('rep@company.com', { submitted_by: 'other@company.com', status: 'submitted' })).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// 通報者個人檔案
+// ─────────────────────────────────────────────────────────────
+
+describe('sanitizeProfile：白名單，使用者不能靠建檔給自己升權', () => {
+  it('只留下白名單欄位', () => {
+    const out = sanitizeProfile({
+      display_name: '林小明', phone: '0912345678', employee_id: 'A123',
+      contact_email: 'ming@company.com', org: '天義', territory: '北區',
+    });
+    expect(Object.keys(out).sort()).toEqual([...PROFILE_FIELDS].sort());
+    expect(out.display_name).toBe('林小明');
+  });
+
+  it('role 一概丟棄——這是整個檔案功能唯一會出事的地方', () => {
+    const out = sanitizeProfile({ display_name: '林小明', role: 'pv' });
+    expect(out).not.toHaveProperty('role');
+    expect(Object.keys(out)).toEqual(['display_name']);
+  });
+
+  it('email、created_at 等伺服器欄位同樣丟棄', () => {
+    const out = sanitizeProfile({
+      display_name: '林小明', email: 'other@company.com',
+      created_at: '2000-01-01', created_by: 'someone', updated_at: 'x',
+    });
+    expect(Object.keys(out)).toEqual(['display_name']);
+  });
+
+  it('未提供的欄位不出現在結果裡（代表不更動，而非清空）', () => {
+    const out = sanitizeProfile({ phone: '0912345678' });
+    expect(Object.keys(out)).toEqual(['phone']);
+    expect(out).not.toHaveProperty('display_name');
+  });
+
+  it('修剪空白並限制長度，非字串一律轉成字串', () => {
+    expect(sanitizeProfile({ display_name: '  林小明  ' }).display_name).toBe('林小明');
+    expect(sanitizeProfile({ phone: 'x'.repeat(500) }).phone).toHaveLength(200);
+    expect(sanitizeProfile({ employee_id: 12345 }).employee_id).toBe('12345');
+    expect(sanitizeProfile({ org: null }).org).toBe('');
+  });
+
+  it('沒有輸入時回空物件，不丟例外', () => {
+    expect(sanitizeProfile(null)).toEqual({});
+    expect(sanitizeProfile(undefined)).toEqual({});
+    expect(sanitizeProfile('not an object')).toEqual({});
+  });
+});
+
+describe('isProfileComplete：門檻正好對齊通報驗證的硬性要求', () => {
+  it('姓名與電話都有才算完成', () => {
+    expect(isProfileComplete({ display_name: '林小明', phone: '0912345678' })).toBe(true);
+  });
+  it('缺任一項都不算', () => {
+    expect(isProfileComplete({ display_name: '林小明' })).toBe(false);
+    expect(isProfileComplete({ phone: '0912345678' })).toBe(false);
+    expect(isProfileComplete(null)).toBe(false);
+    expect(isProfileComplete({})).toBe(false);
+  });
+  it('只有空白不算填了', () => {
+    expect(isProfileComplete({ display_name: '   ', phone: '0912345678' })).toBe(false);
+    expect(isProfileComplete({ display_name: '林小明', phone: '  ' })).toBe(false);
+  });
+  it('員編、轄區、信箱缺了仍算完成——門檻高於驗證規則只會擋住能通報的人', () => {
+    expect(isProfileComplete({ display_name: '林小明', phone: '0912345678', employee_id: '', territory: '' })).toBe(true);
+  });
+});
+
+describe('rowToProfile', () => {
+  it('查無此人回空白檔案而非 null，前端不必處理兩種形狀', () => {
+    const p = rowToProfile(null);
+    expect(p.displayName).toBe('');
+    expect(p.phone).toBe('');
+  });
+  it('公司名稱可由環境變數預設，但使用者填過的優先', () => {
+    expect(rowToProfile(null, { org: '天義企業' }).org).toBe('天義企業');
+    expect(rowToProfile({ org: '子公司' }, { org: '天義企業' }).org).toBe('子公司');
+  });
+  it('資料庫的 NULL 轉成空字串，前端輸入框不會拿到 null', () => {
+    const p = rowToProfile({ display_name: '林小明', employee_id: null, phone: null });
+    expect(p.displayName).toBe('林小明');
+    expect(p.employeeId).toBe('');
+    expect(p.phone).toBe('');
   });
 });
