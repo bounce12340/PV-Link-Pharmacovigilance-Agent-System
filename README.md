@@ -4,124 +4,100 @@
 
 # PV-Link: Pharmacovigilance Agent System
 
-![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![OpenAI-compatible](https://img.shields.io/badge/AI-OpenAI--compatible-green.svg)
+![React](https://img.shields.io/badge/React-19-blue.svg) ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg) ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan.svg) ![Cloudflare](https://img.shields.io/badge/Cloudflare-Workers%20%7C%20D1%20%7C%20R2-orange.svg) ![OpenAI-compatible](https://img.shields.io/badge/AI-OpenAI--compatible-green.svg) ![Tests](https://img.shields.io/badge/tests-148-brightgreen.svg)
 
-**PV-Link** is a professional automated agent system built specifically for Pharmacovigilance (PV). This system aims to solve the time-consuming and error-prone nature of traditional manual literature reviews. By integrating official literature databases with Large Language Models (LLMs), it provides an all-in-one solution from retrieval, scoring, and summarization to structured data extraction.
+**PV-Link** covers both halves of ICSR intake for a marketing authorisation holder: **literature monitoring** (what the published record says about your products) and **spontaneous reporting** (what your field team hears from clinicians). Both feed one case database, one audit trail, and one signal-aggregation view.
 
-## ✨ Core Features
+---
 
-*   🔍 **Deterministic Search**
-    *   Directly integrates with the **NCBI PubMed E-utilities official API**, ensuring absolute precision and reproducibility of search results.
-    *   Supports simultaneous search for **multiple target ingredients** (e.g., `Fenofibrate, Aspirin`), automatically converting them into precise PubMed query syntax.
-    *   Supports custom monitoring date ranges.
-*   🤖 **AI Scoring & Summarization**
-    *   Talks to any **OpenAI-compatible Chat Completions endpoint** (OpenAI, Azure OpenAI, Ollama, OpenRouter, Kimi, …) to rapidly evaluate the PV relevance (score 0-100) of incoming literature.
-    *   Automatically translates complex English medical abstracts into easy-to-read summaries.
-    *   Independently extracts the **"Key Conclusion"**, which is crucial for drug safety monitoring, and supports one-click copying.
-*   📊 **Structured Data Extraction**
-    *   Automatically extracts key PV data from literature, including: Target Ingredient, Adverse Event (AE) Verbatim, MedDRA Candidate Terms, Seriousness, Causality, etc.
-*   💾 **Database Management & Export**
-    *   Built-in "Master Database" management interface, supporting the import and preservation of verified literature.
-    *   Provides powerful **multi-field fuzzy search** and date range filtering.
-    *   Supports one-click **CSV report export** of filtered literature data for subsequent auditing and archiving.
+## System at a glance
 
-## 🆕 Advanced Features (v4)
+```
+ ┌─ Literature channel ──────────┐   ┌─ Spontaneous channel ────────────┐
+ │  PubMed E-utilities           │   │  Field rep on a phone  #/report  │
+ │       ↓                       │   │       ↓ (offline outbox)         │
+ │  AI scoring & summarisation   │   │  POST /api/ae-reports            │
+ │       ↓                       │   │       ↓                          │
+ │  Structured extraction        │   │  PV intake console (7 gates)     │
+ └───────────┬───────────────────┘   └───────────┬──────────────────────┘
+             └──────────────┬────────────────────┘
+                            ↓
+        Master database · audit trail · Ingredient × MedDRA PT signals
+                            ↓
+              CIOMS-I draft · E2B(R3) mapping · CSV export
+```
 
-*   📄 **CIOMS-I / E2B(R3) Draft Generation**
-    *   Generate a **CIOMS-I Individual Case Safety Report draft** with one click from structured data on the literature detail page, including E2B(R3) key data element mapping (e.g., `E.i.2.1b MedDRA PT`, `G.k.2.2 Active substance`).
-    *   Pure offline mapping; copy or download as `.txt`. ⚠️ Output is a draft — it must be reviewed and completed by PV staff before submission.
-*   📈 **Safety Signal Aggregation**
-    *   New "Signal Aggregation" tab groups and counts the master database by **Ingredient × MedDRA PT**, flagging serious cases and potential signals (count ≥ 3 or containing a serious case).
-*   🧬 **MedDRA Mapping Layer**
-    *   Built-in **PT → SOC seed dictionary** for common PV events, offline-validating AI-guessed PTs and filling in the System Organ Class. ⚠️ The full MedDRA dictionary is licensed — extend it yourself or connect a licensed source.
-*   ⚡ **Batch Parallelism + Progress Display**
-    *   AI scoring/summarization now runs in **parallel batches** (significantly shortening each round), with a live progress bar shown at the top.
-    *   The master database supports **batch structured extraction** for unextracted literature, for use in signal aggregation.
-*   💽 **IndexedDB Persistence**
-    *   The master database and "pending review list" are now stored in **IndexedDB** (far larger capacity than localStorage) and survive page refreshes; existing data auto-migrates from localStorage on first load.
-*   🔎 **PubMed Pagination**: Search now supports a "max results" setting (pagination cap, default 100), with efetch automatically fetching in batches.
-*   🛡️ **Backend Rate Limiting**: The Worker proxy has a built-in KV fixed-window rate limiter (per-IP, per-minute cap) to protect API key quota.
+Everything runs on one origin (`pvlink.uic-ai.com`) behind one Cloudflare Access check: a static React front end, plus a single Worker serving both the LLM proxy and the case-intake API.
 
-## 🆕 Adverse Event Case Reporting (v5)
+---
 
-A spontaneous reporting channel, covering the half of ICSR intake that literature monitoring cannot reach. Two interfaces:
+## Literature monitoring
 
-*   📱 **Field reporting (mobile-first, `#/report`)**
-    *   Fields mapped to all 26 numbered items of the **CIOMS Form I** (official field numbers shown inline), plus **lot number, expiry and marketing authorisation number** required in local practice.
-    *   Six-step wizard instead of one 40-input page; 16px inputs (prevents iOS auto-zoom), ≥44px touch targets, chip-style selectors instead of native dropdowns.
-    *   **Auto-saved drafts** (600ms debounce), **offline outbox** with automatic retry, and **on-device photo compression** (1600px long edge).
-    *   Validation splits into errors and warnings: only hard gaps such as the four minimum criteria block submission; everything else becomes a follow-up checklist — **an incomplete case beats a case never reported**.
-*   🗂️ **PV intake console ("Case Intake" tab)**
-    *   Inbox sorted by **regulatory time pressure** (overdue → days remaining → newest), not first-in-first-out.
-    *   Seven processing gates: intake → validity (four ICSR criteria) → **duplicate detection** → seriousness (with audited manual override) → MedDRA coding / expectedness / causality → follow-up tracking (one-click follow-up email draft) → submission and closure.
-    *   **Regulatory clock**: 15-day countdown from the date of first awareness for serious cases; red when overdue, amber within five days.
-    *   One-click **CIOMS-I text form** and **E2B(R3) element mapping**; case list exports to CSV.
-    *   Full **audit trail** (who, when, what) across the workflow.
-    *   **Follow-up reports**: create one from the initial case in a click (numbered `PARENT-F1`), with Day 0 set to the date the new information was received. Significant new information restarts the 15-day clock; otherwise no new expedited deadline and the case goes into the periodic report. Follow-up chains are excluded from duplicate detection.
-    *   **Foreign cases**: the reporting form captures the country of occurrence (CIOMS 1a); the console flags foreign cases and maps them into CIOMS and E2B `E.i.9`.
-    *   Cases feed the existing **ingredient × MedDRA PT signal aggregation** alongside literature cases.
+*   🔍 **Deterministic search** — the **NCBI PubMed E-utilities** API directly, so results are precise and reproducible. Multiple ingredients at once (`Fenofibrate, Aspirin`), custom date ranges, and pagination with a configurable result cap.
+*   🤖 **AI scoring & summarisation** — relevance score (0–100), plain-language summary of the abstract, and a separately extracted **key conclusion**. Batched in parallel with a live progress bar.
+*   📊 **Structured extraction** — ingredient, adverse-event verbatim, MedDRA candidate terms, seriousness, causality.
+*   🧬 **MedDRA mapping layer** — a built-in **PT → SOC seed dictionary** validates AI-guessed PTs offline and fills in the System Organ Class. ⚠️ The full MedDRA dictionary is licensed; extend the seed or connect a licensed source.
+*   💾 **Master database** — multi-field fuzzy search, date filtering, CSV export, IndexedDB persistence (auto-migrated from localStorage).
+
+## Adverse event case reporting
+
+The reporting channel has two interfaces, one per audience.
+
+### 📱 Field reporting (mobile-first, `#/report`)
+
+*   Fields mapped to all 26 numbered items of **CIOMS Form I** (field numbers shown inline), plus **lot number, expiry and marketing authorisation number** required in local practice.
+*   A six-step wizard rather than one 40-input page; 16px inputs (stops iOS auto-zoom), ≥44px touch targets, chip selectors instead of native dropdowns.
+*   **Auto-saved drafts** (600ms debounce), an **offline outbox** that retries on reconnect, and **on-device photo compression** (1600px long edge).
+*   Validation splits into errors and warnings: only hard gaps such as the four minimum criteria block submission; the rest becomes a follow-up checklist — **an incomplete case beats a case never reported**.
+*   **Reporter details are entered once.** On first sign-in the rep fills in name, employee ID, phone and company (CIOMS 26 / 24a); every later report is pre-filled, turning the form's first screen from six inputs into a summary card.
+*   **My reports** — a read-only list of the cases that rep submitted, and their current status.
+
+### 🗂️ PV intake console
+
+*   Inbox sorted by **regulatory time pressure** (overdue → days remaining → newest), not first-in-first-out.
+*   Seven gates: intake → validity (four ICSR criteria) → **duplicate detection** → seriousness (with audited manual override) → MedDRA coding / expectedness / causality → follow-up → submission and closure.
+*   **Regulatory clock** — 15-day countdown from first awareness for serious cases; red when overdue, amber within five days.
+*   **Follow-up reports** — created from the initial case in one click (numbered `PARENT-F1`), Day 0 set to when the new information arrived. Significant new information restarts the 15-day clock; otherwise there is no new expedited deadline and the case goes into the periodic report. Follow-up chains are excluded from duplicate detection.
+*   **Foreign cases** — country of occurrence captured on the form (CIOMS 1a), flagged in the console, mapped into CIOMS and E2B `E.i.9`.
+*   One-click **CIOMS-I text form** and **E2B(R3) element mapping**; CSV export; a full **audit trail** (who, when, what) across the workflow.
+*   Cases join literature records in the **Ingredient × MedDRA PT** signal aggregation.
 
 > 📖 Field derivation, regulatory notes and the back-office workflow: [`docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md`](docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md) (Traditional Chinese).
-> ⚠️ Without `VITE_AE_API_ENDPOINT`, the reporting form and the console share **one browser's** IndexedDB (single-device trial only). Configure a real backend endpoint for production — see `.env.example`.
 
-## 🧪 Testing
+---
 
-Core pure functions (`parseJsonLoose`, `reconcile`, MedDRA mapping, CIOMS mapping, signal aggregation, plus AE case validity / seriousness / regulatory clock / duplicate detection / CIOMS-E2B mapping) all have unit tests. Translation coverage for dynamic i18n keys (`ae.issue.*`, `ae.status.*`) is enforced by tests too. The Worker cannot import the frontend's TypeScript modules, so its seriousness and due-date logic is a deliberate mirror — `tests/worker.ae.test.ts` feeds both implementations the same cases and compares them case by case, because a drifted mirror shows up as a wrong statutory deadline:
-```bash
-npm test        # run unit tests with vitest
-npm run typecheck  # type-check with tsc --noEmit
-```
+## Access control and roles
 
-## 🛠️ Tech Stack
+Sign-in is **Cloudflare Access Email OTP** with a company mailbox — no passwords to leak, share, or reset. Offboarding is automatic: a disabled mailbox cannot receive the one-time code, so access ends even if nobody remembers to prune the policy.
 
-*   **Frontend Framework**: React 19, TypeScript, Vite
-*   **UI Styling**: Tailwind CSS, Heroicons
-*   **AI Engine**: Any OpenAI-compatible Chat Completions API (provider-agnostic; no vendor SDK)
-*   **Data Source**: NCBI PubMed E-utilities API
+Access answers "is this person one of us". What they may *see* is decided in D1:
 
-## 🚀 Getting Started
+| Role | Can do |
+|---|---|
+| `rep` (field rep) | Submit cases; read **only their own** |
+| `pv` (PV staff) | Read and write every case |
 
-### 1. Install Dependencies
-Ensure Node.js is installed in your environment, then run the following command to install required packages:
-```bash
-npm install
-```
+An email absent from `ae_users` is a `rep`. A missing entry then means someone *cannot* see all cases (they will complain) rather than someone who *can* (nobody complains). Bootstrap the first PV user with `wrangler secret put AE_PV_EMAILS`.
 
-### 2. Environment Variables
-Copy `.env.example` to `.env.local`. For **local development** you can point the frontend directly at any OpenAI-compatible endpoint:
-```env
-VITE_LLM_BASE_URL=https://api.openai.com/v1
-VITE_LLM_API_KEY=sk-xxxx
-VITE_LLM_MODEL=gpt-4o-mini
-```
-> ⚠️ `VITE_`-prefixed keys are bundled into the frontend — fine for local use, **not** for public deployment. For a public/multi-user deployment, use the backend proxy instead (see "Deployment" below) and set only `VITE_PV_PROXY_ENDPOINT`, keeping the key on the server.
+> ⚠️ List individual addresses in the Access policy. An `Emails ending in @yourcompany.com` rule means **everyone in the company** — finance, HR, interns — can read patient adverse-event data. Use an Access Group if the list grows, not a domain rule.
 
-### 3. Start Development Server
-```bash
-npm run dev
-```
-Once started, open `http://localhost:3000` in your browser to begin using the system.
+> ⚠️ Enforcement lives in the Worker, not the UI. Hash routes (`#/report`) cannot be split by Access path rules — the fragment never reaches the server — so the front end's role check is presentation only. Every API route checks the role itself, the case list is filtered in SQL rather than in JS, and a case you may not read returns 404 rather than 403 (403 would confirm the id exists).
 
-## 📖 Usage Guide
+---
 
-1.  **Search Settings**: Go to the "Search Settings" tab, enter the target ingredients you want to monitor (separate multiple ingredients with commas, e.g., `Aspirin, Ibuprofen`), and set the monitoring date range.
-2.  **Start Task**: Click "Start New Monitoring Task" in the top right corner. The system will automatically send requests to PubMed and filter out literature already existing in the master database.
-3.  **Pending Review**: Once the task is complete, the system will automatically switch to the "Pending Review" tab. Here you can view the AI-generated summaries and clinical conclusions.
-4.  **Confirm Import**: After confirming the literature has PV value, click "Confirm Import to Master Database".
-5.  **Master Database Management**: In the "Master Database" tab, you can search historical records and click "Export CSV Report" in the top right corner to download the data.
+## The AI model
 
-### Adverse event case reporting
+### What is deployed
 
-6.  **Share the reporting link**: In the Case Intake tab, tap the phone icon to open the form, or the link icon to copy the `#/report` URL (turning it into a QR code for the field team works well).
-7.  **Field submission**: The rep opens the link on a phone and works through six steps. Leaving mid-way loses nothing (drafts auto-save); submitting without signal queues the case and retries automatically once back online.
-8.  **Intake**: Cases appear in the inbox, sorted by regulatory time pressure. Work each one through validity → duplicate detection → seriousness → MedDRA coding → follow-up → submission.
-9.  **Produce submission documents**: Click "Generate CIOMS-I" for a copyable/downloadable draft, review it, submit to the authority, then record the receipt number and close the case.
+| | Value | Where |
+|---|---|---|
+| Endpoint | `https://ollama.com/v1` (Ollama Cloud) | `LLM_BASE_URL` in `worker/wrangler.toml` |
+| Model | `deepseek-v4-pro` | `LLM_MODEL` in `worker/wrangler.toml` |
+| JSON mode | off — the upstream is inconsistent about `response_format`, so replies are parsed with `parseJsonLoose` | `LLM_JSON_MODE = "0"` |
+| Temperature | `0.2` | `services/llmService.ts` |
+| API key | server-side secret, never in the bundle | `wrangler secret put LLM_API_KEY` |
 
-## 🔌 LLM Provider (OpenAI-compatible)
-
-The AI layer (`services/llmService.ts`) is provider-agnostic: it speaks the standard **OpenAI Chat Completions** format, so it works with OpenAI, Azure OpenAI, Ollama, OpenRouter, Kimi, LiteLLM, or any compatible gateway — you only change environment variables, no code.
-
-Switch providers by pointing `VITE_LLM_BASE_URL` / `VITE_LLM_MODEL` (local) or the Worker's `LLM_BASE_URL` / `LLM_MODEL` (proxy) at your service. Examples:
+The AI layer (`services/llmService.ts`) speaks plain **OpenAI Chat Completions** with no vendor SDK, so switching providers is two environment variables and no code:
 
 | Provider | Base URL | Example model |
 |---|---|---|
@@ -129,49 +105,137 @@ Switch providers by pointing `VITE_LLM_BASE_URL` / `VITE_LLM_MODEL` (local) or t
 | OpenRouter | `https://openrouter.ai/api/v1` | `moonshotai/kimi-k2` |
 | Ollama (local) | `http://localhost:11434/v1` | `llama3.1` |
 
-## 🚀 Deployment (public / multi-user)
+### What the model does — and does not
 
-To avoid shipping any API key to the browser, deploy the thin proxy in `worker/` (a Cloudflare Worker) — it holds the key server-side and forwards prompts to your chosen OpenAI-compatible endpoint.
+The model handles **reading**: relevance scoring, abstract summarisation, key-conclusion extraction, and structured extraction of adverse-event data from free text.
+
+Everything with a regulatory consequence is a **pure function with unit tests, and never touches the model**:
+
+*   seriousness assessment and the 15-day regulatory clock
+*   the four ICSR minimum criteria and the rest of validation
+*   duplicate detection
+*   CIOMS-I and E2B(R3) mapping
+*   role and permission checks
+
+This split is deliberate. Swapping the model, or the model having a bad day, changes summary quality — it cannot change a statutory deadline, let a case through that fails the minimum criteria, or show one rep another rep's patients.
+
+> ⚠️ Every AI output is a **draft for review**. CIOMS-I output in particular must be checked and completed by qualified PV staff before submission.
+
+---
+
+## Where data lives
+
+| Data | Store | Notes |
+|---|---|---|
+| AE cases | **D1** (`ae_cases`) | Case body as a JSON payload plus extracted index columns for querying and sorting |
+| Audit trail | **D1** (`ae_audit`) | Separate table, **append-only enforced by database triggers** — not by application discipline |
+| Attachments | **R2** | A compressed medicine-box photo is 0.3–1.5MB; keeping it in the payload would drag it into every list query |
+| Users and roles | **D1** (`ae_users`) | Email → role, plus the reporter profile |
+| Rate limiting | **KV** | Fixed window, per IP per minute |
+| Literature database | **IndexedDB** | Browser-side; the literature channel has no server component yet |
+
+> ⚠️ Without `VITE_AE_API_ENDPOINT`, the reporting form and the console share **one browser's** IndexedDB — single-device trial only. Production needs the backend.
+
+---
+
+## Tech stack
+
+*   **Front end** — React 19, TypeScript 5.8, Vite 6, Tailwind CSS 3.4, Heroicons; hash routing (static hosting, no server rewrites)
+*   **Back end** — Cloudflare Workers (LLM proxy + case intake API), D1 (SQLite), R2, KV
+*   **Auth** — Cloudflare Access (Email OTP), JWT verified in the Worker against the team JWKS
+*   **AI** — any OpenAI-compatible Chat Completions API, provider-agnostic, no vendor SDK
+*   **Data source** — NCBI PubMed E-utilities
+*   **Tests** — vitest 3 + jsdom; CI runs typecheck, tests and build on Node 22.x and 24.x
+
+---
+
+## Getting started
 
 ```bash
-cd worker
-npx wrangler secret put LLM_API_KEY   # store the upstream key as a secret
-npx wrangler kv namespace create RATE_LIMIT   # create the rate-limit KV; put the returned id into wrangler.toml
-npx wrangler deploy                    # LLM_BASE_URL / LLM_MODEL are set in wrangler.toml
+npm install
+cp .env.example .env.local   # then fill in, see below
+npm run dev                  # http://localhost:3000
 ```
-Then set `VITE_PV_PROXY_ENDPOINT` in the frontend to the deployed Worker URL and rebuild. The frontend now carries **no** LLM key. If the rate-limit KV isn't bound, the Worker automatically skips it and works as normal.
 
+For **local development** the front end can talk to any OpenAI-compatible endpoint directly:
 
-### Adverse event backend (Worker + D1 + R2)
+```env
+VITE_LLM_BASE_URL=https://api.openai.com/v1
+VITE_LLM_API_KEY=sk-xxxx
+VITE_LLM_MODEL=gpt-4o-mini
+```
 
-The AE intake API rides on the **same** Worker, behind the **same** Cloudflare Access check, so there is no second login to maintain.
+> ⚠️ `VITE_`-prefixed keys are bundled into the front end — fine locally, **not** for a public deployment. There, use the Worker proxy and set only `VITE_PV_PROXY_ENDPOINT`, keeping the key on the server.
+
+### Usage
+
+1.  **Search settings** — enter target ingredients (comma-separated, e.g. `Aspirin, Ibuprofen`) and a date range.
+2.  **Start a task** — PubMed is queried and anything already in the master database is filtered out.
+3.  **Pending review** — read the AI summaries and conclusions, then **confirm import** for records with PV value.
+4.  **Master database** — search history, export CSV.
+5.  **Share the reporting link** — in the Case Intake tab, the phone icon opens the form and the link icon copies the `#/report` URL (a QR code works well for the field team).
+6.  **Intake** — cases arrive sorted by time pressure; work each through validity → duplicates → seriousness → coding → follow-up → submission.
+7.  **Produce documents** — generate the CIOMS-I draft, review it, submit to the authority, record the receipt number, close the case.
+
+---
+
+## Deployment
+
+### LLM proxy
 
 ```bash
 cd worker
-npx wrangler d1 create pv-link-ae                 # put the returned database_id into wrangler.toml
+npx wrangler secret put LLM_API_KEY            # upstream key, server-side only
+npx wrangler kv namespace create RATE_LIMIT    # put the returned id into wrangler.toml
+npx wrangler deploy                            # LLM_BASE_URL / LLM_MODEL come from wrangler.toml
+```
+
+Then point `VITE_PV_PROXY_ENDPOINT` at the deployed Worker and rebuild. The front end now carries **no** LLM key. If the rate-limit KV isn't bound, the Worker skips it and works as normal.
+
+### AE case intake backend
+
+The intake API rides on the **same** Worker behind the **same** Access check, so there is no second login to maintain.
+
+```bash
+cd worker
+npx wrangler d1 create pv-link-ae                       # put database_id into wrangler.toml
 npx wrangler r2 bucket create pv-link-ae-attachments
 npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
+npx wrangler secret put AE_PV_EMAILS                    # bootstrap PV staff, comma-separated
 npx wrangler deploy
 ```
-Then set `VITE_AE_API_ENDPOINT=/api/ae-reports` (already in `.env.production`) and rebuild. Cases live in D1; attachments in R2; the audit trail is a separate append-only table enforced by a database trigger, not by application discipline.
 
-On first sign-in a rep fills in their **reporter details** once — name, employee ID, phone, company (CIOMS 26 / 24a). Every later report is pre-filled from that profile, turning the form's first screen from six inputs into a summary card. The writable fields are an explicit allow-list, so nobody can promote themselves to PV staff by editing their own profile.
+Then set `VITE_AE_API_ENDPOINT=/api/ae-reports` (already in `.env.production`) and rebuild.
 
-Reps sign in with **Cloudflare Access Email OTP** using their **company mailbox** — no passwords to leak, share, or reset, and offboarding is automatic: a disabled mailbox cannot receive the one-time code, so access ends even if nobody remembers to prune the policy.
+> 📖 Full runbook, role management commands, real-device test procedure and go-live checklist: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (Traditional Chinese).
 
-> ⚠️ List individual addresses. An `Emails ending in @yourcompany.com` rule means **everyone in the company** — finance, HR, interns — can read patient adverse-event data. Use an Access Group if the list grows, not a domain rule.
-**Roles** are held in D1, because Access answers "is this person one of us", not "what may this person see":
+---
 
-| Role | Can do |
+## Testing
+
+```bash
+npm test           # vitest, 148 unit tests
+npm run typecheck  # tsc --noEmit
+npm run build      # production bundle
+```
+
+Every pure function with a regulatory consequence has tests: validity, seriousness, the regulatory clock, duplicate detection, CIOMS/E2B mapping, signal aggregation, `parseJsonLoose`, `reconcile`, MedDRA mapping, and the permission rules. Translation coverage for dynamic i18n keys (`ae.issue.*`, `ae.status.*`) is enforced by tests too.
+
+The Worker cannot import the front end's TypeScript modules, so its seriousness and due-date logic is a deliberate mirror. `tests/worker.ae.test.ts` feeds both implementations the same cases and compares them one by one — a drifted mirror shows up as a wrong statutory deadline, which is hard to reproduce in a test environment and directly affects reporting obligations.
+
+Permission rules are tested with their negatives as well as their happy paths, because each failure corresponds to one rep reading another rep's patient data.
+
+---
+
+## Documentation
+
+| Document | Contents |
 |---|---|
-| `rep` (field rep) | Submit cases; read **only their own** |
-| `pv` (PV staff) | Read and write every case |
+| [`docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md`](docs/superpowers/specs/2026-09-08-ae-case-reporting-design.md) | Field derivation from CIOMS/E2B, Taiwan regulatory notes, the seven intake gates, backend architecture, roles, reporter profile |
+| [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) | Deployment runbook, Access setup, role management, real-device test procedure, go-live checklist |
 
-An email absent from `ae_users` is a `rep` — a missing entry means someone *cannot* see all cases (they will complain) rather than someone who *can* (nobody complains). Bootstrap the first PV user with `wrangler secret put AE_PV_EMAILS`.
+Both are in Traditional Chinese.
 
-> ⚠️ Enforcement lives in the Worker, not the UI. Hash routes (`#/report`) cannot be split by Access path rules — the fragment never reaches the server — so the frontend's role check is presentation only; every API route checks the role itself, and the list is filtered in SQL rather than in JS.
+## License
 
-> 📖 Full runbook, real-device test procedure and go-live checklist: [`docs/deployment-ae-backend.md`](docs/deployment-ae-backend.md) (Traditional Chinese).
-
-## 📄 License
 MIT License
