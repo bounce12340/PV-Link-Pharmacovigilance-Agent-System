@@ -19,6 +19,9 @@
 //      藥安人員（pv）讀寫全部。前端的頁面切換只是體驗，不是防線——
 //      任何人都能直接打 API，所以每一條路由都自己檢查角色。
 
+import { handleWork } from './work.js';
+import { WORK_FIELDS } from '../services/caseWorkModel.js';
+
 const MAH_SERIOUS_REPORT_DAYS = 15;
 
 // ── 由 payload 推導索引欄位 ─────────────────────────────────────────────
@@ -338,6 +341,7 @@ function rowToReport(row, audit) {
   let report;
   try {
     report = JSON.parse(row.payload);
+    for (const key of WORK_FIELDS) delete report[key];
   } catch {
     return null;
   }
@@ -497,6 +501,9 @@ export async function handleAeRequest(request, env, url, identity, cors) {
 
   const rest = path.slice('/api/ae-reports'.length);      // '' | '/:id' | '/:id/attachments/:attId'
   const seg = rest.split('/').filter(Boolean);
+  if ((seg.length === 1 && seg[0] === 'work-users') || (seg.length === 2 && seg[1] === 'work')) {
+    return handleWork(request, env, seg, role, actor, cors);
+  }
 
   try {
     // /api/ae-reports
@@ -506,6 +513,9 @@ export async function handleAeRequest(request, env, url, identity, cors) {
       }
       if (request.method === 'POST') {
         const report = await readJson(request);
+        if (WORK_FIELDS.some(key => Object.prototype.hasOwnProperty.call(report || {}, key))) {
+          return json({ error: 'internal work requires dedicated endpoint' }, 400, cors);
+        }
         // 業務可以新增，但不能藉由重送覆寫別人的個案，也不能洗掉藥安已開始的處理。
         if (role !== 'pv') {
           const existing = await env.DB.prepare(`SELECT submitted_by, status FROM ae_cases WHERE id = ?`)
@@ -560,6 +570,9 @@ export async function handleAeRequest(request, env, url, identity, cors) {
         const row = await env.DB.prepare(`SELECT id FROM ae_cases WHERE id = ? AND deleted_at IS NULL`).bind(caseId).first();
         if (!row) return json({ error: 'not found' }, 404, cors);
         const report = await readJson(request);
+        if (WORK_FIELDS.some(key => Object.prototype.hasOwnProperty.call(report || {}, key))) {
+          return json({ error: 'internal work requires dedicated endpoint' }, 400, cors);
+        }
         await upsertCase(env, { ...report, id: caseId }, actor, { isNew: false });
         return json({ ok: true }, 200, cors);
       }

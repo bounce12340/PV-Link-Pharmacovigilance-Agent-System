@@ -13,6 +13,7 @@
 // ⚠️ 本頁的判定結果僅供內部作業，實際送件仍須由合格藥安人員覆核。
 
 import React, { useMemo, useState } from 'react';
+import CaseWorkBoard from './CaseWorkBoard';
 import {
   AEReport, AEAuditEntry,
   assessSeriousness, checkMinimumCriteria, computeCompleteness, computeRegulatoryClock,
@@ -256,6 +257,7 @@ const AEIntakeConsole: React.FC<{
 
       {/* ── 個案處理面板 ────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
+        <CaseWorkBoard cases={cases} actor={actor} />
         {!selected
           ? <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400 dark:text-slate-500 p-10">
               <DocumentTextIcon className="w-12 h-12" />

@@ -1,6 +1,8 @@
+import { workZh, workEn } from './work';
 export type Lang = 'zh' | 'en';
 
 const zh = {
+  ...workZh,
   // nav
   'nav.input': '檢索設定',
   'nav.review': '待核閱',
@@ -407,6 +409,7 @@ const zh = {
 export type TransKey = keyof typeof zh;
 
 const en: Record<TransKey, string> = {
+  ...workEn,
   // nav
   'nav.input': 'Search',
   'nav.review': 'Review',

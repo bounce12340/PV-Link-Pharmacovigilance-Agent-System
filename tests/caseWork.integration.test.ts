@@ -1,0 +1,63 @@
+// @vitest-environment node
+import { beforeEach, afterEach, describe, it, expect } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
+import { readFileSync } from 'node:fs';
+import { handleAeRequest } from '../worker/ae.js';
+import { emptyWork } from '../services/caseWorkModel.js';
+let db: DatabaseSync; let env: any;
+async function call(method: string, path: string, body?: any, actor = 'pv@example.test') {
+ const url = new URL('https://example.test/api/ae-reports' + path);
+ return handleAeRequest(new Request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), env, url, { email: actor }, {});
+}
+beforeEach(async () => {
+ db = new DatabaseSync(':memory:');
+ db.exec(readFileSync(new URL('../worker/schema.sql', import.meta.url), 'utf8'));
+ const migration = readFileSync(new URL('../worker/migrations/001_case_work.sql', import.meta.url), 'utf8'); db.exec(migration); db.exec(migration);
+ const prepare = (query: string) => {
+   let args: any[] = [];
+   return { bind(...v: any[]) { args = v; return this; }, async first() { return db.prepare(query).get(...args) || null; }, async all() { return { results: db.prepare(query).all(...args) }; }, async run() { return { meta: db.prepare(query).run(...args) }; } };
+ };
+ env = { AE_PV_EMAILS: 'pv@example.test', DB: { prepare, async batch(statements: any[]) { db.exec('BEGIN'); try { const results = []; for (const s of statements) results.push(await s.run()); db.exec('COMMIT'); return results; } catch(e) { db.exec('ROLLBACK'); throw e; } } } };
+ await call('POST', '', { id: 'demo', caseNumber: 'SYNTHETIC', events: [], drugs: [] }, 'rep@example.test');
+});
+afterEach(() => db.close());
+describe('work real SQLite persistence and audit', () => {
+ it('persists separate work without disclosing it in rep GET/list/audit', async () => {
+   expect((await call('PUT', '/demo/work', { ...emptyWork(), nextAction: 'PRIVATE_SYNTHETIC', assignee: 'pv@example.test' }))?.status).toBe(200);
+   expect((await (await call('GET', '/demo/work'))?.json()).work.nextAction).toBe('PRIVATE_SYNTHETIC');
+   for (const path of ['', '/demo']) expect(await (await call('GET', path, undefined, 'rep@example.test'))?.text()).not.toContain('PRIVATE_SYNTHETIC');
+   expect((await call('GET', '/demo/work', undefined, 'rep@example.test'))?.status).toBe(403);
+   expect((await call('GET', '/work-users', undefined, 'rep@example.test'))?.status).toBe(403);
+   expect(db.prepare('SELECT payload FROM ae_cases').get()?.payload).not.toContain('PRIVATE_SYNTHETIC');
+ });
+ it('conditional writes prevent stale first creation and subsequent overwrite; failed writes add no audit', async () => {
+   expect((await call('PUT', '/demo/work', { ...emptyWork(), version: 2 }))?.status).toBe(409);
+   expect((await call('PUT', '/demo/work', emptyWork()))?.status).toBe(200);
+   expect((await call('PUT', '/demo/work', emptyWork()))?.status).toBe(409);
+   expect((await call('PUT', '/demo/work', { ...emptyWork(), version: 1, nextAction: 'second' }))?.status).toBe(200);
+   expect((await call('PUT', '/demo/work', { ...emptyWork(), version: 1, nextAction: 'lost' }))?.status).toBe(409);
+   expect(db.prepare('SELECT COUNT(*) n FROM ae_work_audit').get()?.n).toBe(2);
+   expect(db.prepare('SELECT version FROM ae_case_work').get()?.version).toBe(2);
+ });
+ it('audit is server attributed, immutable and atomic with work update', async () => {
+   await call('PUT', '/demo/work', emptyWork());
+   expect(db.prepare('SELECT actor FROM ae_work_audit').get()?.actor).toBe('pv@example.test');
+   expect(() => db.exec('DELETE FROM ae_work_audit')).toThrow('immutable audit');
+   expect(() => db.exec("UPDATE ae_work_audit SET actor='fake'")).toThrow('immutable audit');
+   db.exec("CREATE TRIGGER fail_work_audit BEFORE INSERT ON ae_work_audit BEGIN SELECT RAISE(ABORT,'injected'); END;");
+   expect((await call('PUT', '/demo/work', { ...emptyWork(), version: 1 }))?.status).toBe(500);
+   expect(db.prepare('SELECT version FROM ae_case_work').get()?.version).toBe(1);
+ });
+ it('rejects deleted or absent cases and unauthenticated identity', async () => {
+   expect((await call('PUT', '/absent/work', emptyWork()))?.status).toBe(404);
+   await call('DELETE', '/demo');
+   expect((await call('PUT', '/demo/work', emptyWork()))?.status).toBe(404);
+   expect((await call('GET', '/demo/work'))?.status).toBe(404);
+   expect((await call('GET', '/work-users', undefined, ''))?.status).toBe(401);
+ });
+ it('normal case updates cannot overwrite independent work', async () => {
+   await call('PUT', '/demo/work', { ...emptyWork(), nextAction: 'keep' });
+   await call('PATCH', '/demo', { id: 'demo', caseNumber: 'SYNTHETIC', events: [], drugs: [] });
+   expect((await (await call('GET', '/demo/work'))?.json()).work.nextAction).toBe('keep');
+ });
+});
