@@ -74,7 +74,48 @@ describe('AE API database regression', () => {
     expect((await request('POST','',report('locked',{caseNumber:'rep-overwrite'})))?.status).toBe(403);
     expect(sql.prepare('SELECT case_number FROM ae_cases WHERE id=?').get('locked')?.case_number).toBe('locked');
   });
-  it('requires a matching version for PV updates and prevents lost update', async () => {
+  it('requires an exact rep retry version and preserves existing PV fields', async () => {
+    const original = report('rep-retry', { events: [{ id: 'event1', verbatim: 'rash', seriousnessCriteria: [] }] });
+    expect((await request('POST', '', original))?.status).toBe(201);
+    expect((await request('PATCH', '/rep-retry', report('rep-retry', {
+      version: 0, caseNumber: 'PV-update', triage: { notes: 'PV-only' },
+      events: [{ id: 'event1', verbatim: 'rash', seriousnessCriteria: [], meddraPt: 'Rash', meddraSoc: 'Skin', meddraVerified: true }],
+    }), 'pv@example.test'))?.status).toBe(200);
+    expect((await request('POST', '', original))?.status).toBe(409);
+    expect((await request('POST', '', { ...original, version: 0 }))?.status).toBe(409);
+    expect((await request('POST', '', { ...original, version: 1 }))?.status).toBe(200);
+    const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get('rep-retry')!.payload as string);
+    expect(saved.triage.notes).toBe('PV-only');
+    expect(saved.events[0].meddraPt).toBe('Rash');
+  });
+  it('allowlists rep clinical data while dropping MedDRA, triage notes and unknown keys', async () => {
+    const input = report('rep-allowlist', {
+      narrative: 'clinical narrative', unknownRoot: 'drop',
+      events: [{ id: 'event1', verbatim: 'symptom', seriousnessCriteria: [], meddraPt: 'injected', meddraSoc: 'injected', meddraVerified: true, unknownEvent: 'drop' }],
+      drugs: [{ id: 'drug1', isSuspect: true, brandName: 'Drug', unknownDrug: 'drop' }],
+      triage: { notes: 'PV-only', causality: 'certain' },
+    });
+    expect((await request('POST', '', input))?.status).toBe(201);
+    const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get('rep-allowlist')!.payload as string);
+    expect(saved.narrative).toBe('clinical narrative');
+    expect(saved.events[0]).not.toHaveProperty('meddraPt');
+    expect(saved.events[0]).not.toHaveProperty('meddraSoc');
+    expect(saved.events[0]).not.toHaveProperty('meddraVerified');
+    expect(saved.triage).toEqual({});
+    expect(saved).not.toHaveProperty('unknownRoot');
+  });
+  it('does not create a stale audit in a fixed same-millisecond conflict', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-28T12:00:00.000Z'));
+    try {
+      const base = report('same-ms');
+      await request('POST', '', base, 'pv@example.test');
+      expect((await request('PATCH', '/same-ms', report('same-ms', { version: 0, auditTrail: [{ action: 'legit' }] }), 'pv@example.test'))?.status).toBe(200);
+      expect((await request('PATCH', '/same-ms', report('same-ms', { version: 0, auditTrail: [{ action: 'stale' }] }), 'pv@example.test'))?.status).toBe(409);
+      const actions = sql.prepare('SELECT action FROM ae_audit WHERE case_id=? ORDER BY seq').all('same-ms').map((r: any) => r.action);
+      expect(actions).not.toContain('stale');
+    } finally { vi.useRealTimers(); }
+  });
+
     await request('POST','',report('versioned'));
     const row = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned')!.version as number;
     expect((await request('PATCH','/versioned',report('versioned',{version:row}), 'pv@example.test'))?.status).toBe(200);

@@ -10,7 +10,7 @@
 - S3 原子性：每次 case write／DELETE 生成非時間衍生的 UUID `last_mutation_id`，條件 UPDATE/INSERT、附件 metadata 與 audit 均在同一 SQLite/D1 batch，後兩者只匹配**本次** UUID；因此失敗的條件寫入即使與另一成功寫入同毫秒、同 version，也不能留下 metadata/audit。SQL batch 回滾不留 case、metadata 或 audit。這取代不安全的 timestamp+version／跨 statement `changes()` gate。
 
 ## 測試與遷移
-`tests/worker.integration.test.ts` 與 repo 外可重現的 SQLite adapter 覆蓋：rep stale／缺 version 409、rep MedDRA/triage/未知欄位拒絕、合法臨床欄位保留、PV 內容在合法 rep retry 不被清除、固定同毫秒 stale audit、條件寫入失敗不留 attachment metadata/audit、以及 fresh／upgrade／rerun migration matrix。完整 CI 仍須在一般 Node/CI 執行。
+- `tests/worker.integration.test.ts` 與 repo 外可重現的 SQLite adapter 覆蓋：rep stale／缺 version 409、rep MedDRA/triage/未知欄位拒絕、合法臨床欄位保留、PV 內容在合法 rep retry 不被清除、固定同毫秒 stale audit、條件寫入失敗不留 attachment metadata/audit、以及 fresh／upgrade／rerun migration matrix。完整 CI 仍須在一般 Node/CI 執行。
 
 ### 002 case version migration policy
 
