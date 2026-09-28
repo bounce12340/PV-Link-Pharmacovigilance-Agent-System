@@ -267,7 +267,7 @@ function dataUrlToBytes(dataUrl) {
  * 每次讀個案（收件匣列表也算）都會把它一起拖出來，而且 D1 有單列大小限制。
  * 前端不需要為此多送一次請求——送出仍是單一 POST。
  */
-async function offloadAttachments(env, caseId, report, actor, nowIso, statements) {
+async function offloadAttachments(env, caseId, report, actor, nowIso, mutationId, statements) {
   const list = Array.isArray(report?.attachments) ? report.attachments : [];
   if (!list.length) return list;
   if (!env.AE_FILES) {
@@ -283,7 +283,7 @@ async function offloadAttachments(env, caseId, report, actor, nowIso, statements
       if (typeof a.id !== 'string' || !a.id.trim() || a.url !== `/api/ae-reports/${caseId}/attachments/${a.id}`) throw new HttpError(400, 'invalid attachment reference');
       const owned = await env.DB.prepare(`SELECT id FROM ae_attachments WHERE id=? AND case_id=? AND deleted_at IS NULL`).bind(a.id, caseId).first();
       if (!owned) throw new HttpError(400, 'unknown attachment reference');
-      kept.push({ ...a, url: `/api/ae-reports/${caseId}/attachments/${a.id}` });
+      kept.push({ id: a.id, name: str(a.name).replace(/[\r\n]/g, '').slice(0,200), mime: str(a.mime).slice(0,100), size: Number.isFinite(Number(a.size)) ? Number(a.size) : 0, addedAt: str(a.addedAt) || nowIso, url: `/api/ae-reports/${caseId}/attachments/${a.id}` });
       continue;
     }
     let decoded;
@@ -302,10 +302,11 @@ async function offloadAttachments(env, caseId, report, actor, nowIso, statements
     await env.AE_FILES.put(key, decoded.bytes, { httpMetadata: { contentType: detected } });
     statements.push(env.DB.prepare(
       `INSERT INTO ae_attachments (id, case_id, r2_key, name, mime, size, added_at, added_by)
-       SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() > 0
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM ae_cases WHERE id=? AND last_mutation_id=?)
        ON CONFLICT(id) DO UPDATE SET r2_key=excluded.r2_key, name=excluded.name, mime=excluded.mime, size=excluded.size
        WHERE ae_attachments.case_id=excluded.case_id`
-    ).bind(a.id, caseId, key, str(a.name).replace(/[\\r\\n]/g, '').slice(0,200), detected, decoded.bytes.length, str(a.addedAt) || nowIso, actor));
+    ).bind(a.id, caseId, key, str(a.name).replace(/[\r\n]/g, '').slice(0,200), detected, decoded.bytes.length, str(a.addedAt) || nowIso, actor, caseId, mutationId));
 
     kept.push({ id: a.id, name: str(a.name).replace(/[\\r\\n]/g, '').slice(0,200), mime: detected, size: decoded.bytes.length, addedAt: a.addedAt || nowIso, url: `/api/ae-reports/${caseId}/attachments/${a.id}` });
   }
@@ -389,24 +390,75 @@ async function listCases(env, url, role, actor) {
   return cases;
 }
 
-async function upsertCase(env, report, actor, { isNew, role = 'pv', expectedVersion }) {
+
+/**
+ * 以明確 allowlist 重建 rep payload；未知欄位與 PV-only adjudication 永不落盤。
+ * triage 完全由 PV PATCH 填寫：通報者如需補充原始臨床資訊，應使用 narrative。
+ */
+const REP_STRING_FIELDS = [
+  'id','caseNumber','reportType','followUpOf','followUpOfId','reporterName','reporterEmployeeId',
+  'reporterPhone','reporterEmail','reporterOrg','reporterTerritory','reportSource','primaryReporterName',
+  'primaryReporterProfession','primaryReporterOrg','primaryReporterContact','awarenessDate','reportDate',
+  'country','countryOther','patientInitials','patientId','patientBirthDate','patientAgeValue','patientAgeUnit',
+  'patientSex','patientWeightKg','patientHeightCm','pregnancy','lastMenstrualPeriod','labData','narrative',
+  'deathDate','causeOfDeath','autopsyDone','medicalHistory','allergies',
+];
+const REP_EVENT_STRING_FIELDS = ['id','verbatim','onsetDate','endDate','outcome'];
+const REP_DRUG_STRING_FIELDS = ['id','brandName','activeIngredient','lotNumber','expiryDate','licenseNo','dailyDose','route','routeOther','indication','therapyStart','therapyEnd','therapyDuration','dechallenge','rechallenge','actionTaken'];
+const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+const repString = (value, max = 20000) => str(value).trim().slice(0, max);
+
+export function sanitizeRepReport(input) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const out = { status: 'submitted', triage: {} };
+  for (const key of REP_STRING_FIELDS) if (own(source, key)) out[key] = repString(source[key]);
+  if (own(source, 'hasSignificantNewInfo')) out.hasSignificantNewInfo = source.hasSignificantNewInfo === true;
+  out.events = (source.events || []).slice(0, 100).filter(e => e && typeof e === 'object' && !Array.isArray(e)).map(e => {
+    const event = {};
+    for (const key of REP_EVENT_STRING_FIELDS) if (own(e, key)) event[key] = repString(e[key]);
+    event.seriousnessCriteria = Array.isArray(e.seriousnessCriteria)
+      ? e.seriousnessCriteria.filter(v => typeof v === 'string').slice(0, 20) : [];
+    return event;
+  });
+  out.drugs = (source.drugs || []).slice(0, 100).filter(d => d && typeof d === 'object' && !Array.isArray(d)).map(d => {
+    const drug = { isSuspect: d.isSuspect === true };
+    for (const key of REP_DRUG_STRING_FIELDS) if (own(d, key)) drug[key] = repString(d[key]);
+    return drug;
+  });
+  // Attachments undergo their own byte/reference validation in offloadAttachments.
+  out.attachments = Array.isArray(source.attachments) ? source.attachments : [];
+  // version is intentionally not persisted, but route-level conflict checks use it.
+  if (own(source, 'version')) out.version = source.version;
+  return out;
+}
+async function upsertCase(env, report, actor, { role = 'pv', expectedVersion }) {
   const now = new Date().toISOString();
+  const mutationId = crypto.randomUUID();
   const id = str(report?.id);
   if (!id) throw new HttpError(400, 'missing case id');
   if (!report || typeof report !== 'object' || Array.isArray(report)) throw new HttpError(400, 'invalid report');
   for (const field of ['events', 'drugs', 'attachments', 'auditTrail']) if (report[field] !== undefined && !Array.isArray(report[field])) throw new HttpError(400, `invalid ${field}`);
 
-  const existing = await env.DB.prepare(`SELECT id, deleted_at FROM ae_cases WHERE id=?`).bind(id).first();
+  const existing = await env.DB.prepare(`SELECT id, deleted_at, payload FROM ae_cases WHERE id=?`).bind(id).first();
   if (existing?.deleted_at) throw new HttpError(409, 'case is deleted');
   const attachmentStatements = [];
-  const attachments = await offloadAttachments(env, id, report, actor, now, attachmentStatements);
-  const { auditTrail, ...rest } = report;
-  const persisted = { ...rest, attachments };
+  const attachments = await offloadAttachments(env, id, report, actor, now, mutationId, attachmentStatements);
+  const { auditTrail, version: _clientVersion, ...rest } = report;
+  let persisted = { ...rest, attachments };
   if (role !== 'pv') {
-    const triage = persisted.triage && typeof persisted.triage === 'object' ? { ...persisted.triage } : {};
-    for (const key of ['validityConfirmed','expectedness','causality','seriousnessOverride','assignee','duplicateOfId','submittedToAuthorityAt','authorityReceiptNo','followUpRequestedAt']) delete triage[key];
-    persisted.triage = triage;
-    persisted.status = 'submitted';
+    // A legitimate rep retry must never erase PV coding/adjudication already held in the row.
+    let prior = {};
+    try { prior = existing ? JSON.parse(existing.payload) : {}; } catch { /* malformed legacy payload is not copied */ }
+    const previousEvents = new Map((prior.events || []).filter(e => e && typeof e === 'object').map(e => [String(e.id), e]));
+    persisted = {
+      ...persisted,
+      status: 'submitted',
+      triage: existing ? (prior.triage && typeof prior.triage === 'object' && !Array.isArray(prior.triage) ? prior.triage : {}) : {},
+      events: (persisted.events || []).map(event => {
+        const pvEvent = previousEvents.get(String(event?.id));
+        return pvEvent ? { ...event, meddraPt: pvEvent.meddraPt, meddraSoc: pvEvent.meddraSoc, meddraVerified: pvEvent.meddraVerified } : event;
+      }),
+    };
   }
   const payload = JSON.stringify(persisted);
   const col = indexColumns(persisted);
@@ -415,25 +467,26 @@ async function upsertCase(env, report, actor, { isNew, role = 'pv', expectedVers
     const where = role === 'pv'
       ? `id=? AND deleted_at IS NULL AND version=?`
       : `id=? AND deleted_at IS NULL AND LOWER(submitted_by)=? AND status IN ('draft','submitted') AND version=?`;
-    const binds = [payload,col.case_number,col.status,col.report_type,col.follow_up_of_id,col.awareness_date,col.due_date,col.serious,col.country,col.suspect_drug,col.patient_key,now,id];
+    const binds = [payload,col.case_number,col.status,col.report_type,col.follow_up_of_id,col.awareness_date,col.due_date,col.serious,col.country,col.suspect_drug,col.patient_key,now,mutationId,id];
     if (role !== 'pv') binds.push(normalizeEmail(actor));
-    binds.push(Number.isInteger(expectedVersion) && expectedVersion >= 0 ? expectedVersion : -1);
-    caseStatement = env.DB.prepare(`UPDATE ae_cases SET payload=?,case_number=?,status=?,report_type=?,follow_up_of_id=?,awareness_date=?,due_date=?,serious=?,country=?,suspect_drug=?,patient_key=?,updated_at=?,version=version+1 WHERE ${where}`).bind(...binds);
+    binds.push(expectedVersion);
+    caseStatement = env.DB.prepare(`UPDATE ae_cases SET payload=?,case_number=?,status=?,report_type=?,follow_up_of_id=?,awareness_date=?,due_date=?,serious=?,country=?,suspect_drug=?,patient_key=?,updated_at=?,last_mutation_id=?,version=version+1 WHERE ${where}`).bind(...binds);
   } else {
     // Always INSERT for a new id: a concurrent collision is a conflict, never an unauthorized overwrite.
-    caseStatement = env.DB.prepare(`INSERT INTO ae_cases (id,payload,case_number,status,report_type,follow_up_of_id,awareness_date,due_date,serious,country,suspect_drug,patient_key,submitted_by,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,payload,col.case_number,col.status,col.report_type,col.follow_up_of_id,col.awareness_date,col.due_date,col.serious,col.country,col.suspect_drug,col.patient_key,actor,now,now);
+    caseStatement = env.DB.prepare(`INSERT INTO ae_cases (id,payload,case_number,status,report_type,follow_up_of_id,awareness_date,due_date,serious,country,suspect_drug,patient_key,submitted_by,created_at,updated_at,last_mutation_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id,payload,col.case_number,col.status,col.report_type,col.follow_up_of_id,col.awareness_date,col.due_date,col.serious,col.country,col.suspect_drug,col.patient_key,actor,now,now,mutationId);
   }
   const entries = [...(auditTrail || [])];
   if (!existing) entries.push({ at: now, action: 'received', detail: `由 ${actor} 送達後台` });
   const audits = entries.filter(e => e && e.action).map(e => env.DB.prepare(
     `INSERT INTO ae_audit (case_id,at,actor,action,detail)
-     SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM ae_cases WHERE id=? AND updated_at=? AND version=?)`
-  ).bind(id,str(e.at)||now,actor,str(e.action),str(e.detail)||null,id,now, existing ? (Number(expectedVersion)+1) : 0));
+     SELECT ?,?,?,?,? WHERE EXISTS (SELECT 1 FROM ae_cases WHERE id=? AND last_mutation_id=?)`
+  ).bind(id,str(e.at)||now,actor,str(e.action),str(e.detail)||null,id,mutationId));
   const result = await env.DB.batch([caseStatement, ...attachmentStatements, ...audits]);
   if (!result?.[0]?.meta?.changes) throw new HttpError(409, 'case write conflict; reload and retry');
-  return id;
+  return { id, version: existing ? expectedVersion + 1 : 0 };
 }
+
 
 // ── HTTP 處理 ───────────────────────────────────────────────────────────
 
@@ -516,18 +569,19 @@ export async function handleAeRequest(request, env, url, identity, cors) {
           return json({ error: 'internal work requires dedicated endpoint' }, 400, cors);
         }
         let report = incoming;
-        if (role !== 'pv') {
-          // Keep the reporter's normal clinical/report fields, but strip PV adjudication fields.
-          const triage = incoming.triage && typeof incoming.triage === 'object' && !Array.isArray(incoming.triage) ? { ...incoming.triage } : {};
-          for (const key of ['validityConfirmed','expectedness','causality','seriousnessOverride','assignee','duplicateOfId','submittedToAuthorityAt','authorityReceiptNo','followUpRequestedAt']) delete triage[key];
-          report = { ...incoming, triage, status: 'submitted' };
-        }
+        if (role !== 'pv') report = sanitizeRepReport(incoming);
         const id = str(report?.id);
         const current = await env.DB.prepare(`SELECT id,submitted_by,status,version,deleted_at FROM ae_cases WHERE id=?`).bind(id).first();
         if (current?.deleted_at) return json({ error: 'case is deleted' }, 409, cors);
         if (role !== 'pv' && current && !canRepOverwrite(actor,current)) return json({ error: 'forbidden: case already exists and is not yours to overwrite' }, 403, cors);
-        const savedId = await upsertCase(env, report, actor, { isNew: true, role, expectedVersion: current ? Number(current.version || 0) : undefined });
-        return json({ ok: true, id: savedId, version: 0 }, 201, cors);
+        // A new offline draft omits version. An existing id must supply the exact integer
+        // version previously returned by GET/POST; never substitute the database current version.
+        const expectedVersion = report?.version;
+        if (current && (!Number.isSafeInteger(expectedVersion) || expectedVersion < 0)) {
+          return json({ error: 'case write conflict: existing rep retry requires an exact version; reload and reconcile' }, 409, cors);
+        }
+        const saved = await upsertCase(env, report, actor, { role, expectedVersion });
+        return json({ ok: true, id: saved.id, version: saved.version }, current ? 200 : 201, cors);
       }
       return json({ error: 'method not allowed' }, 405, cors);
     }
@@ -577,8 +631,12 @@ export async function handleAeRequest(request, env, url, identity, cors) {
         if (WORK_FIELDS.some(key => Object.prototype.hasOwnProperty.call(report || {}, key))) {
           return json({ error: 'internal work requires dedicated endpoint' }, 400, cors);
         }
-        await upsertCase(env, { ...report, id: caseId }, actor, { isNew: false, role, expectedVersion: Number(report?.version) });
-        return json({ ok: true, version: Number(report?.version) + 1 }, 200, cors);
+        const rawExpectedVersion = report?.version;
+        if (!Number.isSafeInteger(rawExpectedVersion) || rawExpectedVersion < 0) {
+          return json({ error: 'case write conflict: PATCH requires an exact version; reload and retry' }, 409, cors);
+        }
+        const saved = await upsertCase(env, { ...report, id: caseId }, actor, { role, expectedVersion: rawExpectedVersion });
+        return json({ ok: true, version: saved.version }, 200, cors);
       }
 
       if (request.method === 'DELETE') {
@@ -586,13 +644,15 @@ export async function handleAeRequest(request, env, url, identity, cors) {
         // 軟刪除。個案從收件匣消失，但列與稽核軌跡都留著，日後查核仍看得到發生過什麼。
         const reason = url.searchParams.get('reason') || '';
         const now = new Date().toISOString();
+        const mutationId = crypto.randomUUID();
         const [res] = await env.DB.batch([env.DB.prepare(
-          `UPDATE ae_cases SET deleted_at=?, deleted_by=?, deleted_reason=?, updated_at=?
+          `UPDATE ae_cases SET deleted_at=?, deleted_by=?, deleted_reason=?, updated_at=?, last_mutation_id=?
            WHERE id=? AND deleted_at IS NULL`
-        ).bind(now, actor, reason || null, now, caseId), env.DB.prepare(
+        ).bind(now, actor, reason || null, now, mutationId, caseId), env.DB.prepare(
           `INSERT INTO ae_audit (case_id, at, actor, action, detail)
-           SELECT ?, ?, ?, 'soft_deleted', ? WHERE changes() > 0`
-        ).bind(caseId, now, actor, reason || '未填理由')]);
+           SELECT ?, ?, ?, 'soft_deleted', ?
+           WHERE EXISTS (SELECT 1 FROM ae_cases WHERE id=? AND last_mutation_id=?)`
+        ).bind(caseId, now, actor, reason || '未填理由', caseId, mutationId)]);
         if (!res.meta?.changes) return json({ error: 'not found or already deleted' }, 404, cors);
         return json({ ok: true }, 200, cors);
       }

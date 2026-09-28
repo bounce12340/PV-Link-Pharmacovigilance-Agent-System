@@ -29,15 +29,17 @@ npx wrangler r2 bucket create pv-link-ae-attachments
 
 > 本專案已建置完成，ID 已寫在 `wrangler.toml` 裡；此節保留供重建或另建環境時參照。
 
-## 2. 套用資料表
+## 2. 套用資料表與 migration ledger
 
-```bash
-npx wrangler d1 execute pv-link-ae --remote --file=worker/schema.sql
-```
+> 本段是**部署前規範**，不是本輪執行指令。本輪未連 remote D1。
 
-schema 是冪等的（全部 `CREATE TABLE IF NOT EXISTS`），重跑安全。
+新環境只套用最新版 `worker/schema.sql`；它已包含 `ae_cases.version` 與 `last_mutation_id`。**Fresh schema 後不得再直接套用 002 或 004。**
 
-驗證（應看到 3 張表、2 個 trigger）：
+既有環境不得把 `schema.sql` 當 ALTER 工具（`CREATE TABLE IF NOT EXISTS` 不會補欄）。必須先備份，並使用受控 migration runner：建立／查詢 `schema_migrations` ledger，對 `ae_cases` 執行 `PRAGMA table_info`，僅在欄位缺失且對應 ledger 未記錄時依序執行 `002_case_version.sql`（version）、`004_case_mutation_token.sql`（last_mutation_id），並在同一交易記錄各自 ledger。已含欄位的既有／fresh／已升級資料庫都應跳過相應 SQL、只補 ledger（若尚未記錄）。SQLite 沒有可攜的 `ADD COLUMN IF NOT EXISTS`，故 migration SQL 本身不能盲目重跑。
+
+本 repo 的 `worker/migrations/run-local.mjs` 僅是本機合成 SQLite matrix/預檢參考；它不會連線、不會呼叫 Wrangler，不能直接拿來操作 D1。遠端執行只可由另行授權的受控部署流程進行。
+
+驗證應確認 `ae_cases` 有 `version`、`last_mutation_id`、`schema_migrations` 的 `002_case_version` ledger，以及下列既有表／trigger；使用合成個案，不要在正式案上試驗。
 
 ```bash
 npx wrangler d1 execute pv-link-ae --remote \

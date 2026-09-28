@@ -20,12 +20,13 @@ PV 收案處理台右側頂端展開「個案分派與待辦工作台」，選�
 
 ## 遷移與部署順序
 
-**先 schema，後 Worker/UI。此次未執行任何遠端 migration、部署、push 或合併。**
+**先確認 schema/ledger，再 Worker/UI。此次未執行任何遠端 migration、部署、push 或合併。**
 
-1. 在授權的部署流程中備份並確認既有 `worker/schema.sql` 已套用。
-2. 套用 `worker/migrations/001_case_work.sql`，建立 `ae_case_work`、`ae_work_audit` 及不可變／自動稽核 triggers。migration 可重複套用，測試涵蓋重跑。
-3. 部署 Worker 與 UI；Worker 會引用 `../services/caseWorkModel.js`，打包需保留此 import。
-4. 以合成案確認 PV 讀寫、rep 403、版本衝突、稽核與未套 schema 的清楚錯誤。不要在正式案上試驗。
+1. 新環境只套用最新 `worker/schema.sql`；它已包含 AE case `version` 與 `last_mutation_id`，**不要**接著直接執行 `002_case_version.sql` 或 `004_case_mutation_token.sql`。
+2. 既有環境先備份並以受控 runner 建立 `schema_migrations` ledger；用 `PRAGMA table_info(ae_cases)` 判斷。只有欄位尚無且對應 ledger 未記錄時才依序執行 002（version）及 004（last_mutation_id），並各自在同交易寫 ledger。已升級／fresh DB 要跳過 SQL，避免 duplicate column。
+3. 套用 `worker/migrations/001_case_work.sql`，建立 `ae_case_work`、`ae_work_audit` 及不可變／自動稽核 triggers。migration 可重複套用，測試涵蓋重跑。
+4. 部署 Worker 與 UI；Worker 會引用 `../services/caseWorkModel.js`，打包需保留此 import。
+5. 以合成案確認 PV 讀寫、rep 403、版本衝突、稽核與未套 schema 的清楚錯誤。不要在正式案上試驗。
 
 回滾應先回滾程式，保留資料表與稽核，不應刪表。既有個案首次 GET 回 version 0 空工作，首次 PUT 建立 version 1，不需回填。
 

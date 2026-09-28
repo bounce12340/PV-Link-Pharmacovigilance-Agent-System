@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS ae_cases (
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL,
   version           INTEGER NOT NULL DEFAULT 0,
+  -- Request-unique token binds the successful case mutation to its audit/attachment SQL.
+  -- It is never accepted from clients and is deliberately not time-derived.
+  last_mutation_id  TEXT,
 
   -- 軟刪除：個案不做實體刪除，否則稽核軌跡會跟著消失
   deleted_at        TEXT,

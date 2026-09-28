@@ -29,6 +29,8 @@ export type SubmitChannel = 'remote' | 'local' | 'outbox';
 export interface SubmitResult {
   ok: boolean;
   channel: SubmitChannel;
+  /** A 409 is retained but is not a network retry: UI must reload/reconcile it. */
+  conflict?: boolean;
   message?: string;
 }
 
@@ -50,12 +52,18 @@ async function callApi(path: string, init: RequestInit = {}): Promise<Response> 
     headers: headers(),
     ...init,
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const error: Error & { status?: number } = new Error(`HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
   return res;
 }
 
-async function postRemote(report: AEReport): Promise<void> {
-  await callApi('', { method: 'POST', body: JSON.stringify(report) });
+async function postRemote(report: AEReport): Promise<AEReport> {
+  const response = await callApi('', { method: 'POST', body: JSON.stringify(report) });
+  const saved = await response.json();
+  return { ...report, version: Number(saved?.version) };
 }
 
 async function saveLocal(report: AEReport): Promise<void> {
@@ -66,28 +74,30 @@ async function saveLocal(report: AEReport): Promise<void> {
   await saveRecords(AE_CASES_KEY, cases);
 }
 
-async function enqueueOutbox(report: AEReport): Promise<void> {
+async function enqueueOutbox(report: AEReport, conflict = false): Promise<void> {
   const queue = ((await loadValue<AEReport[]>(AE_OUTBOX_KEY)) || []).filter(r => r?.id !== report.id);
-  queue.push(report);
+  // A conflict remains visible for reconciliation but flushOutbox must not blindly resend it.
+  queue.push({ ...report, ...(conflict ? { outboxConflict: true } : {}) } as AEReport);
   await saveValue(AE_OUTBOX_KEY, queue);
 }
 
-/** 送出一筆個案。任何失敗都會落到 outbox，回傳 channel 讓 UI 誠實告知使用者實際去向。 */
+/** 送出一筆個案。409 是資料衝突，不是暫時網路錯誤：保留草稿供協調但不得自動重送。 */
 export async function submitAEReport(report: AEReport): Promise<SubmitResult> {
   try {
     if (ENDPOINT) {
-      await postRemote(report);
-      return { ok: true, channel: 'remote' };
+      const saved = await postRemote(report);
+      return { ok: true, channel: 'remote', message: String(saved.version) };
     }
     await saveLocal(report);
     return { ok: true, channel: 'local' };
   } catch (e: any) {
+    const conflict = e?.status === 409;
     try {
-      await enqueueOutbox(report);
-      return { ok: false, channel: 'outbox', message: e?.message || String(e) };
+      await enqueueOutbox(report, conflict);
+      return { ok: false, channel: 'outbox', conflict, message: e?.message || String(e) };
     } catch (e2: any) {
       // outbox 也寫不進去（儲存空間滿）：這是唯一真正會遺失資料的情況，必須讓使用者知道
-      return { ok: false, channel: 'outbox', message: `佇列寫入失敗：${e2?.message || String(e2)}` };
+      return { ok: false, channel: 'outbox', conflict, message: `佇列寫入失敗：${e2?.message || String(e2)}` };
     }
   }
 }
@@ -255,22 +265,24 @@ export async function outboxCount(): Promise<number> {
 }
 
 /** 補送 outbox。逐筆送出，成功才移除；任何一筆失敗即停止並保留其餘，避免順序錯亂。 */
-export async function flushOutbox(): Promise<{ sent: number; remaining: number }> {
+export async function flushOutbox(): Promise<{ sent: number; remaining: number; conflicts: number }> {
   const queue = (await loadValue<AEReport[]>(AE_OUTBOX_KEY)) || [];
   let sent = 0;
   while (queue.length) {
     const item = queue[0];
+    if ((item as any).outboxConflict) break;
     try {
       if (ENDPOINT) await postRemote(item);
       else await saveLocal(item);
       queue.shift();
       sent++;
-    } catch {
+    } catch (e: any) {
+      if (e?.status === 409) (item as any).outboxConflict = true;
       break;
     }
   }
   await saveValue(AE_OUTBOX_KEY, queue);
-  return { sent, remaining: queue.length };
+  return { sent, remaining: queue.length, conflicts: queue.filter(item => (item as any).outboxConflict).length };
 }
 
 // ─────────────────────────────────────────────────────────────
