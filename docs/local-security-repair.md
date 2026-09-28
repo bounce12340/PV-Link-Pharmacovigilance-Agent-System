@@ -3,7 +3,7 @@
 - **範圍與基底：** 僅處理 `5deb529ff49e69fcedfaddd866f425812a8ad5d6` 的四個經獨立複查確認之阻擋項；未讀取秘密，未連線 remote D1，未部署、push、PR、merge、dispatch CI 或寄信。
 - **隔離工作樹：** `/var/minis/workspace/pv-local-security-repair-5deb529`
 - **分支：** `fix/local-security-four-blockers-5deb529`
-- **本機 commits：** `9d06ed426d0b1025ac37074f4d5ab5a565a06d4f`、`ec83c579450e34ec588979c46926d3db29568d79`（HEAD）。未 cherry-pick 至主 repo。
+- **本機 commits：** `9d06ed426d0b1025ac37074f4d5ab5a565a06d4f`、`ec83c579450e34ec588979c46926d3db29568d79`、`855ecf4cd5a460e8cd8054d9fff83cd2f1faceea`、`d8b458f5df7038c676a3dc99bd961d63e96e72b0`（HEAD）。未 cherry-pick 至主 repo。
 
 ## 缺陷基線重現
 
@@ -47,16 +47,16 @@
 | 類別 | 結果 | 證據 |
 |---|---|---|
 | 提供的三個 baseline PoC（固定 5deb529） | 預期失敗，成功重現三個 exploit | `baseline-pocs.log` |
-| 新增 SQLite adapter | **PASS：36 assertions** | `local-security-repair.log` |
-| Adapter 覆蓋 | stale/缺/字串 version 409、合法 retry/PV 資料保留、rep MedDRA/triage/unknown 移除、固定同毫秒 stale audit 不插入、audit SQL failure 回滾、fresh/legacy/rerun ledger matrix | `local-security-repair.log`；`tests/local-security-repair.mjs` |
-| 正式 Vitest 回歸檔 | 已新增 3 個 regression cases 至 `tests/worker.integration.test.ts` | 靜態檢查；原生 Vitest 見下列限制 |
+| 新增 SQLite adapter | **PASS：37 assertions** | `local-security-repair.log` |
+| Adapter 覆蓋 | stale/缺/字串 version 409、合法 retry/PV 資料保留、rep MedDRA/triage/unknown 移除、固定同毫秒 stale audit 不插入、audit SQL failure 時 case/audit/**新附件 metadata** 回滾、fresh/legacy/rerun ledger matrix | `local-security-repair.log`；`tests/local-security-repair.mjs` |
+| 正式 Vitest 回歸檔 | 已新增 4 個 regression cases 至 `tests/worker.integration.test.ts` | 靜態檢查；原生 Vitest 見下列限制 |
 | JavaScript syntax | PASS：`node --check worker/ae.js`、runner、adapter | `precommit-review.log` / shell logs |
 | diff whitespace | PASS：`git diff --check`（提交前） | `precommit-review.log` |
 | 原生 Vitest | **未執行**；isolated worktree 無 `node_modules`，`npm test` 退出 127 (`vitest: not found`) | `vitest-attempt.log` |
 | TypeScript | **未完成**；worktree 無 dependencies，嘗試 symlink 主 repo `node_modules` 被 filesystem 拒絕；未安裝/升級依賴、未重複排障 | `typecheck.log` 與執行輸出 |
 | Cloudflare D1 / staging / production | **未執行** | 無 remote 操作 |
 
-註：adapter 的故意觸發 audit trigger 會由 API 記錄 `ae api error: Error: injected`，隨後斷言 500 與 DB rollback；這是預期測試路徑，PASS 36 為最後結果。
+註：adapter 的故意觸發 audit trigger 會由 API 記錄 `ae api error: Error: injected`，隨後斷言 500 與 case/audit/attachment metadata rollback；這是預期測試路徑，PASS 37 為最後結果。
 
 ## 修改檔案
 
@@ -81,4 +81,4 @@
 
 ## 建議下一步
 
-在保持主 repo 草稿不動的前提下，由另一位複查者在此獨立 branch：先供應一般 Node/CI dependencies 執行 Vitest、TypeScript、build；再於獲准 staging D1 的合成資料執行 migration matrix 與 UUID-gated batch 語意。通過後再由主代理選擇 cherry-pick 兩個 commits；不可直接套用於髒主工作樹。
+在保持主 repo 草稿不動的前提下，由另一位複查者在此獨立 branch：先供應一般 Node/CI dependencies 執行 Vitest、TypeScript、build；再於獲准 staging D1 的合成資料執行 migration matrix 與 UUID-gated batch 語意。通過後再由主代理選擇 cherry-pick **整個 series**（`9d06ed4`、`ec83c57`、`855ecf4`、`d8b458f`，或由 HEAD 建立乾淨整體合併）；不可直接套用於髒主工作樹。
