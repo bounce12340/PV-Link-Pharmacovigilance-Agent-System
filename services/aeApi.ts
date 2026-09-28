@@ -245,9 +245,9 @@ export function profileToReporterFields(p: AEProfile) {
 /** 附件的顯示來源：本機模式是 dataURL，遠端模式是後端的附件網址。 */
 export function attachmentSrc(a: { dataUrl?: string; url?: string }): string {
   const data = a?.dataUrl;
-  if (data && /^data:image\\/(?:jpeg|png);base64,/i.test(data)) return data;
+  if (data && /^data:image\/(?:jpeg|png);base64,/i.test(data)) return data;
   const url = a?.url || '';
-  return /^\\/api\\/ae-reports\\/[A-Za-z0-9_-]+\\/attachments\\/[A-Za-z0-9_-]+$/.test(url) ? url : '';
+  return /^\/api\/ae-reports\/[A-Za-z0-9_-]+\/attachments\/[A-Za-z0-9_-]+$/.test(url) ? url : '';
 }
 
 export async function outboxCount(): Promise<number> {
