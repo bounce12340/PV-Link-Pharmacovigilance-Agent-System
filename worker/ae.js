@@ -117,8 +117,9 @@ export function bootstrapRole(email, listRaw) {
  * 權限判斷，不該把安全性押在呼叫端記得先檢查。
  */
 export function canReadCase(role, actor, row) {
-  if (role === 'pv') return true;
   if (!row) return false;
+  if (role === 'pv') return true;
+  if (row.deleted_at) return false;
   const owner = normalizeEmail(row.submitted_by);
   const me = normalizeEmail(actor);
   return Boolean(owner) && Boolean(me) && owner === me;
@@ -263,28 +264,37 @@ function dataUrlToBytes(dataUrl) {
  * 每次讀個案（收件匣列表也算）都會把它一起拖出來，而且 D1 有單列大小限制。
  * 前端不需要為此多送一次請求——送出仍是單一 POST。
  */
-async function offloadAttachments(env, caseId, report, actor, nowIso) {
+async function offloadAttachments(env, caseId, report, actor, nowIso, statements) {
   const list = Array.isArray(report?.attachments) ? report.attachments : [];
   if (!list.length || !env.AE_FILES) return list;
 
   const kept = [];
   for (const a of list) {
+    if (!a || typeof a !== 'object' || Array.isArray(a)) throw new HttpError(400, 'invalid attachment');
     // 已經是 R2 指標（例如追蹤報告或重送）就原樣保留
     if (!a?.dataUrl) { kept.push(a); continue; }
-    const decoded = dataUrlToBytes(a.dataUrl);
-    if (!decoded) continue;
+    let decoded;
+    try { decoded = dataUrlToBytes(a.dataUrl); } catch { /* invalid encoding */ }
+    if (!decoded) throw new HttpError(400, 'invalid attachment data');
+    if (typeof a.id !== 'string' || !a.id.trim()) throw new HttpError(400, 'missing attachment id');
+    const owner = await env.DB.prepare(`SELECT case_id FROM ae_attachments WHERE id = ?`).bind(a.id).first();
+    if (owner && owner.case_id !== caseId) throw new HttpError(409, 'attachment id already in use');
 
-    const key = `${caseId}/${a.id}`;
+    // Immutable object key: failed SQL must not overwrite a previously committed file.
+    const key = `${caseId}/${a.id}/${crypto.randomUUID()}`;
     await env.AE_FILES.put(key, decoded.bytes, {
       httpMetadata: { contentType: a.mime || decoded.mime },
     });
-    await env.DB.prepare(
-      `INSERT OR REPLACE INTO ae_attachments (id, case_id, r2_key, name, mime, size, added_at, added_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    statements.push(env.DB.prepare(
+      `INSERT INTO ae_attachments (id, case_id, r2_key, name, mime, size, added_at, added_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET r2_key=excluded.r2_key, name=excluded.name,
+         mime=excluded.mime, size=excluded.size,
+         case_id=CASE WHEN ae_attachments.case_id=excluded.case_id THEN ae_attachments.case_id ELSE NULL END`
     ).bind(
       a.id, caseId, key, str(a.name), str(a.mime || decoded.mime),
       decoded.bytes.length, str(a.addedAt) || nowIso, actor
-    ).run();
+    ));
 
     kept.push({
       id: a.id,
@@ -305,13 +315,11 @@ async function offloadAttachments(env, caseId, report, actor, nowIso) {
  * 寫入稽核軌跡。actor 由呼叫端傳入已驗證的身分，**不從 entries 取**。
  * 前端送來的 auditTrail 只借用它的 action/detail/at，身分一律改寫。
  */
-async function appendAudit(env, caseId, actor, entries) {
+function auditStatements(env, caseId, actor, entries) {
   const rows = (entries || []).filter((e) => e && e.action);
-  for (const e of rows) {
-    await env.DB.prepare(
-      `INSERT INTO ae_audit (case_id, at, actor, action, detail) VALUES (?, ?, ?, ?, ?)`
-    ).bind(caseId, str(e.at) || new Date().toISOString(), actor, str(e.action), str(e.detail) || null).run();
-  }
+  return rows.map((e) => env.DB.prepare(
+    `INSERT INTO ae_audit (case_id, at, actor, action, detail) VALUES (?, ?, ?, ?, ?)`
+  ).bind(caseId, str(e.at) || new Date().toISOString(), actor, str(e.action), str(e.detail) || null));
 }
 
 async function loadAudit(env, caseId) {
@@ -352,7 +360,9 @@ function rowToReport(row, audit) {
 async function listCases(env, url, role, actor) {
   // include_deleted 只對藥安人員有意義；業務端一律看不到已作廢個案。
   const includeDeleted = role === 'pv' && url.searchParams.get('include_deleted') === '1';
-  const limit = Math.min(Number(url.searchParams.get('limit') || '500') || 500, 1000);
+  const requestedLimit = Number(url.searchParams.get('limit') || '500');
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(Math.floor(requestedLimit) || 1, 1000) : 500;
 
   const where = [];
   const binds = [];
@@ -379,17 +389,22 @@ async function upsertCase(env, report, actor, { isNew }) {
   const id = str(report?.id);
   if (!id) throw new HttpError(400, 'missing case id');
 
-  const attachments = await offloadAttachments(env, id, report, actor, now);
+  if (!report || typeof report !== 'object' || Array.isArray(report)) throw new HttpError(400, 'invalid report');
+  for (const field of ['events', 'drugs', 'attachments', 'auditTrail']) {
+    if (report[field] !== undefined && !Array.isArray(report[field])) throw new HttpError(400, `invalid ${field}`);
+  }
+  const existing = await env.DB.prepare(`SELECT id, deleted_at FROM ae_cases WHERE id = ?`).bind(id).first();
+  if (existing?.deleted_at) throw new HttpError(409, 'case is deleted');
+  const attachmentStatements = [];
+  const attachments = await offloadAttachments(env, id, report, actor, now, attachmentStatements);
   // 稽核軌跡不進 payload：它是獨立的、只增不改的表
   const { auditTrail, ...rest } = report || {};
   const payload = JSON.stringify({ ...rest, attachments });
   const col = indexColumns(report);
 
-  const existing = await env.DB.prepare(`SELECT id, created_at, submitted_by FROM ae_cases WHERE id = ?`)
-    .bind(id).first();
-
+  let caseStatement;
   if (existing) {
-    await env.DB.prepare(
+    caseStatement = env.DB.prepare(
       `UPDATE ae_cases SET payload=?, case_number=?, status=?, report_type=?, follow_up_of_id=?,
          awareness_date=?, due_date=?, serious=?, country=?, suspect_drug=?, patient_key=?, updated_at=?
        WHERE id=?`
@@ -397,9 +412,9 @@ async function upsertCase(env, report, actor, { isNew }) {
       payload, col.case_number, col.status, col.report_type, col.follow_up_of_id,
       col.awareness_date, col.due_date, col.serious, col.country, col.suspect_drug,
       col.patient_key, now, id
-    ).run();
+    );
   } else {
-    await env.DB.prepare(
+    caseStatement = env.DB.prepare(
       `INSERT INTO ae_cases (id, payload, case_number, status, report_type, follow_up_of_id,
          awareness_date, due_date, serious, country, suspect_drug, patient_key,
          submitted_by, created_at, updated_at)
@@ -408,14 +423,13 @@ async function upsertCase(env, report, actor, { isNew }) {
       id, payload, col.case_number, col.status, col.report_type, col.follow_up_of_id,
       col.awareness_date, col.due_date, col.serious, col.country, col.suspect_drug,
       col.patient_key, actor, now, now
-    ).run();
+    );
   }
 
-  // 前端帶來的軌跡照收（action/detail/at），但身分改寫為已驗證的 actor
-  await appendAudit(env, id, actor, auditTrail);
-  if (isNew && !existing) {
-    await appendAudit(env, id, actor, [{ at: now, action: 'received', detail: `由 ${actor} 送達後台` }]);
-  }
+  // D1 batch is atomic: parent first, then attachments and audit; any failure rolls back all SQL.
+  const entries = [...(auditTrail || [])];
+  if (isNew && !existing) entries.push({ at: now, action: 'received', detail: `由 ${actor} 送達後台` });
+  await env.DB.batch([caseStatement, ...attachmentStatements, ...auditStatements(env, id, actor, entries)]);
   return id;
 }
 
@@ -512,7 +526,7 @@ export async function handleAeRequest(request, env, url, identity, cors) {
     if (seg.length === 3 && seg[1] === 'attachments') {
       if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405, cors);
       // 先確認這個人讀得到這個「個案」，才談附件——附件的權限跟著個案走。
-      const owner = await env.DB.prepare(`SELECT submitted_by FROM ae_cases WHERE id = ?`).bind(caseId).first();
+      const owner = await env.DB.prepare(`SELECT submitted_by, deleted_at FROM ae_cases WHERE id = ?`).bind(caseId).first();
       if (!canReadCase(role, actor, owner)) return json({ error: 'not found' }, 404, cors);
       const row = await env.DB.prepare(
         `SELECT r2_key, mime, name FROM ae_attachments WHERE id = ? AND case_id = ? AND deleted_at IS NULL`
@@ -543,7 +557,7 @@ export async function handleAeRequest(request, env, url, identity, cors) {
       if (request.method === 'PATCH') {
         // 判定、編碼、送件都是藥安的工作；通報者送出後就不再改動個案。
         if (role !== 'pv') return forbidden();
-        const row = await env.DB.prepare(`SELECT id FROM ae_cases WHERE id = ?`).bind(caseId).first();
+        const row = await env.DB.prepare(`SELECT id FROM ae_cases WHERE id = ? AND deleted_at IS NULL`).bind(caseId).first();
         if (!row) return json({ error: 'not found' }, 404, cors);
         const report = await readJson(request);
         await upsertCase(env, { ...report, id: caseId }, actor, { isNew: false });
@@ -555,14 +569,14 @@ export async function handleAeRequest(request, env, url, identity, cors) {
         // 軟刪除。個案從收件匣消失，但列與稽核軌跡都留著，日後查核仍看得到發生過什麼。
         const reason = url.searchParams.get('reason') || '';
         const now = new Date().toISOString();
-        const res = await env.DB.prepare(
+        const [res] = await env.DB.batch([env.DB.prepare(
           `UPDATE ae_cases SET deleted_at=?, deleted_by=?, deleted_reason=?, updated_at=?
            WHERE id=? AND deleted_at IS NULL`
-        ).bind(now, actor, reason || null, now, caseId).run();
+        ).bind(now, actor, reason || null, now, caseId), env.DB.prepare(
+          `INSERT INTO ae_audit (case_id, at, actor, action, detail)
+           SELECT ?, ?, ?, 'soft_deleted', ? WHERE changes() > 0`
+        ).bind(caseId, now, actor, reason || '未填理由')]);
         if (!res.meta?.changes) return json({ error: 'not found or already deleted' }, 404, cors);
-        await appendAudit(env, caseId, actor, [
-          { at: now, action: 'soft_deleted', detail: reason || '未填理由' },
-        ]);
         return json({ ok: true }, 200, cors);
       }
 
