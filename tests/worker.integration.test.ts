@@ -115,7 +115,15 @@ describe('AE API database regression', () => {
       expect(actions).not.toContain('stale');
     } finally { vi.useRealTimers(); }
   });
-
+  it('rolls back newly added attachment metadata when audit SQL fails', async () => {
+    await request('POST', '', report('metadata-rollback'));
+    sql.exec("CREATE TRIGGER fail_audit_metadata BEFORE INSERT ON ae_audit WHEN NEW.action='metadata-rollback' BEGIN SELECT RAISE(ABORT, 'injected'); END");
+    const attachment = { id: 'new-meta', name: 'new.pdf', mime: 'application/pdf', dataUrl: changedPdf };
+    expect((await request('PATCH', '/metadata-rollback', report('metadata-rollback', { version: 0, attachments: [attachment], auditTrail: [{ action: 'metadata-rollback' }] }), 'pv@example.test'))?.status).toBe(500);
+    expect(sql.prepare('SELECT count(*) n FROM ae_attachments WHERE id=?').get('new-meta')?.n).toBe(0);
+    expect(sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('metadata-rollback')?.version).toBe(0);
+  });
+  it('requires a matching version for PV updates and prevents lost update', async () => {
     await request('POST','',report('versioned'));
     const row = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned')!.version as number;
     expect((await request('PATCH','/versioned',report('versioned',{version:row}), 'pv@example.test'))?.status).toBe(200);
