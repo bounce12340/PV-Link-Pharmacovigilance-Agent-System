@@ -402,7 +402,12 @@ async function upsertCase(env, report, actor, { isNew, role = 'pv', expectedVers
   const attachments = await offloadAttachments(env, id, report, actor, now, attachmentStatements);
   const { auditTrail, ...rest } = report;
   const persisted = { ...rest, attachments };
-  if (role !== 'pv') { delete persisted.triage; persisted.status = 'submitted'; }
+  if (role !== 'pv') {
+    const triage = persisted.triage && typeof persisted.triage === 'object' ? { ...persisted.triage } : {};
+    for (const key of ['validityConfirmed','expectedness','causality','seriousnessOverride','assignee','duplicateOfId','submittedToAuthorityAt','authorityReceiptNo','followUpRequestedAt']) delete triage[key];
+    persisted.triage = triage;
+    persisted.status = 'submitted';
+  }
   const payload = JSON.stringify(persisted);
   const col = indexColumns(persisted);
   let caseStatement;
