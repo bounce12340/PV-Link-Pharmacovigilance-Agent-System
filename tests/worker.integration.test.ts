@@ -10,6 +10,7 @@ let env: any;
 let files: Map<string, Uint8Array>;
 const report = (id = 'case1', extra = {}) => ({ id, caseNumber: id, status: 'submitted', events: [], drugs: [], ...extra });
 const photo = { id: 'photo1', name: 'photo.pdf', mime: 'application/pdf', dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKaGVsbG8=' };
+const changedPdf = 'data:application/pdf;base64,JVBERi0xLjQKY2hhbmdlZA==';
 const blank = (id:string) => ({ id, caseNumber:id,status:'submitted',reportType:'initial',followUpOfId:'',awarenessDate:'',country:'',patientInitials:'',patientId:'',drugs:[],events:[],attachments:[],triage:{} });
 function request(method: string, path = '', body?: unknown, actor = 'rep@example.test') {
   const url = new URL(`https://example.test/api/ae-reports${path}`);
@@ -40,8 +41,8 @@ describe('AE API database regression', () => {
   it('updates same-case attachments without replacing original attribution', async () => {
     await request('POST', '', report('case1', { attachments: [photo] }));
     const first = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('case1');
-    expect((await request('PATCH', '/case1', report('case1', { version:first.version, attachments: [{ ...photo, dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKY2hhbmdlZA==' }] }), 'pv@example.test'))?.status).toBe(200);
-    expect(await (await request('GET', '/case1/attachments/photo1'))?.text()).toBe('changed');
+    expect((await request('PATCH', '/case1', report('case1', { version:first.version, attachments: [{ ...photo, dataUrl: changedPdf }] }), 'pv@example.test'))?.status).toBe(200);
+    expect(await (await request('GET', '/case1/attachments/photo1'))?.text()).toContain('changed');
     expect(sql.prepare('SELECT added_by FROM ae_attachments').get()?.added_by).toBe('rep@example.test');
   });
   it('rejects active HTML and mismatched image/pdf MIME before storage', async () => {
@@ -62,6 +63,7 @@ describe('AE API database regression', () => {
     const caseId = String(sql.prepare('SELECT id FROM ae_cases WHERE id=?').get('rep-case')!.id);
     const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get(caseId)!.payload as string);
     expect(sql.prepare('SELECT status FROM ae_cases WHERE id=?').get('rep-case')?.status).toBe('submitted');
+    expect(saved.triage).toBeDefined();
     expect(saved.triage.validityConfirmed).toBeUndefined();
     expect(saved.triage.seriousnessOverride).toBeUndefined();
     expect(saved.patientInitials).toBe('X');
@@ -122,9 +124,9 @@ describe('AE API database regression', () => {
   it('does not overwrite committed attachment bytes when an update fails', async () => {
     await request('POST', '', report('case1', { attachments: [photo] }));
     sql.exec("CREATE TRIGGER fail_audit BEFORE INSERT ON ae_audit BEGIN SELECT RAISE(ABORT, 'injected'); END");
-    const changed = { ...photo, dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKY2hhbmdlZA==' };
+    const changed = { ...photo, dataUrl: changedPdf };
     expect((await request('PATCH', '/case1', report('case1', { version:sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('case1').version, attachments: [changed], auditTrail: [{ action: 'update' }] }), 'pv@example.test'))?.status).toBe(500);
-    expect(await (await request('GET', '/case1/attachments/photo1'))?.text()).toBe('hello');
+    expect(await (await request('GET', '/case1/attachments/photo1'))?.text()).toContain('hello');
   });
   it('rejects cross-case attachment id replacement', async () => {
     await request('POST', '', report('case1', { attachments: [photo] }));

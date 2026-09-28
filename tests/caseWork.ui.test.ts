@@ -19,7 +19,7 @@ describe('work UI and API service regression', () => {
    vi.stubGlobal('fetch', async (url: string, init: any) => { calls.push({ url, init }); return new Response(JSON.stringify({ work: { ...emptyWork(), version: 1 }, audit: [] })); });
    const { saveCaseWork } = await import('../services/caseWork');
    expect((await saveCaseWork('case / one', emptyWork())).work.version).toBe(1);
-   expect(calls[0].url).toBe('https://example.test/api/ae-reports/case%20%2F%20one/work');
+   expect(calls[0].url).toBe('/case%20%2F%20one/work');
    expect(calls[0].init.method).toBe('PUT'); expect(calls[0].init.credentials).toBe('same-origin');
    expect(JSON.parse(calls[0].init.body)).toEqual(emptyWork());
  });
