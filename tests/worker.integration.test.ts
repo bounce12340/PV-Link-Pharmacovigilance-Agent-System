@@ -9,7 +9,8 @@ let sql: DatabaseSync;
 let env: any;
 let files: Map<string, Uint8Array>;
 const report = (id = 'case1', extra = {}) => ({ id, caseNumber: id, status: 'submitted', events: [], drugs: [], ...extra });
-const photo = { id: 'photo1', name: 'photo.txt', dataUrl: 'data:text/plain;base64,aGVsbG8=' };
+const photo = { id: 'photo1', name: 'photo.pdf', mime: 'application/pdf', dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKaGVsbG8=' };
+const blank = (id:string) => ({ id, caseNumber:id,status:'submitted',reportType:'initial',followUpOfId:'',awarenessDate:'',country:'',patientInitials:'',patientId:'',drugs:[],events:[],attachments:[],triage:{} });
 function request(method: string, path = '', body?: unknown, actor = 'rep@example.test') {
   const url = new URL(`https://example.test/api/ae-reports${path}`);
   return handleAeRequest(new Request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), env, url, { email: actor }, {});
@@ -38,14 +39,62 @@ afterEach(() => { sql.close(); vi.restoreAllMocks(); });
 describe('AE API database regression', () => {
   it('updates same-case attachments without replacing original attribution', async () => {
     await request('POST', '', report('case1', { attachments: [photo] }));
-    expect((await request('PATCH', '/case1', report('case1', { attachments: [{ ...photo, dataUrl: 'data:text/plain;base64,Y2hhbmdlZA==' }] }), 'pv@example.test'))?.status).toBe(200);
+    const first = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('case1');
+    expect((await request('PATCH', '/case1', report('case1', { version:first.version, attachments: [{ ...photo, dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKY2hhbmdlZA==' }] }), 'pv@example.test'))?.status).toBe(200);
     expect(await (await request('GET', '/case1/attachments/photo1'))?.text()).toBe('changed');
     expect(sql.prepare('SELECT added_by FROM ae_attachments').get()?.added_by).toBe('rep@example.test');
+  });
+  it('rejects active HTML and mismatched image/pdf MIME before storage', async () => {
+    const html = { id:'bad1', mime:'text/html', dataUrl:'data:text/html;base64,PGh0bWw+PC9odG1sPg==' };
+    expect((await request('POST','',report('html',{attachments:[html]})))?.status).toBe(400);
+    const mismatch = { id:'bad2', mime:'image/jpeg', dataUrl:photo.dataUrl };
+    expect((await request('POST','',report('mismatch',{attachments:[mismatch]})))?.status).toBe(400);
+    expect(sql.prepare('SELECT count(*) AS n FROM ae_cases').get()?.n).toBe(0);
+  });
+  it('rejects fabricated remote URL pointers not registered to the case', async () => {
+    const fake = { id:'ghost', url:'https://evil.test/pixel.png', mime:'image/png' };
+    expect((await request('POST','',report('fake',{attachments:[fake]})))?.status).toBe(400);
+    expect(sql.prepare('SELECT count(*) AS n FROM ae_cases').get()?.n).toBe(0);
+  });
+  it('sets rep-submitted state on initial report and strips PV-only triage decisions', async () => {
+    const r = { ...blank('rep-case'), status:'closed',triage:{validityConfirmed:true,expectedness:'expected',causality:'certain',seriousnessOverride:'non_serious',assignee:'pv',notes:'reporter note'},patientInitials:'X' };
+    expect((await request('POST','',r))?.status).toBe(201);
+    const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get('rep-case')!.payload);
+    expect(sql.prepare('SELECT status FROM ae_cases WHERE id=?').get('rep-case')?.status).toBe('submitted');
+    expect(saved.triage.validityConfirmed).toBeUndefined();
+    expect(saved.triage.seriousnessOverride).toBeUndefined();
+    expect(saved.patientInitials).toBe('X');
+  });
+  it('rejects rep resubmission after PV workflow transition', async () => {
+    await request('POST','',report('locked'));
+    sql.prepare("UPDATE ae_cases SET status='triage' WHERE id='locked'").run();
+    expect((await request('POST','',report('locked',{caseNumber:'rep-overwrite'})))?.status).toBe(403);
+    expect(sql.prepare('SELECT case_number FROM ae_cases WHERE id=?').get('locked')?.case_number).toBe('locked');
+  });
+  it('requires a matching version for PV updates and prevents lost update', async () => {
+    await request('POST','',report('versioned'));
+    const row = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned');
+    expect((await request('PATCH','/versioned',report('versioned',{version:row.version}), 'pv@example.test'))?.status).toBe(200);
+    expect((await request('PATCH','/versioned',report('versioned',{version:row.version}), 'pv@example.test'))?.status).toBe(409);
+    expect(sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned')?.version).toBe(row.version+1);
+  });
+  it('a competing create id collision cannot overwrite the other owner', async () => {
+    await request('POST','',report('collision'));
+    expect((await request('POST','',report('collision',{caseNumber:'overwrite'}),'other@example.test'))?.status).toBe(403);
+    expect(sql.prepare('SELECT submitted_by FROM ae_cases WHERE id=?').get('collision')?.submitted_by).toBe('rep@example.test');
+  });
+  it('does not leave attachment metadata or audit when conditional SQL fails', async () => {
+    await request('POST','',report('atomic',{attachments:[photo]}));
+    const before=sql.prepare('SELECT count(*) n FROM ae_audit WHERE case_id=?').get('atomic')?.n;
+    expect((await request('PATCH','/atomic',report('atomic',{version:99,attachments:[{...photo,dataUrl:'data:application/pdf;base64,JVBERi0xLjQKY2hhbmdlZA=='}]}),'pv@example.test'))?.status).toBe(409);
+    expect(sql.prepare('SELECT count(*) n FROM ae_attachments WHERE id=?').get('photo1')?.n).toBe(1);
+    expect(sql.prepare('SELECT count(*) n FROM ae_audit WHERE case_id=?').get('atomic')?.n).toBe(before);
   });
   it('rejects null attachment entries without saving a case', async () => {
     expect((await request('POST', '', report('case1', { attachments: [null] })))?.status).toBe(400);
     expect(sql.prepare('SELECT count(*) AS n FROM ae_cases').get()?.n).toBe(0);
   });
+
   it('does not save SQL state when R2 upload fails', async () => {
     env.AE_FILES.put = async () => { throw new Error('injected upload failure'); };
     expect((await request('POST', '', report('case1', { attachments: [photo] })))?.status).toBe(500);
@@ -56,8 +105,11 @@ describe('AE API database regression', () => {
     expect((await request('POST', '', report('case1', { attachments: [photo] })))?.status).toBe(201);
     expect(sql.prepare('SELECT count(*) AS n FROM ae_attachments').get()?.n).toBe(1);
     const res = await request('GET', '/case1/attachments/photo1');
-    expect(res?.status).toBe(200);
-    expect(await res?.text()).toBe('hello');
+    expect(res?.headers.get('content-disposition')).toContain('attachment');
+    expect(res?.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res?.headers.get('content-security-policy')).toContain('sandbox');
+    expect(res?.headers.get('content-type')).toBe('application/octet-stream');
+    expect(await res?.text()).toContain('hello');
     expect(sql.prepare('SELECT actor FROM ae_audit').get()?.actor).toBe('rep@example.test');
   });
   it('rolls back case and attachment metadata if audit insertion fails', async () => {
@@ -69,8 +121,8 @@ describe('AE API database regression', () => {
   it('does not overwrite committed attachment bytes when an update fails', async () => {
     await request('POST', '', report('case1', { attachments: [photo] }));
     sql.exec("CREATE TRIGGER fail_audit BEFORE INSERT ON ae_audit BEGIN SELECT RAISE(ABORT, 'injected'); END");
-    const changed = { ...photo, dataUrl: 'data:text/plain;base64,Y2hhbmdlZA==' };
-    expect((await request('PATCH', '/case1', report('case1', { attachments: [changed], auditTrail: [{ action: 'update' }] }), 'pv@example.test'))?.status).toBe(500);
+    const changed = { ...photo, dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKY2hhbmdlZA==' };
+    expect((await request('PATCH', '/case1', report('case1', { version:sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('case1').version, attachments: [changed], auditTrail: [{ action: 'update' }] }), 'pv@example.test'))?.status).toBe(500);
     expect(await (await request('GET', '/case1/attachments/photo1'))?.text()).toBe('hello');
   });
   it('rejects cross-case attachment id replacement', async () => {

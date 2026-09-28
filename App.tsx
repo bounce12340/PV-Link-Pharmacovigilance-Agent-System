@@ -152,7 +152,8 @@ const App: React.FC = () => {
     // 清單裡沒有這個 id ＝ 新個案（後台建立的追蹤報告），遠端要用 POST 而非 PATCH。
     const isNew = !aeCases.some(c => c.id === next.id);
     try {
-      await saveAECase(next, { create: isNew });
+      const saved = await saveAECase(next, { create: isNew });
+      next = { ...next, version: saved.version };
       setAeCases(prev => {
         const idx = prev.findIndex(c => c.id === next.id);
         if (idx < 0) return [next, ...prev];

@@ -111,22 +111,21 @@ export async function listAECases(): Promise<AEReport[]> {
  * PATCH 會回 404。反過來，更新既有個案不用 POST，是為了保留 PATCH 對「個案不存在
  * （例如已被別人軟刪除）」回 404 的守門作用——靜默建回一筆已刪除的個案更糟。
  */
-export async function saveAECase(report: AEReport, opts: { create?: boolean } = {}): Promise<void> {
+export async function saveAECase(report: AEReport, opts: { create?: boolean } = {}): Promise<AEReport> {
   if (!ENDPOINT) {
     const cases = (await loadRecords(AE_CASES_KEY)) as AEReport[];
     const idx = cases.findIndex(c => c?.id === report.id);
     if (idx >= 0) cases[idx] = report; else cases.unshift(report);
     await saveRecords(AE_CASES_KEY, cases);
-    return;
+    return report;
   }
   if (opts.create) {
-    await callApi('', { method: 'POST', body: JSON.stringify(report) });
-    return;
+    const saved = await callApi('', { method: 'POST', body: JSON.stringify(report) });
+    return (await saved.json()).case || { ...report, version: 0 };
   }
-  await callApi(`/${encodeURIComponent(report.id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(report),
-  });
+  const saved = await callApi(`/${encodeURIComponent(report.id)}`, { method: 'PATCH', body: JSON.stringify(report) });
+  return (await saved.json()).case || { ...report, version: Number(report.version || 0) + 1 };
+
 }
 
 /**
@@ -245,7 +244,10 @@ export function profileToReporterFields(p: AEProfile) {
 
 /** 附件的顯示來源：本機模式是 dataURL，遠端模式是後端的附件網址。 */
 export function attachmentSrc(a: { dataUrl?: string; url?: string }): string {
-  return a?.dataUrl || a?.url || '';
+  const data = a?.dataUrl;
+  if (data && /^data:image\\/(?:jpeg|png);base64,/i.test(data)) return data;
+  const url = a?.url || '';
+  return /^\\/api\\/ae-reports\\/[A-Za-z0-9_-]+\\/attachments\\/[A-Za-z0-9_-]+$/.test(url) ? url : '';
 }
 
 export async function outboxCount(): Promise<number> {
