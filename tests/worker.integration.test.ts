@@ -59,7 +59,8 @@ describe('AE API database regression', () => {
   it('sets rep-submitted state on initial report and strips PV-only triage decisions', async () => {
     const r = { ...blank('rep-case'), status:'closed',triage:{validityConfirmed:true,expectedness:'expected',causality:'certain',seriousnessOverride:'non_serious',assignee:'pv',notes:'reporter note'},patientInitials:'X' };
     expect((await request('POST','',r))?.status).toBe(201);
-    const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get('rep-case')!.payload);
+    const caseId = String(sql.prepare('SELECT id FROM ae_cases WHERE id=?').get('rep-case')!.id);
+    const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get(caseId)!.payload as string);
     expect(sql.prepare('SELECT status FROM ae_cases WHERE id=?').get('rep-case')?.status).toBe('submitted');
     expect(saved.triage.validityConfirmed).toBeUndefined();
     expect(saved.triage.seriousnessOverride).toBeUndefined();
@@ -73,10 +74,10 @@ describe('AE API database regression', () => {
   });
   it('requires a matching version for PV updates and prevents lost update', async () => {
     await request('POST','',report('versioned'));
-    const row = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned');
-    expect((await request('PATCH','/versioned',report('versioned',{version:row.version}), 'pv@example.test'))?.status).toBe(200);
-    expect((await request('PATCH','/versioned',report('versioned',{version:row.version}), 'pv@example.test'))?.status).toBe(409);
-    expect(sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned')?.version).toBe(row.version+1);
+    const row = sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned')!.version as number;
+    expect((await request('PATCH','/versioned',report('versioned',{version:row}), 'pv@example.test'))?.status).toBe(200);
+    expect((await request('PATCH','/versioned',report('versioned',{version:row}), 'pv@example.test'))?.status).toBe(409);
+    expect(sql.prepare('SELECT version FROM ae_cases WHERE id=?').get('versioned')?.version).toBe(row+1);
   });
   it('a competing create id collision cannot overwrite the other owner', async () => {
     await request('POST','',report('collision'));
