@@ -15,7 +15,8 @@
 - R2 物件先於 SQL 放置，若 DB conditional write 競態或SQL失敗會遺留孤兒物件；metadata不會留下錯誤，但尚未建補償刪除/回收流程。
 - 附件嚴格拒絕 SVG、HEIC、GIF、WebP、TIFF、非base64/非標準格式及舊版 text/plain 檔案；需由使用者重新選取PNG/JPEG/PDF。PDF仍可含主動內容，但強制下載、nosniff及sandbox降低執行面，宜另用隔離來源/安全預覽。
 - `002_case_version.sql` SQLite ALTER ADD COLUMN 非冪等；只可對未有version欄位的舊DB執行一次，勿盲目重跑。
-- 瀏覽器 UI 對409目前顯示保存失敗，尚未完善版本衝突引導/自動重載。
+- Local Workbench UI test had stale full-URL assertion despite existing service intentionally using relative `/case%20%2F%20one/work`; updated the test to match actual documented URL contract. Baseline CI had 201/202 passing (one stale assertion), final suite has 209/209 passing.
+
 - Vitest升級到>=4.1.11本輪未完成：本地npm受快取/套件metadata錯誤阻礙；沒有用 `audit fix --force`。待 CI 檢驗既有Vitest版本。
-- 由於本機node_modules的vitest/esbuild bridge沒有執行權限，無法本地跑Vitest或typecheck完成；正式CI待 workflow_dispatch 結果。
+- 由於本機node_modules的vitest/esbuild bridge沒有執行權限，本機無法跑Vitest；GitHub Actions正式CI已於Node 22與24全部成功（含型別、測試、build）。
 - 未在正式環境驗證Cloudflare D1 batch/SQLite `changes()`語意與R2併發。
