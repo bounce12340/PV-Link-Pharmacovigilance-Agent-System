@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS ae_cases (
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL,
   version           INTEGER NOT NULL DEFAULT 0,
+  -- Request-unique server token binds a successful case write to dependent SQL.
+  -- Never client supplied or time-derived.
+  last_mutation_id  TEXT,
 
   -- 軟刪除：個案不做實體刪除，否則稽核軌跡會跟著消失
   deleted_at        TEXT,

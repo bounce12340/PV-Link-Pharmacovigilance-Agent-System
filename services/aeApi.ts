@@ -24,7 +24,7 @@ const ME_ENDPOINT: string = ENDPOINT.replace(/\/[^/]*$/, '/me');
 /** 與後端共享的簡易存取權杖（若後端有設）。非機密等級的憑證，僅防開放式代理。 */
 const TOKEN: string = (import.meta as any)?.env?.VITE_AE_API_TOKEN || '';
 
-export type SubmitChannel = 'remote' | 'local' | 'outbox';
+export type SubmitChannel = 'remote' | 'local' | 'outbox' | 'outbox_conflict';
 
 export interface SubmitResult {
   ok: boolean;
@@ -44,18 +44,26 @@ const headers = () => ({
  * Worker 據此驗證身分——前端不持有、也不需要任何憑證。
  * credentials: 'same-origin' 是預設值，此處明寫以表明這條依賴。
  */
+class ApiError extends Error {
+  status: number;
+  constructor(status: number) { super(`HTTP ${status}`); this.status = status; }
+}
+
 async function callApi(path: string, init: RequestInit = {}): Promise<Response> {
   const res = await fetch(`${ENDPOINT}${path}`, {
     credentials: 'same-origin',
     headers: headers(),
     ...init,
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status);
   return res;
 }
 
 async function postRemote(report: AEReport): Promise<void> {
-  await callApi('', { method: 'POST', body: JSON.stringify(report) });
+  const res = await callApi('', { method: 'POST', body: JSON.stringify(report) });
+  const data = await res.json();
+  if (!Number.isSafeInteger(data?.version) || data.version < 0) throw new Error('invalid server version');
+  report.version = data.version;
 }
 
 async function saveLocal(report: AEReport): Promise<void> {
@@ -82,6 +90,14 @@ export async function submitAEReport(report: AEReport): Promise<SubmitResult> {
     await saveLocal(report);
     return { ok: true, channel: 'local' };
   } catch (e: any) {
+    if (e?.status === 409) {
+      try {
+        await enqueueOutbox({ ...report, outboxConflict: true } as AEReport);
+        return { ok: false, channel: 'outbox_conflict', message: '版本衝突；已保留草稿，需重新載入後處理' };
+      } catch (e2: any) {
+        return { ok: false, channel: 'outbox_conflict', message: `衝突草稿無法保存：${e2?.message || String(e2)}` };
+      }
+    }
     try {
       await enqueueOutbox(report);
       return { ok: false, channel: 'outbox', message: e?.message || String(e) };
@@ -255,22 +271,26 @@ export async function outboxCount(): Promise<number> {
 }
 
 /** 補送 outbox。逐筆送出，成功才移除；任何一筆失敗即停止並保留其餘，避免順序錯亂。 */
-export async function flushOutbox(): Promise<{ sent: number; remaining: number }> {
+export async function flushOutbox(): Promise<{ sent: number; remaining: number; conflicts: number }> {
   const queue = (await loadValue<AEReport[]>(AE_OUTBOX_KEY)) || [];
   let sent = 0;
   while (queue.length) {
     const item = queue[0];
+    if ((item as any).outboxConflict) break;
     try {
       if (ENDPOINT) await postRemote(item);
       else await saveLocal(item);
       queue.shift();
       sent++;
-    } catch {
+    } catch (e: any) {
+      // Conflict is durable, visible state—not a transient transport failure.
+      // Leave the payload untouched for reconciliation and stop ordered replay.
+      if (e?.status === 409) (item as any).outboxConflict = true;
       break;
     }
   }
   await saveValue(AE_OUTBOX_KEY, queue);
-  return { sent, remaining: queue.length };
+  return { sent, remaining: queue.length, conflicts: queue.filter(item => (item as any).outboxConflict).length };
 }
 
 // ─────────────────────────────────────────────────────────────

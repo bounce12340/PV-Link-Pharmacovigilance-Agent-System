@@ -1000,15 +1000,16 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
 
 const DoneScreen: React.FC<{ done: { caseNumber: string; channel: string }; onNew: () => void; t: (k: any) => string }> = ({ done, onNew, t }) => {
   const queued = done.channel === 'outbox';
+  const conflicted = done.channel === 'outbox_conflict';
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-6 px-6 bg-[#f8fafc] dark:bg-[#0b1020] text-slate-900 dark:text-slate-100">
-      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued ? 'bg-amber-500' : 'bg-emerald-600'} text-white shadow-xl`}>
-        {queued ? <CloudArrowUpIcon className="w-10 h-10" /> : <CheckCircleIcon className="w-10 h-10" />}
+      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued || conflicted ? 'bg-amber-500' : 'bg-emerald-600'} text-white shadow-xl`}>
+        {queued || conflicted ? <CloudArrowUpIcon className="w-10 h-10" /> : <CheckCircleIcon className="w-10 h-10" />}
       </div>
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-black tracking-tight">{t('ae.done.title')}</h2>
         <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
-          {queued ? t('ae.submit.queued') : hasRemoteEndpoint() ? t('ae.submit.okRemote') : t('ae.submit.okLocal')}
+          {conflicted ? '版本衝突：草稿已保留並停止重送，請重新載入後處理；尚未送達。' : queued ? t('ae.submit.queued') : hasRemoteEndpoint() ? t('ae.submit.okRemote') : t('ae.submit.okLocal')}
         </p>
         <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 tracking-widest">
           {t('ae.done.caseNo')}: {done.caseNumber}
