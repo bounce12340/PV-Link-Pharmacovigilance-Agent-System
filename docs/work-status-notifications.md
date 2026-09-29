@@ -21,22 +21,22 @@ PV 展開工作台後選擇「今日／本週／逾期」；遠端模式以 `GET
 
 ## Schema 與遷移
 
-- Fresh DB：套用 `worker/schema.sql`（已含 `ae_cases.version`），再套 `worker/migrations/001_case_work.sql`、`003_work_status_notifications.sql`；**不得**對 fresh schema 重跑 `002_case_version.sql`。
-- Upgrade：須先依既有受控流程確認 case-version migration 與 `001` 已成功，備份後只執行一次 `003_work_status_notifications.sql`，再部署相容 Worker/UI。003 使用 SQLite `ALTER TABLE ADD COLUMN`，**不可重跑**；遠端 migration 及部署不在本次實作中執行。現有 migration ledger/schema 不一致會靜默成功的基底 blocker 尚未修復，因此本文件的 SQLite 合成驗證不能作為遠端 migration 放行證據。
+- Fresh、legacy 與正常 rerun 一律以 `node worker/migrations/run-local.mjs /path/to/database.sqlite` 做**本機 SQLite**受控 preflight；runner 先以隔離 in-memory reference schema 核對既有 tables、columns、constraints、indexes 及 triggers 的定義，才會在一筆 transaction 內執行或補記 ledger。它不接觸 D1、Wrangler、R2 或任何遠端服務。
+- 若 ledger 已有但定義（包含 `schema_migrations` table definition）不符，或 ledger 缺少而偵測到 partial/drifted footprint，runner fail closed：不假成功、不自修、不 drop table、不清資料，並且全域 preflight 在寫入任一 ledger 前完成。003 合法覆蓋 001 的 `ae_work_created`／`ae_work_updated` triggers 是明確允許的已驗證狀態；僅同名不算完成。
+- 遠端 migration、備份與部署不在本次實作中執行。SQLite 合成驗證不是 D1／staging／production migration 放行證據；任何遠端變更仍須經授權的部署程序及獨立複核。
 - 回滾先回滾程式，保留狀態、提醒與不可變 audit 表資料；不可刪表。舊 `ae_case_work.payload` 沒有 status 時讀取預設 `todo`，不根據空 nextAction／空 due／items 或 regulatory status 猜測完成。
 
 ## 已完成的本機驗證與限制
 
-- `node node_modules/typescript/bin/tsc --noEmit`、`node --check worker/work.js worker/ae.js services/caseWorkModel.js`、`git diff --check`：成功。
-- 執行指定 Vitest work tests 時，Vitest/Vite 即使經 `ESBUILD_BINARY_PATH` 避開本機 package binary `EACCES`，仍因 iSH 的 worker thread／fork IPC 限制停止；未聲稱 Vitest 通過，沒有反覆排障。
-- 新增回歸測試涵蓋 legacy todo、未知狀態／日期／偽造 lifecycle 拒絕、轉移矩陣、Taipei 跨 UTC 週界、terminal 排除、PV 早拒絕、server actor/time 與 CAS；SQLite 整合測試另涵蓋 status／reopen、actor-bound workbench 與 recipient-isolated notification read。工作項目與聯絡紀錄既有編輯控制項仍保留。由於上述 iSH runner 限制，這些 Vitest 測試仍待一般 Node/CI 執行。
+- `node --check worker/work.js worker/ae.js worker/migrations/run-local.mjs tests/securityMigration.regression.mjs`、`git diff --check` 與直接 `node tests/securityMigration.regression.mjs`：成功（71 個合成 SQLite assertions）。
+- 獨立驗收曾以相同 lockfile 的完整依賴鏡像直接執行 TypeScript compiler `tsc --noEmit` 成功；本隔離修補樹沒有 `node_modules`，本輪未重新執行 TypeScript。標準 Vitest 仍受 iSH `uv_thread_create`／fork IPC 環境限制，Vite production build 仍受 resolver `realpath` 限制；均未重複排障，亦未聲稱正式 runner 通過。
+- 71 個直接回歸包含 legacy/fresh/rerun、definition drift（trigger/index/column/constraint）、全域 preflight 不寫 ledger、rep DB-before authorization、PV authorized read、server-owned lifecycle/assignee 零寫入、AE POST internal fields 零 persistence、items/contacts primitive 型別，以及既有 work status/lifecycle 契約。`securityMigration.test.ts` 為正式 Vitest discovery wrapper，精確 gate `PASS 71`，但該 wrapper 本輪未在 Vitest runner 執行。
 - 未驗證 Cloudflare D1 `batch`、Access policy、真實多請求併發、瀏覽器互動或 migration 升級於正式／staging；不得據此宣稱可部署或可上線。
 
 ## 實際驗證與證據
 
-- 本機：`node node_modules/typescript/bin/tsc --noEmit`、Worker/model `node --check`、`git diff --check` 及 repo 外合成 SQLite 驗證均成功；SQLite 腳本以 19 個斷言驗證 status/lifecycle、Taipei overdue、PV early rejection、actor-bound workbench、通知 DTO/read isolation、due 去重與 003 schema/dedupe constraint。
-- 本機 Vitest runner：iSH 上 package binary `EACCES`，以暫存 esbuild 直接入口後仍受 worker thread／fork IPC 限制；全量 adapter 不等同 Vitest，工作相關 20 個測試（`caseWork.test.ts` 9、`caseWork.integration.test.ts` 7、`caseWork.ui.test.ts` 4）均通過，adapter 的其餘 worker integration 結果不可作正式 runner 證據。
-- 正式 CI：SHA `51b42ed56c0189b88e5c872b30377a9ef29406a6` 的 workflow_dispatch run `36554909599` 成功；Node 22.x / 24.x 各自 typecheck、11 test files / 207 tests、production build 均成功。完整 run：<https://github.com/bounce12340/PV-Link-Pharmacovigilance-Agent-System/actions/runs/36554909599>。原 SHA `941d286` 的 run `36554368843` 僅因 UI endpoint assertion 預期不符失敗，已以 `51b42ed` 更正並重跑。
-- 證據在 repo 外：`/var/minis/workspace/pv-workflow-validation/`（`work-status-sqlite-final.log`、`adapter-final2.log`、`ci-run-51b42ed-final.json`、`ci-job-109361637719.log`、`ci-job-109361638017.log`）。
+- 本修補 SHA 的實際本機證據：repo 內 `node tests/securityMigration.regression.mjs`（68 assertions）、syntax checks、`git diff --check`；repo 外 definition-drift probe 同時證明基底接受同名錯 trigger/index，而本修補拒絕。證據目錄：`/var/minis/workspace/pv-migration-definition-fix-evidence/`。
+- TypeScript：獨立驗收對基底 `adb542c` 使用相同 lockfile 的完整依賴鏡像直接 `tsc --noEmit` 成功；本隔離修補樹無 `node_modules`，本輪未重跑，故不把基底的 typecheck 當成本 SHA 通過。
+- Vitest/Vite：本 iSH 的正式 Vitest runner 仍因 `uv_thread_create`／fork IPC，Vite build 因 resolver `realpath` 環境限制未完成；本輪未重複排障，未聲稱通過。舊 SHA／舊 CI run 不作本修補 SHA 的最終證據。
 
 未驗證 Cloudflare D1 `batch`、Access policy、真實多請求併發、瀏覽器互動或 migration 升級於正式／staging；不得據此宣稱可部署或可上線。

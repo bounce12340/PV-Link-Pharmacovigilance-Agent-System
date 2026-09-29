@@ -9,6 +9,6 @@ describe('security and migration regressions', () => {
     const output = execFileSync(process.execPath, ['tests/securityMigration.regression.mjs'], {
       cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
     });
-    expect(output).toMatch(/PASS \d+ SQLite security\/migration assertions/);
+    expect(output).toBe('PASS 71 SQLite security/migration assertions\n');
   });
 });
