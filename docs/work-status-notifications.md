@@ -32,6 +32,11 @@ PV 展開工作台後選擇「今日／本週／逾期」；遠端模式以 `GET
 - 新增回歸測試涵蓋 legacy todo、未知狀態／日期／偽造 lifecycle 拒絕、轉移矩陣、Taipei 跨 UTC 週界、terminal 排除、PV 早拒絕、server actor/time 與 CAS；SQLite 整合測試另涵蓋 status／reopen、actor-bound workbench 與 recipient-isolated notification read。工作項目與聯絡紀錄既有編輯控制項仍保留。由於上述 iSH runner 限制，這些 Vitest 測試仍待一般 Node/CI 執行。
 - 未驗證 Cloudflare D1 `batch`、Access policy、真實多請求併發、瀏覽器互動或 migration 升級於正式／staging；不得據此宣稱可部署或可上線。
 
-## 證據
+## 實際驗證與證據
 
-本輪不執行 remote migration、deploy、PR、merge、push 或 Actions dispatch。CI evidence 需在獲重新授權 push/dispatch 後，保存至 `/var/minis/workspace/pv-workflow-evidence/`，並記錄 Node 22／24 測試數與 build 結果。
+- 本機：`node node_modules/typescript/bin/tsc --noEmit`、Worker/model `node --check`、`git diff --check` 及 repo 外合成 SQLite 驗證均成功；SQLite 腳本以 19 個斷言驗證 status/lifecycle、Taipei overdue、PV early rejection、actor-bound workbench、通知 DTO/read isolation、due 去重與 003 schema/dedupe constraint。
+- 本機 Vitest runner：iSH 上 package binary `EACCES`，以暫存 esbuild 直接入口後仍受 worker thread／fork IPC 限制；全量 adapter 不等同 Vitest，工作相關 20 個測試（`caseWork.test.ts` 9、`caseWork.integration.test.ts` 7、`caseWork.ui.test.ts` 4）均通過，adapter 的其餘 worker integration 結果不可作正式 runner 證據。
+- 正式 CI：SHA `51b42ed56c0189b88e5c872b30377a9ef29406a6` 的 workflow_dispatch run `36554909599` 成功；Node 22.x / 24.x 各自 typecheck、11 test files / 207 tests、production build 均成功。完整 run：<https://github.com/bounce12340/PV-Link-Pharmacovigilance-Agent-System/actions/runs/36554909599>。原 SHA `941d286` 的 run `36554368843` 僅因 UI endpoint assertion 預期不符失敗，已以 `51b42ed` 更正並重跑。
+- 證據在 repo 外：`/var/minis/workspace/pv-workflow-validation/`（`work-status-sqlite-final.log`、`adapter-final2.log`、`ci-run-51b42ed-final.json`、`ci-job-109361637719.log`、`ci-job-109361638017.log`）。
+
+未驗證 Cloudflare D1 `batch`、Access policy、真實多請求併發、瀏覽器互動或 migration 升級於正式／staging；不得據此宣稱可部署或可上線。
