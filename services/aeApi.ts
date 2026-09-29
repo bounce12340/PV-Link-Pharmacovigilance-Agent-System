@@ -24,7 +24,7 @@ const ME_ENDPOINT: string = ENDPOINT.replace(/\/[^/]*$/, '/me');
 /** 與後端共享的簡易存取權杖（若後端有設）。非機密等級的憑證，僅防開放式代理。 */
 const TOKEN: string = (import.meta as any)?.env?.VITE_AE_API_TOKEN || '';
 
-export type SubmitChannel = 'remote' | 'local' | 'outbox' | 'outbox_conflict';
+export type SubmitChannel = 'remote' | 'local' | 'outbox' | 'outbox_conflict' | 'unconfirmed';
 
 export interface SubmitResult {
   ok: boolean;
@@ -95,7 +95,7 @@ export async function submitAEReport(report: AEReport): Promise<SubmitResult> {
         await enqueueOutbox({ ...report, outboxConflict: true } as AEReport);
         return { ok: false, channel: 'outbox_conflict', message: '版本衝突；已保留草稿，需重新載入後處理' };
       } catch (e2: any) {
-        return { ok: false, channel: 'outbox_conflict', message: `衝突草稿無法保存：${e2?.message || String(e2)}` };
+        return { ok: false, channel: 'unconfirmed', message: `衝突草稿無法保存：${e2?.message || String(e2)}` };
       }
     }
     try {
@@ -103,7 +103,7 @@ export async function submitAEReport(report: AEReport): Promise<SubmitResult> {
       return { ok: false, channel: 'outbox', message: e?.message || String(e) };
     } catch (e2: any) {
       // outbox 也寫不進去（儲存空間滿）：這是唯一真正會遺失資料的情況，必須讓使用者知道
-      return { ok: false, channel: 'outbox', message: `佇列寫入失敗：${e2?.message || String(e2)}` };
+      return { ok: false, channel: 'unconfirmed', message: `佇列寫入失敗：${e2?.message || String(e2)}` };
     }
   }
 }

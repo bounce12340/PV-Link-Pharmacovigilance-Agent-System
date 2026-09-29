@@ -127,7 +127,7 @@ export async function saveValue(key: string, value: any): Promise<void> {
   }
 }
 
-/** 刪除單一鍵（草稿送出後清除）。 */
+/** 刪除單一鍵（草稿送出後清除）。兩層皆刪除失敗時必須回報，避免 UI 偽稱已清稿。 */
 export async function removeValue(key: string): Promise<void> {
   try {
     const db = await openDB();
@@ -138,7 +138,11 @@ export async function removeValue(key: string): Promise<void> {
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error || new Error('Storage transaction aborted'));
     });
-  } catch {
-    try { localStorage.removeItem(lsKey(key)); } catch { /* ignore */ }
+  } catch (idbError) {
+    try {
+      localStorage.removeItem(lsKey(key));
+    } catch (localError) {
+      throw localError || idbError;
+    }
   }
 }

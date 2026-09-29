@@ -21,6 +21,7 @@ import {
   listAECases, profileToReporterFields, MAX_ATTACHMENTS, hasRemoteEndpoint,
 } from '../services/aeApi';
 import type { AEProfile } from '../services/aeApi';
+import { classifyFormSubmission, finalizeFormSubmission, DraftAutosaveCoordinator } from '../services/aeSubmission';
 import {
   loadValue, saveValue, removeValue, loadRecords,
   AE_DRAFT_KEY, AE_CASES_KEY,
@@ -70,6 +71,16 @@ const AEReportMobile: React.FC<{
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState<{ caseNumber: string; channel: string } | null>(null);
   const [attachError, setAttachError] = useState('');
+  // submitError 僅在需要使用者留意時設定；submitErrorKind 決定標題語意，
+  // 避免「遠端已送達但清稿失敗」被誤顯示成「未確認送達」而導致使用者誤重送。
+  const [submitError, setSubmitError] = useState('');
+  const [submitErrorKind, setSubmitErrorKind] = useState<'unconfirmed' | 'draftClearFailed' | ''>('');
+  // debounce autosave 與送出／清稿之間的競態協調器（見 services/aeSubmission.ts
+  // 的 DraftAutosaveCoordinator）：用單一 instance 取代原本散落的
+  // generation/timer/write 三個 ref，行為與抽出前相同，但邏輯可被獨立動態測試。
+  const draftCoordinatorRef = useRef<DraftAutosaveCoordinator>();
+  if (!draftCoordinatorRef.current) draftCoordinatorRef.current = new DraftAutosaveCoordinator(600);
+  const draftCoordinator = draftCoordinatorRef.current;
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [pending, setPending] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
@@ -104,13 +115,12 @@ const AEReportMobile: React.FC<{
   useEffect(() => {
     if (!hydrated || done) return;
     setDraftState('saving');
-    const timer = setTimeout(() => {
-      saveValue(AE_DRAFT_KEY, { ...report, updatedAt: new Date().toISOString() })
-        .then(() => setDraftState('saved'))
-        .catch(() => setDraftState('idle'));
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [report, hydrated, done]);
+    draftCoordinator.scheduleSave(
+      () => saveValue(AE_DRAFT_KEY, { ...report, updatedAt: new Date().toISOString() }),
+      outcome => setDraftState(outcome === 'saved' ? 'saved' : 'idle'),
+    );
+    return () => draftCoordinator.cancelScheduled();
+  }, [report, hydrated, done, draftCoordinator]);
 
   // ── 連線狀態與 outbox 補送 ────────────────────────────
   useEffect(() => {
@@ -183,6 +193,8 @@ const AEReportMobile: React.FC<{
   const submit = async () => {
     if (errors.length) { setShowErrors(true); return; }
     setSubmitting(true);
+    setSubmitError('');
+    setSubmitErrorKind('');
     try {
       const existing = (await loadRecords(AE_CASES_KEY)) as AEReport[];
       const now = new Date().toISOString();
@@ -201,25 +213,53 @@ const AEReportMobile: React.FC<{
         }],
       };
       const res = await submitAEReport(finalReport);
-      await removeValue(AE_DRAFT_KEY);
+      const outcome = classifyFormSubmission(res);
       setPending(await outboxCount());
-      setDone({ caseNumber: finalReport.caseNumber, channel: res.channel });
+      if (outcome.mayClearDraft) {
+        // 讓舊 debounce 排程／飛行中的寫入先失效並落地，再刪除；
+        // 失敗也不能把唯一草稿丟掉。
+        try {
+          await draftCoordinator.invalidateAndSettle();
+          await finalizeFormSubmission(res, () => removeValue(AE_DRAFT_KEY));
+        } catch {
+          // 遠端／本機／佇列已成功保存另一份副本，只是清除原草稿失敗：
+          // 誠實提示「已保存但未清稿」，不得顯示「未確認送達」誤導使用者重送。
+          setSubmitError(t('ae.submit.draftClearFailed'));
+          setSubmitErrorKind('draftClearFailed');
+          return;
+        }
+        setDone({ caseNumber: finalReport.caseNumber, channel: res.channel });
+      } else {
+        // outbox 的 IndexedDB 與 localStorage 都失敗時，保留目前表單／draft，
+        // 不導向 Done，也不以 queued 或 remote 名義宣稱送達。
+        setSubmitError(res.message || t('ae.submit.unconfirmed'));
+        setSubmitErrorKind('unconfirmed');
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const startNew = async () => {
+  const removeCurrentDraft = async () => {
+    await draftCoordinator.invalidateAndSettle();
     await removeValue(AE_DRAFT_KEY);
+  };
+
+  const startNew = async () => {
+    await removeCurrentDraft();
     setReport(emptyAEReport(todayIso()));
     setDone(null);
+    setSubmitError('');
+    setSubmitErrorKind('');
     setStep(0);
     setRestoredDraft(false);
   };
 
   const discardDraft = async () => {
-    await removeValue(AE_DRAFT_KEY);
+    await removeCurrentDraft();
     setReport(emptyAEReport(todayIso()));
+    setSubmitError('');
+    setSubmitErrorKind('');
     setRestoredDraft(false);
     setStep(0);
   };
@@ -289,6 +329,15 @@ const AEReportMobile: React.FC<{
       )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 pb-40 space-y-4">
+        {submitError && (
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
+            <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+              <ExclamationTriangleIcon className="w-4 h-4" />
+              {submitErrorKind === 'draftClearFailed' ? t('ae.submit.draftClearFailed') : t('ae.submit.unconfirmed')}
+            </p>
+            <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300">{submitError}</p>
+          </div>
+        )}
         {showErrors && stepErrors(step).length > 0 && (
           <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
             <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
