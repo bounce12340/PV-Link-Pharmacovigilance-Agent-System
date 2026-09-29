@@ -499,7 +499,7 @@ export async function handleAeRequest(request, env, url, identity, cors) {
 
   const rest = path.slice('/api/ae-reports'.length);      // '' | '/:id' | '/:id/attachments/:attId'
   const seg = rest.split('/').filter(Boolean);
-  if ((seg.length === 1 && seg[0] === 'work-users') || (seg.length === 2 && seg[1] === 'work')) {
+  if ((seg.length === 1 && ['work-users', 'workbench', 'notifications'].includes(seg[0])) || (seg.length === 2 && (seg[1] === 'work' || (seg[0] === 'notifications' && seg[1] === 'read')))) {
     return handleWork(request, env, seg, role, actor, cors);
   }
 

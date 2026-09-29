@@ -13,6 +13,7 @@ beforeEach(async () => {
  db = new DatabaseSync(':memory:');
  db.exec(readFileSync(new URL('../worker/schema.sql', import.meta.url), 'utf8'));
  const migration = readFileSync(new URL('../worker/migrations/001_case_work.sql', import.meta.url), 'utf8'); db.exec(migration); db.exec(migration);
+ const upgrade = readFileSync(new URL('../worker/migrations/003_work_status_notifications.sql', import.meta.url), 'utf8'); db.exec(upgrade);
  const prepare = (query: string) => {
    let args: any[] = [];
    return { bind(...v: any[]) { args = v; return this; }, async first() { return db.prepare(query).get(...args) || null; }, async all() { return { results: db.prepare(query).all(...args) }; }, async run() { return { meta: db.prepare(query).run(...args) }; } };
@@ -59,5 +60,25 @@ describe('work real SQLite persistence and audit', () => {
    await call('PUT', '/demo/work', { ...emptyWork(), nextAction: 'keep' });
    await call('PATCH', '/demo', { id: 'demo', caseNumber: 'SYNTHETIC', events: [], drugs: [] });
    expect((await (await call('GET', '/demo/work'))?.json()).work.nextAction).toBe('keep');
+ });
+ it('persists server lifecycle audit, workbench filtering and recipient-isolated notification reads', async () => {
+   const completed = await call('PUT', '/demo/work', { ...emptyWork(), status: 'completed' });
+   expect(completed?.status).toBe(200);
+   const closed: any = await completed?.json(); expect(closed.work.completedBy).toBe('pv@example.test');
+   const reopen = await call('PUT', '/demo/work', { ...emptyWork(), version: 1, status: 'todo', assignee: 'other@example.test', workDueDate: '2026-09-01' });
+   expect(reopen?.status).toBe(400); // assignee must be a PV user
+   await call('PUT', '/demo/work', { ...emptyWork(), version: 1, status: 'todo', assignee: 'pv@example.test', workDueDate: '2026-09-01' });
+   expect(db.prepare("SELECT action FROM ae_work_audit ORDER BY version DESC LIMIT 1").get()?.action).toBe('work_reopened');
+   const board = await call('GET', '/workbench?scope=overdue'); const data: any = await board?.json(); expect(data.timezone).toBe('Asia/Taipei'); expect(data.items).toHaveLength(1);
+   const own = await call('GET', '/notifications'); const ownData: any = await own?.json(); const id = ownData.notifications[0]?.id; if (id) { await call('POST', '/notifications/read', { ids: [id] }); expect(db.prepare('SELECT read_at FROM ae_notifications WHERE id=?').get(id)?.read_at).toBeTruthy(); }
+ });
+ it('isolates workbench rows and notification read state to the verified PV actor', async () => {
+   db.prepare("INSERT INTO ae_users(email, role, created_at) VALUES('other@example.test', 'pv', '2026-09-01T00:00:00.000Z')").run();
+   await call('PUT', '/demo/work', { ...emptyWork(), assignee: 'other@example.test', workDueDate: '2026-09-01' }, 'pv@example.test');
+   expect((await (await call('GET', '/workbench?scope=overdue'))?.json()).items).toHaveLength(0);
+   expect((await (await call('GET', '/workbench?scope=overdue', undefined, 'other@example.test'))?.json()).items).toHaveLength(1);
+   const notices: any = await (await call('GET', '/notifications', undefined, 'other@example.test'))?.json(); const id = notices.notifications[0].id;
+   await call('POST', '/notifications/read', { ids: [id] }); expect(db.prepare('SELECT read_at FROM ae_notifications WHERE id=?').get(id)?.read_at).toBeNull();
+   await call('POST', '/notifications/read', { ids: [id] }, 'other@example.test'); expect(db.prepare('SELECT read_at FROM ae_notifications WHERE id=?').get(id)?.read_at).toBeTruthy();
  });
 });
