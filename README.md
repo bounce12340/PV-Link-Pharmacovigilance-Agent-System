@@ -52,6 +52,15 @@ The reporting channel has two interfaces, one per audience.
 *   **Reporter details are entered once.** On first sign-in the rep fills in name, employee ID, phone and company (CIOMS 26 / 24a); every later report is pre-filled, turning the form's first screen from six inputs into a summary card.
 *   **My reports** — a read-only list of the cases that rep submitted, and their current status.
 
+### 🏛️ Authority-forwarded cases
+
+A third intake pattern beyond literature and field reports: a pharmacist reports to the authority, the authority forwards the case to the licence holder, and a local agent must both process it and report onward to the MAH. PV staff log these in the console (`reportSource = regulatory`).
+
+Two things this needs that a field report does not:
+
+*   **Two awareness dates, only one of which drives the clock.** `awarenessDate` is when *your company* received the forward — the statutory Day 0. `sourceAwarenessDate` is when the original reporter or the authority became aware, and it drives nothing. They are separate fields because the source date is usually the most prominent one on the paperwork, so a single field invites putting it in Day 0 — after which the clock runs from the wrong day and the inbox still looks perfectly normal. Both appear side by side in the validity gate, labelled with which one counts.
+*   **Two reporting directions.** `submittedToAuthorityAt` / `authorityReceiptNo` for the authority; `transmittedToMahAt` / `mahCaseNumber` for the onward report to the MAH. On a forwarded case the authority already holds it, so the onward report is the work — with only one set of fields it has nowhere to be recorded, which in an audit is the same as not having done it.
+
 ### 🗂️ PV intake console
 
 *   Inbox sorted by **regulatory time pressure** (overdue → days remaining → newest), not first-in-first-out.

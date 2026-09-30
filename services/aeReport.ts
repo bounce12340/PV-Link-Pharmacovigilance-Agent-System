@@ -250,6 +250,17 @@ export interface AETriage {
   /** 送件時間與主管機關回執編號 */
   submittedToAuthorityAt: string;
   authorityReceiptNo: string;
+  /**
+   * 轉報原廠（MAH）的日期與原廠給的個案編號。
+   *
+   * 台灣代理商的通報義務有兩個方向，而它們不是同一件事：
+   * 送主管機關（submittedToAuthorityAt）與轉報原廠（transmittedToMahAt）。
+   * 主管機關轉知的個案尤其明顯——TFDA 那邊已經有了，代理商真正要做的是轉報原廠。
+   * 只留一組送件欄位，這件做過的事就沒有地方記，稽核時等於沒做。
+   */
+  transmittedToMahAt: string;
+  /** 原廠指派的個案編號（CIOMS 24b 在代理商情境下的對應值） */
+  mahCaseNumber: string;
   /** 補件請求紀錄 */
   followUpRequestedAt: string;
   notes: string;
@@ -294,6 +305,17 @@ export interface AEReport {
 
   /** CIOMS 24c DATE RECEIVED BY MANUFACTURER —— **法定 15 日時鐘的 Day 0**，最關鍵的單一欄位 */
   awarenessDate: string;
+  /**
+   * 原始通報者或主管機關獲知／通報該事件的日期。
+   *
+   * 為什麼要和 awarenessDate 分開存：主管機關轉知的個案，表單上最顯眼的日期是
+   * **來源端**的日期，而法定時鐘要從**公司**獲知日起算。兩者混為一談，時鐘就從
+   * 錯的那天開始跑——這是轉知個案最容易犯、也最難事後察覺的錯。
+   *
+   * ⚠️ 本欄位**不影響**法定時鐘，純粹留存來源端的時序供覆核與稽核對照。
+   * 只有 awarenessDate 決定 Day 0。
+   */
+  sourceAwarenessDate: string;
   /** DATE OF THIS REPORT */
   reportDate: string;
   /** CIOMS 1a COUNTRY（反應發生國別） */
@@ -386,7 +408,7 @@ export function emptyAEReport(todayIso = ''): AEReport {
     reporterOrg: '', reporterTerritory: '',
     reportSource: '', primaryReporterName: '', primaryReporterProfession: '',
     primaryReporterOrg: '', primaryReporterContact: '', primaryReporterConsentFollowUp: false,
-    awarenessDate: todayIso, reportDate: todayIso, country: 'TW', countryOther: '',
+    awarenessDate: todayIso, sourceAwarenessDate: '', reportDate: todayIso, country: 'TW', countryOther: '',
     patientInitials: '', patientId: '', patientBirthDate: '',
     patientAgeValue: '', patientAgeUnit: 'year', patientSex: '',
     patientWeightKg: '', patientHeightCm: '', pregnancy: '', lastMenstrualPeriod: '',
@@ -398,7 +420,9 @@ export function emptyAEReport(todayIso = ''): AEReport {
     triage: {
       validityConfirmed: false, expectedness: 'unknown', causality: '',
       seriousnessOverride: '', assignee: '', duplicateOfId: '',
-      submittedToAuthorityAt: '', authorityReceiptNo: '', followUpRequestedAt: '', notes: '',
+      submittedToAuthorityAt: '', authorityReceiptNo: '',
+      transmittedToMahAt: '', mahCaseNumber: '',
+      followUpRequestedAt: '', notes: '',
     },
     auditTrail: [],
     createdAt: todayIso, updatedAt: todayIso,
@@ -661,6 +685,7 @@ export function createFollowUp(
  */
 export const AE_ISSUE_CODES = [
   'reporterRequired', 'reporterContactRequired', 'awarenessDateRequired', 'awarenessDateFuture',
+  'sourceAwarenessFuture', 'sourceAwarenessAfterAwareness',
   'reportSourceRequired', 'countryRequired', 'countryOtherRequired',
   'patientRequired', 'patientSexMissing', 'patientAgeMissing',
   'eventRequired', 'onsetDateMissing', 'onsetDateFuture', 'outcomeMissing', 'endBeforeOnset',
@@ -744,6 +769,14 @@ export function validateAEReport(r: AEReport, todayIso = ''): ValidationIssue[] 
     if (d !== null && d < 0) issues.push({ code: 'onsetBeforeTherapy', level: 'warning', step: 3 });
   }
 
+  // 來源端不可能比公司更晚獲知——個案是從來源流向公司的。
+  // 但只給警告不給錯誤：轉知文件的日期常有落差與筆誤，而擋著不讓通報比日期怪異嚴重得多。
+  // 真正的用途是提醒「你可能把來源日期填進了 Day 0」。
+  if (has(r.sourceAwarenessDate) && has(r.awarenessDate)) {
+    const d = daysBetween(r.awarenessDate, r.sourceAwarenessDate);
+    if (d !== null && d > 0) issues.push({ code: 'sourceAwarenessAfterAwareness', level: 'warning', step: 0 });
+  }
+
   // 未來日期一律視為輸入錯誤
   if (todayIso) {
     const future = (iso: string) => {
@@ -751,6 +784,7 @@ export function validateAEReport(r: AEReport, todayIso = ''): ValidationIssue[] 
       return d !== null && d > 0;
     };
     if (future(r.awarenessDate)) issues.push({ code: 'awarenessDateFuture', level: 'error', step: 0 });
+    if (future(r.sourceAwarenessDate)) issues.push({ code: 'sourceAwarenessFuture', level: 'error', step: 0 });
     (r.events || []).forEach(e => {
       if (future(e.onsetDate)) issues.push({ code: 'onsetDateFuture', level: 'error', step: 2, detail: e.verbatim });
     });
@@ -960,7 +994,16 @@ export function aeToCIOMSText(r: AEReport, todayIso = ''): string {
     'IV. MANUFACTURER INFORMATION',
     `24a. 藥商名稱 / 地址              : ${na(r.reporterOrg)}`,
     `24b. 公司個案編號 (MFR CONTROL NO.): ${na(r.caseNumber)}`,
+    ...(has(r.triage?.mahCaseNumber)
+      ? [`     原廠個案編號 (MAH CASE NO.)   : ${r.triage.mahCaseNumber}`]
+      : []),
+    ...(has(r.triage?.transmittedToMahAt)
+      ? [`     轉報原廠日                    : ${r.triage.transmittedToMahAt}`]
+      : []),
     `24c. 首次獲知日 (DATE RECEIVED)   : ${na(r.awarenessDate)}   ← 法定 ${MAH_SERIOUS_REPORT_DAYS} 日時鐘起算日`,
+    ...(has(r.sourceAwarenessDate)
+      ? [`     來源端獲知／通報日            : ${r.sourceAwarenessDate}   （非時鐘起算日，僅供時序對照）`]
+      : []),
     `24d. 通報來源 (REPORT SOURCE)     : ${na(label(REPORT_SOURCE_OPTIONS, r.reportSource))}`,
     `25a. 報告類型 (REPORT TYPE)       : ${r.reportType === 'follow_up' ? 'FOLLOW-UP' : 'INITIAL'}${has(r.followUpOf) ? `（原案 ${r.followUpOf}）` : ''}` +
       (r.reportType === 'follow_up'
@@ -1082,7 +1125,7 @@ export function aeReportsToCSV(reports: AEReport[], todayIso = ''): string {
     '懷疑藥品', '成分', '批號', '劑量', '途徑', '適應症', '用藥起', '用藥迄', '停藥後改善', '再投與再現',
     '併用藥品', '病史',
     '業務通報人', '工號', '轄區', '通報來源', '原始通報者', '原始通報者單位',
-    '送件時間', '主管機關回執', '建立時間', '更新時間',
+    '來源端獲知日', '送件時間', '主管機關回執', '轉報原廠日', '原廠個案編號', '建立時間', '更新時間',
   ];
   const rows = (reports || []).map(r => {
     const clock = computeRegulatoryClock(r, todayIso);
@@ -1111,7 +1154,9 @@ export function aeReportsToCSV(reports: AEReport[], todayIso = ''): string {
       con, r.medicalHistory,
       r.reporterName, r.reporterEmployeeId, r.reporterTerritory,
       label(REPORT_SOURCE_OPTIONS, r.reportSource), r.primaryReporterName, r.primaryReporterOrg,
+      r.sourceAwarenessDate || '',
       r.triage?.submittedToAuthorityAt || '', r.triage?.authorityReceiptNo || '',
+      r.triage?.transmittedToMahAt || '', r.triage?.mahCaseNumber || '',
       r.createdAt, r.updatedAt,
     ].map(csvCell).join(',');
   });
