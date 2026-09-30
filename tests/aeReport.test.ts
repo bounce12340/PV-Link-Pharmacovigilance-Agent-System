@@ -559,3 +559,112 @@ describe('CSV 的追蹤報告欄位', () => {
     expect(csv).toContain('"PV-2026-0001"');
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// 轉知個案：來源端獲知日與轉報原廠
+//
+// 這一組的動機是一個具體的實務錯誤：主管機關轉知的個案，表單上最顯眼的日期是
+// 來源端的日期，而法定 15 日時鐘要從公司獲知日起算。混為一談，時鐘就從錯的
+// 那天開始跑，而且事後很難察覺——收件匣看起來完全正常。
+// ─────────────────────────────────────────────────────────────
+
+describe('來源端獲知日不影響法定時鐘', () => {
+  const serious = (over: Partial<AEReport> = {}) => validCase({
+    events: [{ ...emptyEvent(), id: 'ev1', verbatim: '呼吸困難', seriousnessCriteria: ['hospitalization'] }],
+    ...over,
+  });
+
+  it('只有 awarenessDate 決定 Day 0 與到期日', () => {
+    const c = serious({ awarenessDate: '2026-09-24', sourceAwarenessDate: '2026-09-21' });
+    const clock = computeRegulatoryClock(c, TODAY);
+    expect(clock.day0).toBe('2026-09-24');
+    expect(clock.dueDate).toBe('2026-10-09');   // 24 + 15
+  });
+
+  it('改來源端獲知日不會動到到期日', () => {
+    const base = serious({ awarenessDate: '2026-09-24', sourceAwarenessDate: '2026-09-21' });
+    const moved = { ...base, sourceAwarenessDate: '2026-08-01' };
+    expect(computeRegulatoryClock(moved, TODAY).dueDate)
+      .toBe(computeRegulatoryClock(base, TODAY).dueDate);
+  });
+
+  it('沒填來源端獲知日也照常運作', () => {
+    const c = serious({ awarenessDate: '2026-09-24', sourceAwarenessDate: '' });
+    expect(computeRegulatoryClock(c, TODAY).dueDate).toBe('2026-10-09');
+  });
+});
+
+describe('來源端獲知日的時序檢核', () => {
+  it('晚於公司獲知日 → 警告（可能兩個日期填反了）', () => {
+    const c = validCase({ awarenessDate: '2026-09-01', sourceAwarenessDate: '2026-09-05' });
+    const issue = validateAEReport(c, TODAY).find(i => i.code === 'sourceAwarenessAfterAwareness');
+    expect(issue?.level).toBe('warning');
+  });
+
+  it('早於或等於公司獲知日 → 不出警告（正常情形）', () => {
+    for (const d of ['2026-08-20', '2026-09-01']) {
+      const c = validCase({ awarenessDate: '2026-09-01', sourceAwarenessDate: d });
+      expect(validateAEReport(c, TODAY).some(i => i.code === 'sourceAwarenessAfterAwareness')).toBe(false);
+    }
+  });
+
+  it('未來日期 → 錯誤', () => {
+    const c = validCase({ sourceAwarenessDate: '2099-01-01' });
+    const issue = validateAEReport(c, TODAY).find(i => i.code === 'sourceAwarenessFuture');
+    expect(issue?.level).toBe('error');
+  });
+
+  it('留空時不產生任何相關檢核——這是選填欄位', () => {
+    const codes = validateAEReport(validCase({ sourceAwarenessDate: '' }), TODAY).map(i => i.code);
+    expect(codes).not.toContain('sourceAwarenessFuture');
+    expect(codes).not.toContain('sourceAwarenessAfterAwareness');
+  });
+
+  it('⚠️ 警告不擋送出：轉知文件的日期常有落差，擋著不讓通報比日期怪異嚴重', () => {
+    const c = validCase({ awarenessDate: '2026-09-01', sourceAwarenessDate: '2026-09-05' });
+    expect(validateAEReport(c, TODAY).filter(i => i.level === 'error')).toHaveLength(0);
+  });
+});
+
+describe('CIOMS 輸出帶上轉知個案的兩個新欄位', () => {
+  it('有填才印，且標明來源端日期不是時鐘起算日', () => {
+    const c = validCase({ awarenessDate: '2026-09-24', sourceAwarenessDate: '2026-09-21' });
+    const txt = aeToCIOMSText(c, TODAY);
+    expect(txt).toContain('2026-09-21');
+    expect(txt).toContain('非時鐘起算日');
+  });
+
+  it('轉報原廠的日期與原廠案號會印出來', () => {
+    const c = validCase({
+      triage: { ...emptyAEReport(TODAY).triage, transmittedToMahAt: '2026-09-26', mahCaseNumber: 'ADV-2026-00123' },
+    });
+    const txt = aeToCIOMSText(c, TODAY);
+    expect(txt).toContain('ADV-2026-00123');
+    expect(txt).toContain('2026-09-26');
+  });
+
+  it('沒填就完全不出現那幾行，不留空欄位污染表格', () => {
+    const txt = aeToCIOMSText(validCase(), TODAY);
+    expect(txt).not.toContain('來源端獲知');
+    expect(txt).not.toContain('原廠個案編號');
+    expect(txt).not.toContain('轉報原廠日');
+  });
+});
+
+describe('CSV 匯出含新欄位', () => {
+  it('標頭與資料都對得上', () => {
+    const c = validCase({
+      awarenessDate: '2026-09-24',
+      sourceAwarenessDate: '2026-09-21',
+      triage: { ...emptyAEReport(TODAY).triage, transmittedToMahAt: '2026-09-26', mahCaseNumber: 'ADV-2026-00123' },
+    });
+    const csv = aeReportsToCSV([c], TODAY);
+    const [header, row] = csv.split('\n');
+    for (const col of ['來源端獲知日', '轉報原廠日', '原廠個案編號']) {
+      expect(header).toContain(col);
+    }
+    expect(row).toContain('2026-09-21');
+    expect(row).toContain('2026-09-26');
+    expect(row).toContain('ADV-2026-00123');
+  });
+});

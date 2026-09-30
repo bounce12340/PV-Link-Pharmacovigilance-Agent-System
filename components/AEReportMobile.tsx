@@ -461,6 +461,17 @@ const StepReporter: React.FC<StepProps & { hasProfile: boolean; onEditProfile?: 
         <ChipGroup options={REPORT_SOURCE_OPTIONS} value={report.reportSource} lang={lang} cols={1}
           onChange={v => patch({ reportSource: v })} />
       </Field>
+      {/*
+        來源端獲知日只對「轉手來的個案」有意義：主管機關轉知與文獻，都是別人先知道、
+        再流到我們手上。業務自己在客戶端遇到的個案沒有這個中間層，多一個欄位只是雜訊，
+        所以依來源條件顯示而非永遠顯示。
+      */}
+      {(report.reportSource === 'regulatory' || report.reportSource === 'literature') && (
+        <Field label={t('ae.f.sourceAwarenessDate')} hint={t('ae.f.sourceAwarenessHint')}>
+          <TextInput type="date" value={report.sourceAwarenessDate} max={todayIso()}
+            onChange={e => patch({ sourceAwarenessDate: e.target.value })} />
+        </Field>
+      )}
       {/* 國別預設台灣，境內通報一次也不用點；境外個案（原廠轉知、國外文獻）才需要改。 */}
       <Field label={t('ae.f.country')} required tag="CIOMS 1a" hint={t('ae.f.countryHint')}>
         <ChipGroup options={COUNTRY_OPTIONS} value={report.country} lang={lang} clearable={false}

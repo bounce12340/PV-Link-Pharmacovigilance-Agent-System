@@ -532,6 +532,27 @@ const CaseDetail: React.FC<{
             {blockers.map((b, i) => <p key={i}>• {t(`ae.issue.${b.code}`)}{b.detail ? `（${b.detail}）` : ''}</p>)}
           </div>
         )}
+        {/*
+          Day 0 與來源端獲知日並列，是為了讓覆核者一眼看見兩者不同。
+          轉知個案的時鐘算錯，幾乎都是把來源端日期填進 Day 0 造成的；
+          兩個欄位擺在一起、旁邊寫明哪一個決定時鐘，比任何說明文件有效。
+        */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label={t('ae.f.awarenessDate')} required tag="CIOMS 24c" hint={t('ae.console.day0Hint')}>
+            <TextInput type="date" value={report.awarenessDate} max={today}
+              className="!text-sm !min-h-[44px]"
+              onChange={e => onUpdate(
+                r => ({ ...r, awarenessDate: e.target.value }),
+                { action: 'awareness_date_changed', detail: e.target.value || '已清除' },
+              )} />
+          </Field>
+          <Field label={t('ae.f.sourceAwarenessDate')} hint={t('ae.f.sourceAwarenessHint')}>
+            <TextInput type="date" value={report.sourceAwarenessDate} max={today}
+              className="!text-sm !min-h-[44px]"
+              onChange={e => onUpdate(r => ({ ...r, sourceAwarenessDate: e.target.value }))} />
+          </Field>
+        </div>
+
         <button onClick={() => patchTriage({ validityConfirmed: !report.triage.validityConfirmed }, 'validity_confirm')}
           className={`min-h-[44px] px-4 rounded-2xl text-xs font-black border-2 ${
             report.triage.validityConfirmed
@@ -689,6 +710,26 @@ const CaseDetail: React.FC<{
           <Field label={t('ae.console.receiptNo')}>
             <TextInput value={report.triage.authorityReceiptNo} className="!text-sm !min-h-[44px]"
               onChange={e => onUpdate(r => ({ ...r, triage: { ...r.triage, authorityReceiptNo: e.target.value } }))} />
+          </Field>
+        </div>
+
+        {/*
+          轉報原廠與送主管機關是兩件不同的事，不是同一個送件動作的兩種說法。
+          主管機關轉知的個案尤其明顯：TFDA 那邊已經有了，代理商真正要做的是轉報原廠。
+          兩者各自留日期，才說得清哪一邊做了、哪一邊還沒。
+        */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <Field label={t('ae.console.transmittedToMahAt')} hint={t('ae.console.transmittedToMahHint')}>
+            <TextInput type="date" value={report.triage.transmittedToMahAt} max={today}
+              className="!text-sm !min-h-[44px]"
+              onChange={e => onUpdate(
+                r => ({ ...r, triage: { ...r.triage, transmittedToMahAt: e.target.value } }),
+                { action: 'transmitted_to_mah', detail: e.target.value || '已清除' },
+              )} />
+          </Field>
+          <Field label={t('ae.console.mahCaseNumber')}>
+            <TextInput value={report.triage.mahCaseNumber} className="!text-sm !min-h-[44px]"
+              onChange={e => onUpdate(r => ({ ...r, triage: { ...r.triage, mahCaseNumber: e.target.value } }))} />
           </Field>
         </div>
         <Field label={t('ae.console.notes')}>
