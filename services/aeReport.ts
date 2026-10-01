@@ -270,6 +270,8 @@ export interface AEReport {
   id: string;
   /** CIOMS 24b MFR CONTROL NO.：公司內部個案編號 */
   caseNumber: string;
+  /** Server-side optimistic concurrency token; omitted for new offline drafts. */
+  version?: number;
   status: AECaseStatus;
   /** CIOMS 25a REPORT TYPE */
   reportType: 'initial' | 'follow_up';

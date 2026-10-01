@@ -65,6 +65,9 @@ async function verifyAccessJwt(token, teamDomain, aud) {
   if (parts.length !== 3) throw new Error('malformed jwt');
   const [h, p, s] = parts;
   const header = b64urlToJson(h);
+  if (header.alg !== 'RS256' || typeof header.kid !== 'string' || !header.kid) {
+    throw new Error('unsupported signing header');
+  }
   const jwk = (await getJwks(teamDomain)).find((k) => k.kid === header.kid);
   if (!jwk) throw new Error('signing key not found');
   const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
@@ -72,9 +75,9 @@ async function verifyAccessJwt(token, teamDomain, aud) {
   if (!ok) throw new Error('bad signature');
   const payload = b64urlToJson(p);
   const now = Math.floor(Date.now() / 1000);
-  if (payload.exp && now >= payload.exp) throw new Error('expired');
-  if (payload.nbf && now < payload.nbf) throw new Error('not yet valid');
-  if (payload.iss && payload.iss !== `https://${teamDomain}`) throw new Error('issuer mismatch');
+  if (!Number.isFinite(payload.exp) || now >= payload.exp) throw new Error('missing or expired exp');
+  if (payload.nbf !== undefined && (!Number.isFinite(payload.nbf) || now < payload.nbf)) throw new Error('invalid nbf');
+  if (payload.iss !== `https://${teamDomain}`) throw new Error('issuer mismatch');
   const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
   if (aud && !auds.includes(aud)) throw new Error('aud mismatch');
   return payload;
@@ -110,6 +113,9 @@ export default {
     // 驗證後保留 payload：裡面的 email 是**唯一可信的身分來源**，AE 收案 API 用它當
     // 稽核軌跡的 actor。前端送什麼身分一律不採信。
     let identity = null;
+    if (Boolean(env.ACCESS_TEAM_DOMAIN) !== Boolean(env.ACCESS_AUD)) {
+      return json({ error: 'Access configuration incomplete' }, 503, cors);
+    }
     if (env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
       const jwt = request.headers.get('Cf-Access-Jwt-Assertion')
         || (request.headers.get('Cookie') || '').match(/CF_Authorization=([^;]+)/)?.[1];

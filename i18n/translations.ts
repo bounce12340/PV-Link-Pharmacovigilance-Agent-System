@@ -1,6 +1,8 @@
+import { workZh, workEn } from './work';
 export type Lang = 'zh' | 'en';
 
 const zh = {
+  ...workZh,
   // nav
   'nav.input': '檢索設定',
   'nav.review': '待核閱',
@@ -278,6 +280,8 @@ const zh = {
   'ae.submit.okRemote': '已送達藥安後台',
   'ae.submit.okLocal': '已存入本機個案庫',
   'ae.submit.queued': '目前無法連線，已存入待補送佇列，恢復網路後會自動送出',
+  'ae.submit.unconfirmed': '未確認已保存在此裝置；請勿關閉或重新整理，請再試一次送出。',
+  'ae.submit.draftClearFailed': '已保存送出副本，但無法清除原草稿；請勿關閉或重新整理。',
   'ae.submit.newReport': '再通報一件',
 
   // AE 檢核訊息
@@ -415,6 +419,7 @@ const zh = {
 export type TransKey = keyof typeof zh;
 
 const en: Record<TransKey, string> = {
+  ...workEn,
   // nav
   'nav.input': 'Search',
   'nav.review': 'Review',
@@ -692,6 +697,8 @@ const en: Record<TransKey, string> = {
   'ae.submit.okRemote': 'Delivered to the PV back office',
   'ae.submit.okLocal': 'Saved to the local case database',
   'ae.submit.queued': 'No connection — queued locally and will be sent automatically once you are back online',
+  'ae.submit.unconfirmed': 'Not confirmed saved on this device. Do not close or refresh; please try submitting again.',
+  'ae.submit.draftClearFailed': 'A submission copy was saved, but the original draft could not be cleared. Do not close or refresh.',
   'ae.submit.newReport': 'Report another case',
 
   // AE validation messages

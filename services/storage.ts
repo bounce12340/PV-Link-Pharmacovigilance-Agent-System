@@ -50,6 +50,7 @@ function idbSet(key: string, value: any): Promise<void> {
     tx.objectStore(STORE).put(value, key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Storage transaction aborted'));
   }));
 }
 
@@ -82,12 +83,14 @@ export async function loadRecords(key: string): Promise<any[]> {
   return [];
 }
 
-/** 寫入指定鍵的文獻陣列；IndexedDB 失敗時退回 localStorage。任何失敗都不阻斷 UI。 */
+/** 寫入文獻陣列；AE 個案在兩種儲存皆失敗時必須拋錯，避免虛報送達。 */
 export async function saveRecords(key: string, records: any[]): Promise<void> {
   try {
     await idbSet(key, records);
   } catch {
-    try { localStorage.setItem(lsKey(key), JSON.stringify(records)); } catch { /* 儲存滿了也不擋 UI */ }
+    try { localStorage.setItem(lsKey(key), JSON.stringify(records)); } catch (error) {
+      if (key === AE_CASES_KEY) throw error;
+    }
   }
 }
 
@@ -120,11 +123,11 @@ export async function saveValue(key: string, value: any): Promise<void> {
   try {
     await idbSet(key, value);
   } catch {
-    try { localStorage.setItem(lsKey(key), JSON.stringify(value)); } catch { /* 儲存滿了也不擋 UI */ }
+    localStorage.setItem(lsKey(key), JSON.stringify(value));
   }
 }
 
-/** 刪除單一鍵（草稿送出後清除）。 */
+/** 刪除單一鍵（草稿送出後清除）。兩層皆刪除失敗時必須回報，避免 UI 偽稱已清稿。 */
 export async function removeValue(key: string): Promise<void> {
   try {
     const db = await openDB();
@@ -133,8 +136,13 @@ export async function removeValue(key: string): Promise<void> {
       tx.objectStore(STORE).delete(key);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Storage transaction aborted'));
     });
-  } catch {
-    try { localStorage.removeItem(lsKey(key)); } catch { /* ignore */ }
+  } catch (idbError) {
+    try {
+      localStorage.removeItem(lsKey(key));
+    } catch (localError) {
+      throw localError || idbError;
+    }
   }
 }
