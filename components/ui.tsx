@@ -12,7 +12,7 @@ export interface Option { value: string; zh: string; en: string }
 export const pickLabel = (o: Option, lang: 'zh' | 'en') => (lang === 'en' ? o.en : o.zh);
 
 const inputBase =
-  'w-full min-h-[48px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 ' +
+  'block w-full min-h-[48px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 ' +
   'min-w-0 max-w-full rounded-2xl px-4 py-3 text-base transition-all shadow-sm ' +
   'focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-500 dark:placeholder-slate-400';
 

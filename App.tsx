@@ -602,11 +602,11 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-4 md:gap-6">
                        <div className="space-y-2 min-w-0">
                          <label htmlFor="in-from" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.dateFrom')}</label>
-                         <input id="in-from" type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full min-w-0 max-w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
+                         <input id="in-from" type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="block w-full min-w-0 max-w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                        <div className="space-y-2 min-w-0">
                          <label htmlFor="in-to" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.dateTo')}</label>
-                         <input id="in-to" type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full min-w-0 max-w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
+                         <input id="in-to" type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="block w-full min-w-0 max-w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                     </div>
                     <div className="space-y-2">
@@ -794,9 +794,9 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center gap-2 md:gap-3 w-full md:w-auto min-w-0">
                     <FunnelIcon className="hidden md:block w-5 h-5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
-                    <input type="date" aria-label={t('db.dateFrom')} value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="w-full min-w-0 md:w-auto min-h-[44px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
+                    <input type="date" aria-label={t('db.dateFrom')} value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="block w-full min-w-0 md:w-auto min-h-[44px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
                     <span className="hidden min-[420px]:inline text-slate-500 dark:text-slate-400" aria-hidden="true">~</span>
-                    <input type="date" aria-label={t('db.dateTo')} value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="w-full min-w-0 md:w-auto min-h-[44px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
+                    <input type="date" aria-label={t('db.dateTo')} value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="block w-full min-w-0 md:w-auto min-h-[44px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
                   </div>
                   <button type="button" onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 font-black text-xs p-2 min-h-[44px]">{t('db.clear')}</button>
                </div>

@@ -73,7 +73,10 @@ describe('keyboard focus, type size and layout regressions (P1/P3/P4/P5/P7/P8)',
   it('database page stacks on mobile and date inputs may shrink', () => {
     const app = read('App.tsx');
     expect(app).toContain('flex flex-col md:flex-row md:justify-between');
-    expect(app).toMatch(/type="date"[^\n]*className="w-full min-w-0/);
+    expect(app).toMatch(/type="date"[^\n]*className="block w-full min-w-0/);
+  });
+  it('text inputs are display:block so iOS date inputs cannot overflow their card', () => {
+    expect(read('components/ui.tsx')).toMatch(/inputBase =\s*'block w-full/);
   });
   it('background blur blobs are gone', () => {
     expect(read('App.tsx')).not.toContain('blur-[120px]');
