@@ -78,6 +78,9 @@ describe('keyboard focus, type size and layout regressions (P1/P3/P4/P5/P7/P8)',
   it('text inputs are display:block so iOS date inputs cannot overflow their card', () => {
     expect(read('components/ui.tsx')).toMatch(/inputBase =\s*'block w-full/);
   });
+  it('native date inputs drop WebKit appearance so they cannot overflow (P5)', () => {
+    expect(read('index.css')).toMatch(/input\[type="date"\][^{]*\{[^}]*appearance:\s*none/);
+  });
   it('background blur blobs are gone', () => {
     expect(read('App.tsx')).not.toContain('blur-[120px]');
   });
