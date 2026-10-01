@@ -398,7 +398,7 @@ async function listCases(env, url, role, actor) {
 const REP_STRING_FIELDS = [
   'id','caseNumber','reportType','followUpOf','followUpOfId','reporterName','reporterEmployeeId',
   'reporterPhone','reporterEmail','reporterOrg','reporterTerritory','reportSource','primaryReporterName',
-  'primaryReporterProfession','primaryReporterOrg','primaryReporterContact','awarenessDate','reportDate',
+  'primaryReporterProfession','primaryReporterOrg','primaryReporterContact','awarenessDate','sourceAwarenessDate','reportDate',
   'country','countryOther','patientInitials','patientId','patientBirthDate','patientAgeValue','patientAgeUnit',
   'patientSex','patientWeightKg','patientHeightCm','pregnancy','lastMenstrualPeriod','labData','narrative',
   'deathDate','causeOfDeath','autopsyDone','medicalHistory','allergies',

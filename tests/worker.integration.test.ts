@@ -68,6 +68,22 @@ describe('AE API database regression', () => {
     expect(saved.triage.seriousnessOverride).toBeUndefined();
     expect(saved.patientInitials).toBe('X');
   });
+  it('keeps the reporter-entered source awareness date but never lets reps set MAH transmission fields', async () => {
+    const r = { ...blank('relayed-case'), reportSource:'authority', awarenessDate:'2026-09-20', sourceAwarenessDate:'2026-09-12',
+      transmittedToMahAt:'2026-09-21', mahCaseNumber:'MAH-FORGED', triage:{ transmittedToMahAt:'2026-09-21', mahCaseNumber:'MAH-FORGED' } };
+    expect((await request('POST','',r))?.status).toBe(201);
+    const saved = JSON.parse(sql.prepare('SELECT payload FROM ae_cases WHERE id=?').get('relayed-case')!.payload as string);
+    // Reporter fact from the form: must survive the rep allow-list.
+    expect(saved.sourceAwarenessDate).toBe('2026-09-12');
+    // Day 0 is still the company awareness date, not the source date.
+    expect(saved.awarenessDate).toBe('2026-09-20');
+    expect(sql.prepare('SELECT awareness_date FROM ae_cases WHERE id=?').get('relayed-case')?.awareness_date).toBe('2026-09-20');
+    // MAH transmission is PV work; reps cannot pre-fill it at either level.
+    expect(saved.transmittedToMahAt).toBeUndefined();
+    expect(saved.mahCaseNumber).toBeUndefined();
+    expect(saved.triage.transmittedToMahAt).toBeUndefined();
+    expect(saved.triage.mahCaseNumber).toBeUndefined();
+  });
   it('rejects rep resubmission after PV workflow transition', async () => {
     await request('POST','',report('locked'));
     sql.prepare("UPDATE ae_cases SET status='triage' WHERE id='locked'").run();
