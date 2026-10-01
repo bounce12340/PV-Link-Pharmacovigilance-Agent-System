@@ -531,7 +531,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 dark:text-slate-100 relative overflow-hidden">
-      {/* 背景：純色。原本的 blur-[120px] 光暈在低階手機繪製成本高、且會讓截圖失敗，也沒有資訊量。 */}
+      {/* 背景：純色。原本的大範圍模糊光暈在低階手機繪製成本高、且會讓截圖失敗，也沒有資訊量。 */}
       <div className="fixed inset-0 -z-10 bg-[#f8fafc] dark:bg-[#0b1020]" aria-hidden="true" />
 
       <div className="bg-slate-900/80 backdrop-blur-md text-indigo-200/80 text-xs px-4 md:px-6 py-1.5 flex justify-between font-mono tracking-wide border-b border-white/5">
