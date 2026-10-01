@@ -57,8 +57,12 @@ describe('work real SQLite persistence and audit', () => {
    expect((await call('GET', '/work-users', undefined, ''))?.status).toBe(401);
  });
  it('normal case updates cannot overwrite independent work', async () => {
-   await call('PUT', '/demo/work', { ...emptyWork(), nextAction: 'keep' });
-   await call('PATCH', '/demo', { id: 'demo', caseNumber: 'SYNTHETIC', events: [], drugs: [] });
+   const workSaved = await call('PUT', '/demo/work', { ...emptyWork(), nextAction: 'keep' });
+   expect(workSaved?.status).toBe(200);
+   const caseUpdate = await call('PATCH', '/demo', { id: 'demo', version: 0, caseNumber: 'SYNTHETIC-UPDATED', events: [], drugs: [] });
+   expect(caseUpdate?.status).toBe(200);
+   expect((await caseUpdate?.json()).version).toBe(1);
+   expect((db.prepare('SELECT case_number FROM ae_cases WHERE id=?').get('demo') as any).case_number).toBe('SYNTHETIC-UPDATED');
    expect((await (await call('GET', '/demo/work'))?.json()).work.nextAction).toBe('keep');
  });
  it('persists server lifecycle audit, workbench filtering and recipient-isolated notification reads', async () => {
