@@ -9,10 +9,11 @@ const zh = {
   'nav.database': '正式庫',
   'nav.signals': '訊號聚合',
   'nav.logs': '系統日誌',
+  'nav.label': '主要導覽',
 
   // header
   'header.subtitle': '專業稽核模式 (PRO-V3)',
-  'header.run': '啟動新監測任務',
+  'header.run': '開始檢索',
   'header.themeToggle': '切換主題',
 
   // input
@@ -71,6 +72,10 @@ const zh = {
   'db.filteredLabel': '篩選後',
   'db.extracting': '抽取中',
   'db.batchExtract': '批次抽取',
+  'db.batchExtractNone': '沒有待抽取的文獻：正式庫中的文獻皆已完成結構化抽取（或庫內尚無文獻）。',
+  'db.searchLabel': '檢索正式文獻庫',
+  'db.dateFrom': '出版日期起',
+  'db.dateTo': '出版日期迄',
   'db.exportFiltered': '匯出篩選結果',
   'db.exportAll': '匯出全庫',
   'db.searchPlaceholder': '全域檢索: PMID、標題、成分或摘要關鍵字...',
@@ -332,7 +337,7 @@ const zh = {
   'ae.console.noEvent': '（未填反應描述）',
   'ae.console.empty': '尚無通報個案',
   'ae.console.emptyHint': '把手機通報連結發給業務，送出的個案會出現在這裡。',
-  'ae.console.selectCase': '請從左側選擇一件個案',
+  'ae.console.selectCase': '選擇一件個案以查看詳情',
   'ae.console.openForm': '開啟業務通報表單',
   'ae.console.copyLink': '複製通報連結',
   'ae.console.exportCsv': '匯出個案 CSV',
@@ -426,10 +431,11 @@ const en: Record<TransKey, string> = {
   'nav.database': 'Database',
   'nav.signals': 'Signals',
   'nav.logs': 'Logs',
+  'nav.label': 'Main navigation',
 
   // header
   'header.subtitle': 'Professional Audit Mode (PRO-V3)',
-  'header.run': 'Start New Monitoring Run',
+  'header.run': 'Start search',
   'header.themeToggle': 'Toggle Theme',
 
   // input
@@ -488,6 +494,10 @@ const en: Record<TransKey, string> = {
   'db.filteredLabel': 'Filtered',
   'db.extracting': 'Extracting',
   'db.batchExtract': 'Batch Extract',
+  'db.batchExtractNone': 'Nothing to extract: every record in the database is already extracted (or the database is empty).',
+  'db.searchLabel': 'Search the master database',
+  'db.dateFrom': 'Publication date from',
+  'db.dateTo': 'Publication date to',
   'db.exportFiltered': 'Export Filtered',
   'db.exportAll': 'Export All',
   'db.searchPlaceholder': 'Search: PMID, title, ingredient, abstract...',
@@ -749,7 +759,7 @@ const en: Record<TransKey, string> = {
   'ae.console.noEvent': '(no reaction description)',
   'ae.console.empty': 'No cases reported yet',
   'ae.console.emptyHint': 'Share the mobile reporting link with the field team; submitted cases land here.',
-  'ae.console.selectCase': 'Select a case from the list',
+  'ae.console.selectCase': 'Select a case to view its details',
   'ae.console.openForm': 'Open field reporting form',
   'ae.console.copyLink': 'Copy reporting link',
   'ae.console.exportCsv': 'Export cases as CSV',

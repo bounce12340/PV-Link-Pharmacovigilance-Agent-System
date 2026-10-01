@@ -3,3 +3,28 @@
 @tailwind utilities;
 
 body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+
+/* 鍵盤焦點：全站一致、可見的外框（WCAG 2.4.7）。
+   只在鍵盤操作（:focus-visible）時顯示，滑鼠/觸控點擊不會出現。
+   輸入框另有 focus:border 變色，外框與之並存。 */
+:focus-visible {
+  outline: 2px solid #4338ca; /* indigo-700 */
+  outline-offset: 2px;
+}
+.dark :focus-visible {
+  outline-color: #a5b4fc; /* indigo-300，深色底 ≥ 4.5:1 */
+}
+/* 輸入框不要被 overflow 容器裁掉外框 */
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline-offset: 1px;
+}
+
+/* 低動態偏好：關閉持續性動畫與過渡 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

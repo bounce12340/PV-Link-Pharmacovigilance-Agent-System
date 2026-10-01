@@ -9,7 +9,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.resetModules(); 
 describe('work UI and API service regression', () => {
  it('renders translated accessible workbench with internal deadline disclaimer and no automatic action', () => {
    const html = renderToStaticMarkup(React.createElement(LangProvider, null, React.createElement(CaseWorkBoard, { cases: [], actor: 'local-demo' })));
-   expect(html).toContain('個案工作狀態、日期工作台與站內提醒'); expect(html).toContain('工作狀態與工作到期日均與法規個案狀態／法規到期日分開');
+   expect(html).toContain('工作台'); expect(html).toContain('個案工作狀態、日期工作台與站內提醒'); expect(html).toContain('工作狀態與工作到期日均與法規個案狀態／法規到期日分開');
    expect(html).toContain('今日'); expect(html).toContain('本週'); expect(html).toContain('逾期');
    expect(html).toContain('aria-live="polite"'); expect(html).toContain('不寄信');
  });
