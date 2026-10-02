@@ -47,9 +47,9 @@ const llm = new PVLLMService();
 
 // 相關性分數的顏色分級：高(綠) / 中(琥珀) / 低(灰)
 const scoreBadgeClass = (score: number) =>
-  score >= 70 ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40'
-  : score >= 40 ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
-  : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40';
+  score >= 70 ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40'
+  : score >= 40 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
+  : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40';
 
 // CSV 欄位轉義：以雙引號包覆並加倍內部引號；前導 = + - @ 加單引號，防 Excel 公式注入
 const csvCell = (v: any) => {
@@ -518,40 +518,46 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // 通報收案：業務端手機送進來的自發性個案
+  const navTabs: { id: typeof activeTab; label: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; count: number | null; activeClass: string }[] = [
+    { id: 'input', label: t('nav.input'), icon: AdjustmentsHorizontalIcon, count: null, activeClass: 'bg-indigo-600/90' },
+    { id: 'review', label: t('nav.review'), icon: ClipboardDocumentCheckIcon, count: records.length, activeClass: 'bg-indigo-600/90' },
+    { id: 'database', label: t('nav.database'), icon: CircleStackIcon, count: masterDatabase.length, activeClass: 'bg-emerald-700/90' },
+    { id: 'signals', label: t('nav.signals'), icon: ChartBarIcon, count: signalReport.groups.length, activeClass: 'bg-rose-700/90' },
+    { id: 'intake', label: t('nav.intake'), icon: InboxIcon, count: aeCases.length, activeClass: 'bg-amber-700/90' },
+    { id: 'logs', label: t('nav.logs'), icon: FingerPrintIcon, count: null, activeClass: 'bg-slate-700/90' },
+  ];
+  const pendingExtractCount = masterDatabase.filter(r => !r.pv_data && !r.is_excluded).length;
+
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 dark:text-slate-100 relative overflow-hidden">
-      {/* 水彩背景層 */}
-      <div className="fixed inset-0 -z-10 bg-[#f8fafc] dark:bg-[#0b1020]">
-         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-200/40 dark:bg-indigo-500/20 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_8s_infinite]" />
-         <div className="absolute top-[20%] right-[-10%] w-[60%] h-[60%] bg-rose-200/40 dark:bg-rose-500/15 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_10s_infinite_2s]" />
-         <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-teal-200/40 dark:bg-teal-500/15 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_12s_infinite_4s]" />
-         <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-amber-100/60 dark:bg-amber-500/10 rounded-full blur-[80px] mix-blend-multiply dark:mix-blend-screen" />
-      </div>
+      {/* 背景：純色。原本的大範圍模糊光暈在低階手機繪製成本高、且會讓截圖失敗，也沒有資訊量。 */}
+      <div className="fixed inset-0 -z-10 bg-[#f8fafc] dark:bg-[#0b1020]" aria-hidden="true" />
 
-      <div className="bg-slate-900/80 backdrop-blur-md text-indigo-200/80 text-[10px] px-4 md:px-6 py-1.5 flex justify-between font-mono tracking-widest border-b border-white/5">
+      <div className="bg-slate-900/80 backdrop-blur-md text-indigo-200/80 text-xs px-4 md:px-6 py-1.5 flex justify-between font-mono tracking-wide border-b border-white/5">
         <span>PV-AUDITOR // DATA-INTEGRITY-ENABLED</span>
         <span className="hidden sm:inline">SYSTEM_TIME: {now().iso_datetime}</span>
       </div>
 
       <header className="bg-white/30 dark:bg-white/5 backdrop-blur-xl border-b border-white/40 dark:border-white/10 px-4 md:px-8 py-4 md:py-5 flex justify-between items-center gap-3 sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-3 md:gap-5 min-w-0">
-          <div className="bg-indigo-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" /></div>
+          <div className="hidden sm:block bg-indigo-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" aria-hidden="true" /></div>
           <div className="min-w-0">
             <h1 className="text-lg md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight truncate">PV-Link Auditor</h1>
-            <p className="hidden sm:flex text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest items-center gap-2">{t('header.subtitle')}</p>
+            <p className="hidden sm:flex text-xs text-slate-500 dark:text-slate-400 font-black uppercase tracking-wide items-center gap-2">{t('header.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
-        <button onClick={toggle} title={t('header.themeToggle')} className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
+        <button type="button" onClick={toggle} title={t('header.themeToggle')} aria-label={t('header.themeToggle')} className="p-2.5 min-h-[44px] min-w-[44px] rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
-        <div className="flex rounded-2xl overflow-hidden border border-white/40 dark:border-white/10 text-[11px] font-black">
-          <button onClick={() => setLang('zh')} className={`px-3 py-2 transition-all ${lang === 'zh' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>中</button>
-          <button onClick={() => setLang('en')} className={`px-3 py-2 transition-all ${lang === 'en' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>EN</button>
+        <div className="flex rounded-2xl overflow-hidden border border-white/40 dark:border-white/10 text-xs font-black">
+          <button type="button" onClick={() => setLang('zh')} aria-pressed={lang === 'zh'} lang="zh-Hant" className={`px-3 py-2 min-h-[44px] transition-all ${lang === 'zh' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>中</button>
+          <button type="button" onClick={() => setLang('en')} aria-pressed={lang === 'en'} lang="en" className={`px-3 py-2 min-h-[44px] transition-all ${lang === 'en' ? 'bg-indigo-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>EN</button>
         </div>
-        <button onClick={runWorkflow} disabled={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-4 md:px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-2 md:gap-3 transition-all border border-white/20 min-h-[44px]">
-          <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} />
-          <span className="hidden md:inline">{isProcessing ? t(stepLabelKeys[step]) : t('header.run')}</span>
+        <button type="button" onClick={runWorkflow} disabled={isProcessing} aria-busy={isProcessing} className="bg-indigo-600/90 hover:bg-indigo-700/90 backdrop-blur-sm disabled:opacity-50 text-white px-3 md:px-8 py-3 rounded-2xl text-sm font-black shadow-xl flex items-center gap-2 md:gap-3 transition-all border border-white/20 min-h-[44px] whitespace-nowrap">
+          <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <span>{isProcessing ? t(stepLabelKeys[step]) : t('header.run')}</span>
         </button>
         </div>
       </header>
@@ -559,37 +565,29 @@ const App: React.FC = () => {
       {/* 進度條：AI 分批處理時顯示已完成 / 總數（#2） */}
       {progress && progress.total > 0 && (
         <div className="bg-indigo-50/80 dark:bg-indigo-950/40 backdrop-blur-md border-b border-indigo-100 dark:border-indigo-900/40 px-4 md:px-8 py-2.5 flex items-center gap-4 z-20">
-          <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap uppercase tracking-widest">{progress.label}</span>
+          <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap uppercase tracking-wide">{progress.label}</span>
           <div className="flex-1 h-2.5 bg-indigo-100 dark:bg-indigo-900/40 rounded-full overflow-hidden">
             <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
           </div>
-          <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
+          <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
         </div>
       )}
 
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* 側欄：桌面為直向導覽；手機收成可橫向捲動的頁籤列，避免佔掉半個螢幕 */}
-        <aside className="md:w-72 shrink-0 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-b md:border-b-0 md:border-r border-white/40 dark:border-white/10 flex md:flex-col gap-2 md:gap-0 md:space-y-2 p-3 md:p-6 overflow-x-auto md:overflow-x-visible shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-          <button onClick={() => setActiveTab('input')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'input' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <AdjustmentsHorizontalIcon className="w-5 h-5" /> {t('nav.input')}
-          </button>
-          <button onClick={() => setActiveTab('review')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'review' ? 'bg-indigo-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <ClipboardDocumentCheckIcon className="w-5 h-5" /> {t('nav.review')} ({records.length})
-          </button>
-          <button onClick={() => setActiveTab('database')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'database' ? 'bg-emerald-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <CircleStackIcon className="w-5 h-5" /> {t('nav.database')} ({masterDatabase.length})
-          </button>
-          <button onClick={() => setActiveTab('signals')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'signals' ? 'bg-rose-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <ChartBarIcon className="w-5 h-5" /> {t('nav.signals')} ({signalReport.groups.length})
-          </button>
-          {/* 通報收案：業務端手機送進來的自發性個案 */}
-          <button onClick={() => setActiveTab('intake')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'intake' ? 'bg-amber-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
-            <InboxIcon className="w-5 h-5" /> {t('nav.intake')} ({aeCases.length})
-          </button>
-          <button onClick={() => setActiveTab('logs')} className="shrink-0 md:mt-auto md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 whitespace-nowrap">
-            <FingerPrintIcon className="w-4 h-4" /> {t('nav.logs')}
-          </button>
-        </aside>
+        {/* 導覽：桌面為直向側欄；手機為 3 欄格狀（6 個分頁全部可見、不需橫向捲動），目前分頁以 aria-current 標示 */}
+        <nav aria-label={t('nav.label')} className="md:w-72 shrink-0 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-b md:border-b-0 md:border-r border-white/40 dark:border-white/10 grid grid-cols-3 gap-2 md:flex md:flex-col md:gap-0 md:space-y-2 p-3 md:p-6 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+          {navTabs.map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} aria-current={active ? 'page' : undefined}
+                className={`min-w-0 md:w-full flex flex-col md:flex-row items-center justify-center md:justify-start text-center md:text-left gap-1 md:gap-4 px-2 md:px-5 py-2 md:py-4 min-h-[56px] md:min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border ${tab.id === 'logs' ? 'md:mt-auto ' : ''}${active ? `${tab.activeClass} backdrop-blur-sm text-white shadow-lg border-transparent` : 'text-slate-600 dark:text-slate-300 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+                <Icon className="w-5 h-5 shrink-0" aria-hidden="true" />
+                <span className="leading-tight break-words">{tab.label}{tab.count !== null ? ` (${tab.count})` : ''}</span>
+              </button>
+            );
+          })}
+        </nav>
 
         <section className="flex-1 overflow-hidden flex flex-col relative">
           {activeTab === 'input' && (
@@ -598,31 +596,35 @@ const App: React.FC = () => {
                   <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{t('input.title')}</h2>
                   <div className="space-y-6">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.ingredients')}</label>
-                       <input type="text" placeholder={t('input.ingredientsPlaceholder')} value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label htmlFor="in-ingredients" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.ingredients')}</label>
+                       <input id="in-ingredients" type="text" placeholder={t('input.ingredientsPlaceholder')} value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-500 dark:placeholder-slate-400 shadow-sm" />
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateFrom')}</label>
-                         <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
+                    <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-4 md:gap-6">
+                       <div className="space-y-2 min-w-0">
+                         <label htmlFor="in-from" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.dateFrom')}</label>
+                         <input id="in-from" type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="block w-full min-w-0 max-w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
-                       <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateTo')}</label>
-                         <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
+                       <div className="space-y-2 min-w-0">
+                         <label htmlFor="in-to" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.dateTo')}</label>
+                         <input id="in-to" type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="block w-full min-w-0 max-w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
                        </div>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.aeTerms')}</label>
-                       <input type="text" placeholder={t('input.aeTermsPlaceholder')} value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label htmlFor="in-ae" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.aeTerms')}</label>
+                       <input id="in-ae" type="text" placeholder={t('input.aeTermsPlaceholder')} value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-500 dark:placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.exclusions')}</label>
-                       <input type="text" placeholder={t('input.exclusionsPlaceholder')} value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label htmlFor="in-excl" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.exclusions')}</label>
+                       <input id="in-excl" type="text" placeholder={t('input.exclusionsPlaceholder')} value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-500 dark:placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.maxResults')}</label>
-                       <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <label htmlFor="in-max" className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide pl-1">{t('input.maxResults')}</label>
+                       <input id="in-max" type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-500 dark:placeholder-slate-400 shadow-sm" />
                     </div>
+                    <button type="button" onClick={runWorkflow} disabled={isProcessing} aria-busy={isProcessing} className="md:hidden w-full min-h-[48px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-2xl text-base font-black shadow-lg flex items-center justify-center gap-2">
+                      <ArrowPathIcon className={`w-5 h-5 ${isProcessing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                      {isProcessing ? t(stepLabelKeys[step]) : t('header.run')}
+                    </button>
                   </div>
                </div>
             </div>
@@ -633,22 +635,22 @@ const App: React.FC = () => {
                <div className="w-[45%] border-r border-white/30 dark:border-white/10 overflow-y-auto p-8 space-y-4 bg-white/10 dark:bg-white/[0.03] backdrop-blur-sm">
                   {records.length > 0 && (
                     <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 dark:bg-white/10 backdrop-blur-xl border-b border-white/50 dark:border-white/10 flex items-center gap-3">
-                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest whitespace-nowrap">{t('review.thresholdLabel')} {minScore}</span>
+                      <span className="text-xs font-black text-slate-600 dark:text-slate-200 uppercase tracking-wide whitespace-nowrap">{t('review.thresholdLabel')} {minScore}</span>
                       <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="flex-1 accent-indigo-600" />
-                      <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
+                      <span className="text-xs font-black text-slate-500 dark:text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
                     </div>
                   )}
                   {records.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">{t('review.empty')}</p></div>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">{t('review.empty')}</p></div>
                   ) : visibleReviewRecords.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">{t('review.noneAboveThreshold')}</p></div>
+                    <div className="h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">{t('review.noneAboveThreshold')}</p></div>
                   ) : visibleReviewRecords.map(r => (
                     <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-indigo-600 dark:border-indigo-400 bg-white/90 dark:bg-slate-800/90 shadow-xl' : 'border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-white/[0.07] hover:bg-white/60 dark:hover:bg-white/10 hover:border-indigo-300 dark:hover:border-indigo-500'}`}>
                        <div className="flex justify-between items-center mb-2">
-                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason || t('review.reasonComplete')}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
-                         <span className="text-[10px] font-black text-slate-500 dark:text-slate-400">PMID:{r.pmid}</span>
+                         <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason || t('review.reasonComplete')}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
+                         <span className="text-xs font-black text-slate-500 dark:text-slate-400">PMID:{r.pmid}</span>
                        </div>
-                       <div className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 mb-1">{r.dp}</div>
+                       <div className="text-xs font-black text-indigo-600 dark:text-indigo-400 mb-1">{r.dp}</div>
                        <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight line-clamp-2">{r.title}</h3>
                     </div>
                   ))}
@@ -657,9 +659,9 @@ const App: React.FC = () => {
                  {selectedRecord ? (
                    <div className="max-w-xl mx-auto space-y-8">
                       <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-[10px] font-black tracking-widest uppercase"><SparklesIcon className="w-4 h-4" /> {t('review.auditDetail')}</div>
+                        <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 text-xs font-black tracking-wide uppercase"><SparklesIcon className="w-4 h-4" /> {t('review.auditDetail')}</div>
                         <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-snug">{selectedRecord.title}</h2>
-                        <button onClick={() => window.open(selectedRecord.primary_link, '_blank')} className="flex items-center gap-2 bg-slate-900/90 text-white px-6 py-3 rounded-2xl font-black text-[11px] shadow-lg hover:bg-slate-800 transition-all">
+                        <button onClick={() => window.open(selectedRecord.primary_link, '_blank')} className="flex items-center gap-2 bg-slate-900/90 text-white px-6 py-3 rounded-2xl font-black text-xs shadow-lg hover:bg-slate-800 transition-all">
                           <ArrowTopRightOnSquareIcon className="w-4 h-4" /> {t('review.officialLink')}
                         </button>
                       </div>
@@ -676,11 +678,11 @@ const App: React.FC = () => {
                                </div>
                                <button
                                  onClick={() => handleCopyConclusion(selectedRecord.conclusion_zh)}
-                                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-[10px] font-bold text-amber-800 dark:text-amber-200 transition-all border border-amber-100 dark:border-amber-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
+                                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-xs font-bold text-amber-800 dark:text-amber-200 transition-all border border-amber-100 dark:border-amber-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
                                  title={t('review.copyConclusionTitle')}
                                >
-                                 {copiedConclusion ? <CheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
-                                 {copiedConclusion ? <span className="text-emerald-600 dark:text-emerald-400">{t('common.copied')}</span> : t('common.copy')}
+                                 {copiedConclusion ? <CheckIcon className="w-4 h-4 text-emerald-700 dark:text-emerald-400" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
+                                 {copiedConclusion ? <span className="text-emerald-700 dark:text-emerald-400">{t('common.copied')}</span> : t('common.copy')}
                                </button>
                            </div>
                            <p className="text-lg font-bold leading-relaxed text-slate-800 dark:text-slate-100 drop-shadow-sm selection:bg-amber-200/50">
@@ -689,7 +691,7 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md text-indigo-950 dark:text-indigo-100 p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
-                           <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 mb-3 tracking-widest uppercase">{t('review.summary')}</div>
+                           <div className="text-xs font-black text-indigo-700 dark:text-indigo-300 mb-3 tracking-wide uppercase">{t('review.summary')}</div>
                            <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{selectedRecord.summary_zh || t('review.summaryPending')}</p>
                         </div>
                       </div>
@@ -697,15 +699,15 @@ const App: React.FC = () => {
                       {/* 結構化 PV 數據抽取結果 */}
                       <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="text-[10px] font-black text-indigo-500 dark:text-indigo-300 tracking-widest uppercase">{t('review.structured')}</div>
+                          <div className="text-xs font-black text-indigo-700 dark:text-indigo-300 tracking-wide uppercase">{t('review.structured')}</div>
                           <div className="flex items-center gap-2">
                             {selectedRecord.pv_data?.completeness && (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
+                              <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40' : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
                             )}
                             <button
                               onClick={() => handleRegenerate(selectedRecord)}
                               disabled={regeneratingSet.has(selectedRecord.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-100/80 dark:bg-indigo-500/20 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 text-[10px] font-black text-indigo-800 dark:text-indigo-200 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm active:scale-95"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-100/80 dark:bg-indigo-500/20 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 text-xs font-black text-indigo-800 dark:text-indigo-200 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm active:scale-95"
                             >
                               <ArrowPathIcon className={`w-3.5 h-3.5 ${regeneratingSet.has(selectedRecord.id) ? 'animate-spin' : ''}`} />
                               {t('review.regenerate')}
@@ -713,7 +715,7 @@ const App: React.FC = () => {
                           </div>
                         </div>
                         {extractingSet.has(selectedRecord.id) && !selectedRecord.pv_data ? (
-                          <p className="text-sm text-slate-400 font-bold italic">{t('review.extracting')}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold italic">{t('review.extracting')}</p>
                         ) : selectedRecord.pv_data ? (
                           <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                             {[
@@ -730,13 +732,13 @@ const App: React.FC = () => {
                               [t('review.fieldOutcome'), selectedRecord.pv_data.outcome],
                             ].map(([label, value]) => (
                               <div key={label} className="space-y-1">
-                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{label}</div>
-                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 break-words">{value || <span className="text-slate-300 dark:text-slate-600">—</span>}</div>
+                                <div className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</div>
+                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 break-words">{value || <span className="text-slate-500 dark:text-slate-400">—</span>}</div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-slate-400 font-bold italic">{t('review.selectToExtract')}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 font-bold italic">{t('review.selectToExtract')}</p>
                         )}
                       </div>
 
@@ -764,76 +766,79 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'database' && (
-            <div className="w-full h-full p-12 flex flex-col overflow-hidden">
-               <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('db.title')}</h2>
+            <div className="w-full h-full p-4 md:p-12 flex flex-col overflow-y-auto md:overflow-hidden">
+               <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 md:mb-8">
+                  <div className="min-w-0">
+                    <h2 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('db.title')}</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">{t('db.totalLabel')}: {masterDatabase.length} | {t('db.filteredLabel')}: {filteredDatabase.length}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-indigo-100/80 dark:bg-indigo-500/20 backdrop-blur-sm text-indigo-900 dark:text-indigo-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={runBatchExtract} disabled={!!batchExtractInfo || pendingExtractCount === 0} aria-describedby={pendingExtractCount === 0 ? 'batch-extract-hint' : undefined} className="bg-indigo-100/80 dark:bg-indigo-500/20 backdrop-blur-sm text-indigo-900 dark:text-indigo-200 px-4 md:px-5 py-3 min-h-[44px] rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-indigo-200 dark:hover:bg-indigo-500/30 disabled:opacity-50 transition-all border border-indigo-300/50 dark:border-indigo-500/30 shadow-sm">
                       <SparklesIcon className={`w-5 h-5 ${batchExtractInfo ? 'animate-pulse' : ''}`} />
-                      {batchExtractInfo ? `${t('db.extracting')} ${batchExtractInfo.done}/${batchExtractInfo.total}` : `${t('db.batchExtract')} (${masterDatabase.filter(r => !r.pv_data && !r.is_excluded).length})`}
+                      {batchExtractInfo ? `${t('db.extracting')} ${batchExtractInfo.done}/${batchExtractInfo.total}` : `${t('db.batchExtract')} (${pendingExtractCount})`}
                     </button>
-                    <button onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 dark:bg-emerald-500/20 backdrop-blur-sm text-emerald-900 dark:text-emerald-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-all border border-emerald-300/50 dark:border-emerald-500/30 shadow-sm">
+                    {pendingExtractCount === 0 && !batchExtractInfo && <span id="batch-extract-hint" className="basis-full text-xs text-slate-600 dark:text-slate-400">{t('db.batchExtractNone')}</span>}
+                    <button type="button" onClick={() => exportToCSV('filtered')} className="bg-emerald-100/80 dark:bg-emerald-500/20 backdrop-blur-sm text-emerald-900 dark:text-emerald-200 px-4 md:px-5 py-3 min-h-[44px] rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-500/30 transition-all border border-emerald-300/50 dark:border-emerald-500/30 shadow-sm">
                       <ArrowDownTrayIcon className="w-5 h-5" /> {t('db.exportFiltered')} ({filteredDatabase.length})
                     </button>
-                    <button onClick={() => exportToCSV('all')} className="bg-white/60 dark:bg-white/10 backdrop-blur-sm text-slate-700 dark:text-slate-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-white dark:hover:bg-white/20 transition-all border border-slate-300/50 dark:border-slate-600/50 shadow-sm">
+                    <button type="button" onClick={() => exportToCSV('all')} className="bg-white/60 dark:bg-white/10 backdrop-blur-sm text-slate-700 dark:text-slate-200 px-4 md:px-5 py-3 min-h-[44px] rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-white dark:hover:bg-white/20 transition-all border border-slate-300/50 dark:border-slate-600/50 shadow-sm">
                       <ArrowDownTrayIcon className="w-5 h-5" /> {t('db.exportAll')} ({masterDatabase.length})
                     </button>
                   </div>
                </div>
 
                <div className="bg-white/60 dark:bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 dark:border-white/10 shadow-lg mb-6 flex flex-wrap gap-4 items-end">
-                  <div className="flex-1 min-w-[300px] relative">
+                  <div className="flex-1 min-w-0 basis-full md:basis-auto md:min-w-[300px] relative">
                     <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 dark:text-slate-400" />
-                    <input type="text" placeholder={t('db.searchPlaceholder')} value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    <input type="text" aria-label={t('db.searchLabel')} placeholder={t('db.searchPlaceholder')} value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-500 dark:placeholder-slate-400 shadow-sm" />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <FunnelIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
-                    <span className="text-slate-400">~</span>
-                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
+                  <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-end gap-2 md:gap-3 w-full md:w-auto min-w-0">
+                    <FunnelIcon className="hidden md:block w-5 h-5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+                    <label className="flex flex-col gap-1 min-w-0 w-full md:w-auto text-xs font-bold text-slate-700 dark:text-slate-200"><span>{t('db.dateFrom')}</span><input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="block w-full min-w-0 md:w-auto min-h-[44px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" /></label>
+                    <span className="hidden min-[420px]:inline text-slate-500 dark:text-slate-400 pb-3" aria-hidden="true">~</span>
+                    <label className="flex flex-col gap-1 min-w-0 w-full md:w-auto text-xs font-bold text-slate-700 dark:text-slate-200"><span>{t('db.dateTo')}</span><input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="block w-full min-w-0 md:w-auto min-h-[44px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" /></label>
                   </div>
-                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-black text-[10px] uppercase p-2">{t('db.clear')}</button>
+                  <button type="button" onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-600 dark:text-slate-300 hover:text-indigo-700 dark:hover:text-indigo-300 font-black text-xs p-2 min-h-[44px]">{t('db.clear')}</button>
                </div>
 
-               <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
-                 <table className="w-full">
+               <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 min-h-[240px] max-w-full overflow-auto" tabIndex={0} role="region" aria-label={t('db.title')}>
+                 <table className="w-full min-w-[640px]">
                    <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                      <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colId')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colDetail')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colPublication')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-right">{t('db.colActions')}</th>
+                       <th className="px-8 py-6 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colId')}</th>
+                       <th className="px-8 py-6 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colDetail')}</th>
+                       <th className="px-8 py-6 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colPublication')}</th>
+                       <th className="px-8 py-6 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-right">{t('db.colActions')}</th>
                      </tr>
                    </thead>
                    <tbody>
                      {filteredDatabase.length === 0 ? (
-                       <tr><td colSpan={4} className="py-20 text-center text-slate-400 font-black italic">{t('db.empty')}</td></tr>
+                       <tr><td colSpan={4} className="py-20 text-center text-slate-500 dark:text-slate-400 font-black italic">{t('db.empty')}</td></tr>
                      ) : filteredDatabase.map(r => (
                        <tr key={r.id} className="border-b border-slate-200/60 dark:border-slate-700/60 hover:bg-white/60 dark:hover:bg-white/10 cursor-pointer group transition-colors" onClick={() => { setSelectedRecordId(r.id); setActiveTab('review'); }}>
-                         <td className="px-8 py-8 font-mono text-xs font-bold text-slate-400">{r.pmid}</td>
-                         <td className="px-8 py-8 max-w-lg">
-                           <div className="font-black text-slate-800 dark:text-slate-100 line-clamp-2">{r.title}</div>
-                           <div className="flex gap-2 mt-2">
-                             <span className="bg-indigo-100/60 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.tagLabel')}: {r.original_search_term}</span>
+                         <td className="px-4 md:px-8 py-6 md:py-8 font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{r.pmid}</td>
+                         <td className="px-4 md:px-8 py-6 md:py-8 max-w-lg">
+                           <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedRecordId(r.id); setActiveTab('review'); }} className="text-left font-black text-slate-800 dark:text-slate-100 line-clamp-2 rounded">{r.title}</button>
+                           <div className="flex flex-wrap gap-2 mt-2">
+                             <span className="bg-indigo-100/60 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded text-xs font-black uppercase">{t('db.tagLabel')}: {r.original_search_term}</span>
                              {r.pv_data?.ingredient && r.pv_data.ingredient !== r.original_search_term && (
-                               <span className="bg-amber-100/60 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
+                               <span className="bg-amber-100/60 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded text-xs font-black uppercase">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
                              )}
                            </div>
                          </td>
-                         <td className="px-8 py-8">
-                           <div className="font-bold text-slate-400 text-xs italic">{r.journal}</div>
-                           <div className="text-[10px] font-mono text-indigo-400 font-black mt-1">{r.dp}</div>
+                         <td className="px-4 md:px-8 py-6 md:py-8">
+                           <div className="font-bold text-slate-500 dark:text-slate-400 text-xs italic">{r.journal}</div>
+                           <div className="text-xs font-mono text-indigo-700 dark:text-indigo-300 font-black mt-1">{r.dp}</div>
                          </td>
-                         <td className="px-8 py-8 text-right">
+                         <td className="px-4 md:px-8 py-6 md:py-8 text-right">
                            <button
+                             type="button"
                              onClick={(e) => handleDeleteFromDB(e, r.id)}
-                             className="text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-500/10 p-2 rounded-full transition-all"
+                             className="text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-500/10 p-3 min-h-[44px] min-w-[44px] rounded-full transition-all"
                              title={t('db.removeTitle')}
+                             aria-label={t('db.removeTitle')}
                            >
-                             <TrashIcon className="w-5 h-5" />
+                             <TrashIcon className="w-5 h-5" aria-hidden="true" />
                            </button>
                          </td>
                        </tr>
@@ -860,14 +865,14 @@ const App: React.FC = () => {
                   )}
                </div>
 
-               <div className="bg-rose-50/60 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 rounded-2xl px-6 py-3 mb-6 text-[11px] font-bold text-rose-800/80 dark:text-rose-300 flex items-center gap-2">
+               <div className="bg-rose-50/60 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 rounded-2xl px-6 py-3 mb-6 text-xs font-bold text-rose-800/80 dark:text-rose-300 flex items-center gap-2">
                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
                  {t('signals.disclaimer')}
                </div>
 
                <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  {signalReport.groups.length === 0 ? (
-                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400 py-20">
+                   <div className="h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 py-20">
                      <ChartBarIcon className="w-16 h-16" />
                      <p className="font-black mt-4">{t('signals.empty')}</p>
                      <p className="text-xs font-bold mt-1">{t('signals.emptyHint')}</p>
@@ -876,12 +881,12 @@ const App: React.FC = () => {
                    <table className="w-full">
                      <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                        <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colIngredient')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">MedDRA PT</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colSoc')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colCount')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colSerious')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">PMIDs</th>
+                         <th className="px-6 py-5 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colIngredient')}</th>
+                         <th className="px-6 py-5 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">MedDRA PT</th>
+                         <th className="px-6 py-5 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colSoc')}</th>
+                         <th className="px-6 py-5 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colCount')}</th>
+                         <th className="px-6 py-5 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colSerious')}</th>
+                         <th className="px-6 py-5 text-xs font-black text-slate-500 dark:text-slate-400 uppercase text-left">PMIDs</th>
                        </tr>
                      </thead>
                      <tbody>
@@ -892,12 +897,12 @@ const App: React.FC = () => {
                              <td className="px-6 py-5 font-black text-slate-800 dark:text-slate-100 text-sm">{g.ingredient}</td>
                              <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                {g.pt}
-                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
+                               <span className={`ml-2 text-xs font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
                              </td>
                              <td className="px-6 py-5 text-xs font-bold text-slate-500 dark:text-slate-400 italic">{g.soc}</td>
                              <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-rose-200 text-rose-800 dark:bg-rose-500/30 dark:text-rose-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>{g.count}</span></td>
-                             <td className="px-6 py-5 text-center font-black text-rose-600 dark:text-rose-400">{g.seriousCount || '—'}</td>
-                             <td className="px-6 py-5 text-[10px] font-mono text-indigo-400 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
+                             <td className="px-6 py-5 text-center font-black text-rose-700 dark:text-rose-400">{g.seriousCount || '—'}</td>
+                             <td className="px-6 py-5 text-xs font-mono text-indigo-700 dark:text-indigo-300 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
                            </tr>
                          );
                        })}
@@ -919,7 +924,7 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'logs' && (
-            <div className="flex-1 p-12 bg-slate-950/85 backdrop-blur-xl font-mono text-[11px] text-indigo-200/70 overflow-y-auto">
+            <div className="flex-1 p-12 bg-slate-950/85 backdrop-blur-xl font-mono text-xs text-indigo-200/70 overflow-y-auto">
                {logs.map((l, i) => <div key={i} className="mb-1 border-b border-white/5 pb-1 last:border-0">{l}</div>)}
             </div>
           )}
@@ -935,10 +940,10 @@ const App: React.FC = () => {
                 <div className="p-2 bg-slate-800 rounded-xl text-white"><DocumentTextIcon className="w-5 h-5" /></div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t('review.ciomsModalTitle')}</h3>
-                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">{t('review.ciomsAiNotice')}</p>
+                  <p className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-wide">{t('review.ciomsAiNotice')}</p>
                 </div>
               </div>
-              <button onClick={() => setCiomsText(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>
+              <button onClick={() => setCiomsText(null)} className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>
             </div>
             <pre className="flex-1 overflow-auto px-8 py-6 text-xs font-mono text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{ciomsText}</pre>
             <div className="flex gap-3 px-8 py-5 border-t border-slate-200 dark:border-slate-700">

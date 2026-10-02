@@ -281,7 +281,7 @@ const AEReportMobile: React.FC<{
         <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.mobile.title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {t('ae.mobile.subtitle')}
             </p>
           </div>
@@ -297,7 +297,7 @@ const AEReportMobile: React.FC<{
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
             <button onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
-              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-[11px] font-black">
+              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-xs font-black">
               {lang === 'zh' ? 'EN' : '中'}
             </button>
           </div>
@@ -305,10 +305,10 @@ const AEReportMobile: React.FC<{
 
         <div className="px-4 pb-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300">
+            <span className="text-xs font-black text-indigo-700 dark:text-indigo-300">
               {step + 1}/{STEP_KEYS.length}　{t(STEP_KEYS[step] as any)}
             </span>
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <span className="text-xs font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
               {draftState === 'saving' ? t('ae.draft.saving') : draftState === 'saved' ? `✓ ${t('ae.draft.saved')}` : ''}
             </span>
           </div>
@@ -335,7 +335,7 @@ const AEReportMobile: React.FC<{
               <ExclamationTriangleIcon className="w-4 h-4" />
               {submitErrorKind === 'draftClearFailed' ? t('ae.submit.draftClearFailed') : t('ae.submit.unconfirmed')}
             </p>
-            <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300">{submitError}</p>
+            <p className="text-xs font-bold text-rose-700 dark:text-rose-300">{submitError}</p>
           </div>
         )}
         {showErrors && stepErrors(step).length > 0 && (
@@ -344,7 +344,7 @@ const AEReportMobile: React.FC<{
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.review.blockers')}
             </p>
             {stepErrors(step).map((i, k) => (
-              <p key={k} className="text-[11px] font-bold text-rose-700 dark:text-rose-300 pl-5">
+              <p key={k} className="text-xs font-bold text-rose-700 dark:text-rose-300 pl-5">
                 • {t(`ae.issue.${i.code}` as any)}{i.detail ? `（${i.detail}）` : ''}
               </p>
             ))}
@@ -411,7 +411,7 @@ const SectionCard: React.FC<{ title: string; children: React.ReactNode; note?: s
   <Card className="p-5 space-y-4">
     <div>
       <h2 className="text-sm font-black tracking-tight">{title}</h2>
-      {note && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{note}</p>}
+      {note && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{note}</p>}
     </div>
     {children}
   </Card>
@@ -474,10 +474,10 @@ const ReporterSelfSection: React.FC<{
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <p className="font-black text-sm truncate">{report.reporterName || '—'}</p>
-          {line2 && <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{line2}</p>}
-          {line3 && <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">{line3}</p>}
+          {line2 && <p className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate">{line2}</p>}
+          {line3 && <p className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{line3}</p>}
           {report.reporterOrg && (
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{report.reporterOrg}</p>
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate">{report.reporterOrg}</p>
           )}
         </div>
         {onEditProfile && (
@@ -487,7 +487,7 @@ const ReporterSelfSection: React.FC<{
           </button>
         )}
       </div>
-      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
         {t('ae.profile.autofillNote')}
       </p>
     </SectionCard>
@@ -638,7 +638,7 @@ const StepEvents: React.FC<StepProps & {
             <TextArea rows={3} value={ev.verbatim} placeholder={t('ae.f.eventVerbatimPlaceholder')}
               onChange={e => patchEvent(ev.id, { verbatim: e.target.value })} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
             <Field label={t('ae.f.onsetDate')} required tag="CIOMS 4-6">
               <TextInput type="date" value={ev.onsetDate} max={todayIso()}
                 onChange={e => patchEvent(ev.id, { onsetDate: e.target.value })} />
@@ -740,7 +740,7 @@ const DrugCard: React.FC<{
         <TextInput value={drug.routeOther} onChange={e => patchDrug(drug.id, { routeOther: e.target.value })} />
       </Field>
     )}
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
       <Field label={t('ae.f.therapyStart')} tag="CIOMS 18">
         <TextInput type="date" value={drug.therapyStart} max={todayIso()}
           onChange={e => patchDrug(drug.id, { therapyStart: e.target.value })} />
@@ -868,14 +868,14 @@ const StepReview: React.FC<StepProps & {
           <input type="file" accept="image/*,application/pdf" multiple capture="environment"
             className="hidden" onChange={e => { onPickFiles(e.target.files); e.currentTarget.value = ''; }} />
         </label>
-        {attachError && <p className="text-xs font-bold text-rose-600 dark:text-rose-400">{attachError}</p>}
+        {attachError && <p className="text-xs font-bold text-rose-700 dark:text-rose-400">{attachError}</p>}
         {report.attachments.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {report.attachments.map(a => (
               <div key={a.id} className="relative aspect-square rounded-xl overflow-hidden border-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
                 {a.mime.startsWith('image/')
                   ? <img src={attachmentSrc(a)} alt={a.name} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-[10px] font-black p-1 text-center break-all">{a.name}</div>}
+                  : <div className="w-full h-full flex items-center justify-center text-xs font-black p-1 text-center break-all">{a.name}</div>}
                 <button type="button" onClick={() => onRemoveAttachment(a.id)}
                   className="absolute top-1 right-1 w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shadow">
                   <TrashIcon className="w-4 h-4" />
@@ -891,14 +891,14 @@ const StepReview: React.FC<StepProps & {
           {criteriaRows.map(c => (
             <div key={c.key} className="flex items-center gap-2 text-sm font-bold">
               {c.ok
-                ? <CheckCircleIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                : <ShieldExclamationIcon className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />}
+                ? <CheckCircleIcon className="w-5 h-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                : <ShieldExclamationIcon className="w-5 h-5 text-rose-700 dark:text-rose-400 shrink-0" />}
               <span className={c.ok ? '' : 'text-rose-700 dark:text-rose-300'}>{t(c.key)}</span>
             </div>
           ))}
         </div>
         <div className="pt-2">
-          <div className="flex justify-between text-[11px] font-black mb-1">
+          <div className="flex justify-between text-xs font-black mb-1">
             <span>{t('ae.review.completeness')}</span><span className="tabular-nums">{completeness}%</span>
           </div>
           <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -918,7 +918,7 @@ const StepReview: React.FC<StepProps & {
           {seriousness.serious ? t('ae.review.serious') : t('ae.review.nonSerious')}
         </p>
         {seriousness.serious && (
-          <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300 mt-1.5 leading-relaxed">
+          <p className="text-xs font-bold text-rose-700 dark:text-rose-300 mt-1.5 leading-relaxed">
             {t('ae.review.seriousHint').replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
           </p>
         )}
@@ -942,7 +942,7 @@ const StepReview: React.FC<StepProps & {
           <div className="space-y-1.5">
             {warnings.map((i, k) => (
               <button key={k} type="button" onClick={() => onGoStep(i.step ?? 0)}
-                className="w-full text-left min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                className="w-full text-left min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-xs font-bold text-amber-900 dark:text-amber-200">
                 • {t(`ae.issue.${i.code}`)}{i.detail ? `（${i.detail}）` : ''}
               </button>
             ))}
@@ -950,7 +950,7 @@ const StepReview: React.FC<StepProps & {
         </SectionCard>
       )}
 
-      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed px-2 pb-2">
+      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed px-2 pb-2">
         {t('ae.review.privacy')}
       </p>
     </>
@@ -992,7 +992,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
         <div className="px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.mobile.myReports')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {t('ae.mobile.myReportsHint')}
             </p>
           </div>
@@ -1040,7 +1040,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
               <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {c.events?.map(e => e.verbatim).filter(Boolean).join('、') || '—'}
               </p>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
                 {drug?.brandName || drug?.activeIngredient || '—'}
                 {c.awarenessDate ? `　·　${t('ae.f.awarenessDate')} ${c.awarenessDate}` : ''}
               </p>
@@ -1049,7 +1049,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
         })}
 
         {state === 'ready' && cases.length > 0 && (
-          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 leading-relaxed">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400 pt-2 leading-relaxed">
             {t('ae.mobile.myReportsReadOnly')}
           </p>
         )}

@@ -161,27 +161,27 @@ const AEIntakeConsole: React.FC<{
               <span className="text-xs text-slate-500 dark:text-slate-400">({counts.all})</span>
             </h2>
             <div className="flex gap-1.5">
-              <a href={reportUrl} target="_blank" rel="noreferrer" title={t('ae.console.openForm')}
-                className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow">
+              <a href={reportUrl} target="_blank" rel="noreferrer" title={t('ae.console.openForm')} aria-label={t('ae.console.openForm')}
+                className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow">
                 <DevicePhoneMobileIcon className="w-5 h-5" />
               </a>
-              <button title={t('ae.console.copyLink')}
+              <button type="button" title={t('ae.console.copyLink')} aria-label={t('ae.console.copyLink')}
                 onClick={() => { navigator.clipboard?.writeText(reportUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1600); }}
-                className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center">
-                {linkCopied ? <CheckIcon className="w-5 h-5 text-emerald-600" /> : <LinkIcon className="w-5 h-5" />}
+                className="w-11 h-11 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center">
+                {linkCopied ? <CheckIcon className="w-5 h-5 text-emerald-700 dark:text-emerald-400" /> : <LinkIcon className="w-5 h-5" />}
               </button>
-              <button title={t('ae.console.exportCsv')} onClick={exportCsv} disabled={!cases.length}
-                className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center disabled:opacity-40">
+              <button type="button" title={t('ae.console.exportCsv')} aria-label={t('ae.console.exportCsv')} onClick={exportCsv} disabled={!cases.length}
+                className="w-11 h-11 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center disabled:opacity-40">
                 <ArrowDownTrayIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
 
           <div className="relative">
-            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={keyword} onChange={e => setKeyword(e.target.value)}
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" />
+            <input value={keyword} aria-label={t('ae.console.searchPlaceholder')} onChange={e => setKeyword(e.target.value)}
               placeholder={t('ae.console.searchPlaceholder')}
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-bold rounded-2xl bg-white/70 dark:bg-slate-800/70 border-2 border-slate-300 dark:border-slate-600 outline-none focus:border-indigo-600" />
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-bold rounded-2xl bg-white/70 dark:bg-slate-800/70 border-2 border-slate-300 dark:border-slate-600 focus:border-indigo-600" />
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
@@ -194,7 +194,7 @@ const AEIntakeConsole: React.FC<{
               ['follow_up', t('ae.status.follow_up'), counts.followUp],
             ] as [Filter, string, number | null][]).map(([f, labelText, n]) => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`shrink-0 min-h-[36px] px-3 rounded-xl text-[11px] font-black border-2 transition-all ${
+                className={`shrink-0 min-h-[36px] px-3 rounded-xl text-xs font-black border-2 transition-all ${
                   filter === f
                     ? 'bg-indigo-600 text-white border-indigo-600'
                     : 'bg-white/60 dark:bg-white/10 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300'
@@ -208,9 +208,9 @@ const AEIntakeConsole: React.FC<{
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {!filtered.length && (
             <div className="text-center py-10 px-4 space-y-2">
-              <InboxIcon className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+              <InboxIcon className="w-10 h-10 mx-auto text-slate-500 dark:text-slate-400" />
               <p className="text-sm font-black text-slate-500 dark:text-slate-400">{t('ae.console.empty')}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500">{t('ae.console.emptyHint')}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('ae.console.emptyHint')}</p>
             </div>
           )}
           {filtered.map(({ report: r, clock, serious, completeness, valid }) => (
@@ -232,14 +232,14 @@ const AEIntakeConsole: React.FC<{
               <p className="text-sm font-bold line-clamp-2 mb-2">
                 {r.events.map(e => e.verbatim).filter(Boolean).join('、') || t('ae.console.noEvent')}
               </p>
-              <div className="flex items-center justify-between gap-2 text-[10px] font-black text-slate-500 dark:text-slate-400">
+              <div className="flex items-center justify-between gap-2 text-xs font-black text-slate-500 dark:text-slate-400">
                 <span className="truncate">
                   {r.drugs.filter(d => d.isSuspect).map(d => d.brandName || d.activeIngredient).filter(Boolean).join(', ') || '—'}
                 </span>
                 {clock.dueDate && (
                   <span className={`shrink-0 tabular-nums flex items-center gap-1 ${
-                    clock.overdue ? 'text-rose-600 dark:text-rose-400'
-                      : (clock.daysRemaining ?? 99) <= 5 ? 'text-amber-600 dark:text-amber-400' : ''
+                    clock.overdue ? 'text-rose-700 dark:text-rose-400'
+                      : (clock.daysRemaining ?? 99) <= 5 ? 'text-amber-700 dark:text-amber-400' : ''
                   }`}>
                     <ClockIcon className="w-3.5 h-3.5" />
                     {clock.submitted ? '✓' : `${clock.daysRemaining}${t('ae.console.days')}`}
@@ -259,7 +259,7 @@ const AEIntakeConsole: React.FC<{
       <div className="flex-1 overflow-y-auto">
         <CaseWorkBoard cases={cases} actor={actor} />
         {!selected
-          ? <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400 dark:text-slate-500 p-10">
+          ? <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400 p-10">
               <DocumentTextIcon className="w-12 h-12" />
               <p className="text-sm font-black">{t('ae.console.selectCase')}</p>
             </div>
@@ -289,15 +289,15 @@ const AEIntakeConsole: React.FC<{
             <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-black text-lg">{t('ae.console.ciomsTitle')}</h3>
-                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1 mt-0.5">
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1 mt-0.5">
                   <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.console.ciomsNotice')}
                 </p>
               </div>
-              <button onClick={() => setCiomsText(null)} className="w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center">
+              <button onClick={() => setCiomsText(null)} className="w-11 h-11 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center">
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
-            <pre className="flex-1 overflow-auto p-5 text-[11px] leading-relaxed font-mono whitespace-pre-wrap">{ciomsText}</pre>
+            <pre className="flex-1 overflow-auto p-5 text-xs leading-relaxed font-mono whitespace-pre-wrap">{ciomsText}</pre>
             <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex gap-2">
               <button onClick={() => { navigator.clipboard?.writeText(ciomsText); setCopied(true); setTimeout(() => setCopied(false), 1600); }}
                 className="flex-1 min-h-[44px] rounded-2xl bg-indigo-600 text-white text-sm font-black flex items-center justify-center gap-2">
@@ -398,7 +398,7 @@ const CaseDetail: React.FC<{
               <Badge tone="indigo">🌐 {t('ae.console.foreignCase')}：{countryText(report, lang)}</Badge>
             )}
           </div>
-          <p className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-1">
             {t('ae.console.receivedFrom')}: {report.reporterName || '—'}
             {report.reporterTerritory ? `｜${report.reporterTerritory}` : ''}
           </p>
@@ -413,7 +413,7 @@ const CaseDetail: React.FC<{
             <DocumentDuplicateIcon className="w-4 h-4" />{t('ae.console.createFollowUp')}
           </button>
           <button onClick={onDelete} title={t('ae.console.deleteCase')}
-            className="w-11 h-11 rounded-2xl border-2 border-rose-300 dark:border-rose-500/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+            className="w-11 h-11 rounded-2xl border-2 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400 flex items-center justify-center">
             <TrashIcon className="w-4 h-4" />
           </button>
         </div>
@@ -427,25 +427,25 @@ const CaseDetail: React.FC<{
       }`}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('ae.console.day0')}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('ae.console.day0')}</p>
             <p className="text-lg font-black tabular-nums">{clock.day0 || '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('ae.console.due')}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('ae.console.due')}</p>
             <p className="text-lg font-black tabular-nums">{clock.dueDate || t('ae.console.psurOnly')}</p>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('ae.console.daysLeft')}</p>
-            <p className={`text-lg font-black tabular-nums ${clock.overdue ? 'text-rose-600 dark:text-rose-400' : ''}`}>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('ae.console.daysLeft')}</p>
+            <p className={`text-lg font-black tabular-nums ${clock.overdue ? 'text-rose-700 dark:text-rose-400' : ''}`}>
               {clock.submitted ? t('ae.console.submitted') : clock.daysRemaining === null ? '—' : `${clock.daysRemaining} ${t('ae.console.days')}`}
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{t('ae.review.completeness')}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('ae.review.completeness')}</p>
             <p className="text-lg font-black tabular-nums">{completeness}%</p>
           </div>
         </div>
-        <p className="text-[11px] font-bold mt-3 text-slate-600 dark:text-slate-300">
+        <p className="text-xs font-bold mt-3 text-slate-600 dark:text-slate-300">
           {t(`ae.console.basis.${clock.basis}`).replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
         </p>
       </div>
@@ -482,7 +482,7 @@ const CaseDetail: React.FC<{
                 }`}>{report.hasSignificantNewInfo ? '✓' : ''}</span>
                 {t('ae.console.significantNewInfo')}
               </button>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 {t('ae.console.significantNewInfoHint').replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
               </p>
             </>
@@ -490,7 +490,7 @@ const CaseDetail: React.FC<{
 
           {followUps.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 {t('ae.console.childFollowUps')}（{followUps.length}）
               </p>
               {followUps.map(f => {
@@ -530,7 +530,7 @@ const CaseDetail: React.FC<{
           ))}
         </div>
         {blockers.length > 0 && (
-          <div className="text-[11px] font-bold text-rose-700 dark:text-rose-300 space-y-1">
+          <div className="text-xs font-bold text-rose-700 dark:text-rose-300 space-y-1">
             {blockers.map((b, i) => <p key={i}>• {t(`ae.issue.${b.code}`)}{b.detail ? `（${b.detail}）` : ''}</p>)}
           </div>
         )}
@@ -574,12 +574,12 @@ const CaseDetail: React.FC<{
                 <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30">
                   <div className="min-w-0">
                     <p className="text-xs font-black">{d.caseNumber}</p>
-                    <p className="text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                    <p className="text-xs font-bold text-amber-800 dark:text-amber-300">
                       {t('ae.console.similarity')} {d.score}%｜{d.reasons.map(r => t(`ae.console.dupReason.${r}`)).join('、')}
                     </p>
                   </div>
                   <button onClick={() => patchTriage({ duplicateOfId: report.triage.duplicateOfId === d.id ? '' : d.id }, 'mark_duplicate', d.caseNumber)}
-                    className={`shrink-0 min-h-[36px] px-3 rounded-xl text-[11px] font-black border-2 ${
+                    className={`shrink-0 min-h-[36px] px-3 rounded-xl text-xs font-black border-2 ${
                       report.triage.duplicateOfId === d.id ? 'bg-rose-600 text-white border-rose-600' : 'border-amber-400 text-amber-800 dark:text-amber-300'
                     }`}>
                     {report.triage.duplicateOfId === d.id ? t('ae.console.markedDuplicate') : t('ae.console.markDuplicate')}
@@ -608,7 +608,7 @@ const CaseDetail: React.FC<{
             onChange={v => patchTriage({ seriousnessOverride: v as any }, 'seriousness_override', v || 'auto')} />
         </Field>
         {seriousness.overridden && (
-          <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+          <p className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
             <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.console.overrideWarning')}
           </p>
         )}
@@ -668,7 +668,7 @@ const CaseDetail: React.FC<{
           ? <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">✓ {t('ae.console.noGaps')}</p>
           : <div className="space-y-1.5">
               {gaps.map((g, i) => (
-                <p key={i} className="text-[11px] font-bold px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-amber-900 dark:text-amber-200">
+                <p key={i} className="text-xs font-bold px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-amber-900 dark:text-amber-200">
                   • {t(`ae.issue.${g.code}`)}{g.detail ? `（${g.detail}）` : ''}
                 </p>
               ))}
@@ -696,7 +696,7 @@ const CaseDetail: React.FC<{
           </button>
         </div>
         {report.triage.followUpRequestedAt && (
-          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
             {t('ae.console.followUpRequestedAt')}: {report.triage.followUpRequestedAt.slice(0, 16).replace('T', ' ')}
           </p>
         )}
@@ -759,7 +759,7 @@ const CaseDetail: React.FC<{
         <div className="flex flex-wrap gap-1.5 pt-1">
           {AE_CASE_STATUS_FLOW.map(s => (
             <button key={s} onClick={() => onUpdate(r => ({ ...r, status: s }), { action: 'status', detail: s })}
-              className={`min-h-[36px] px-3 rounded-xl text-[10px] font-black border-2 ${
+              className={`min-h-[36px] px-3 rounded-xl text-xs font-black border-2 ${
                 report.status === s ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400'
               }`}>
               {t(`ae.status.${s}`)}
@@ -773,7 +773,7 @@ const CaseDetail: React.FC<{
         <h3 className="text-sm font-black tracking-tight">{t('ae.console.caseContent')}</h3>
         <div className="grid md:grid-cols-2 gap-x-6">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{t('ae.step.patient')}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">{t('ae.step.patient')}</p>
             <KV k={t('ae.f.patientInitials')} v={report.patientInitials} />
             <KV k={t('ae.f.patientSex')} v={optionLabel(SEX_OPTIONS, report.patientSex, lang)} />
             <KV k={t('ae.f.patientAge')} v={patientAgeText(report, today, lang)} />
@@ -783,7 +783,7 @@ const CaseDetail: React.FC<{
             <KV k={t('ae.f.allergies')} v={report.allergies} />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{t('ae.step.reporter')}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">{t('ae.step.reporter')}</p>
             <KV k={t('ae.f.reportSource')} v={optionLabel(REPORT_SOURCE_OPTIONS, report.reportSource, lang)} />
             <KV k={t('ae.f.primaryReporterName')} v={report.primaryReporterName} />
             <KV k={t('ae.f.primaryReporterOrg')} v={report.primaryReporterOrg} />
@@ -794,7 +794,7 @@ const CaseDetail: React.FC<{
         </div>
 
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{t('ae.drug.suspect')}</p>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">{t('ae.drug.suspect')}</p>
           {suspects.map(d => (
             <div key={d.id} className="mb-2">
               <KV k={t('ae.f.brandName')} v={`${d.brandName}${d.activeIngredient ? `（${d.activeIngredient}）` : ''}`} />
@@ -812,7 +812,7 @@ const CaseDetail: React.FC<{
         </div>
 
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{t('ae.f.narrative')}</p>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">{t('ae.f.narrative')}</p>
           <p className="text-xs leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl">
             {report.narrative || autoNarrative(report, today)}
           </p>
@@ -820,14 +820,14 @@ const CaseDetail: React.FC<{
 
         {report.attachments.length > 0 && (
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{t('ae.f.attachments')}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">{t('ae.f.attachments')}</p>
             <div className="flex gap-2 flex-wrap">
               {report.attachments.map(a => (
                 <a key={a.id} href={attachmentSrc(a)} target="_blank" rel="noreferrer"
                   className="w-24 h-24 rounded-xl overflow-hidden border-2 border-slate-300 dark:border-slate-600 block">
                   {a.mime.startsWith('image/')
                     ? <img src={attachmentSrc(a)} alt={a.name} className="w-full h-full object-cover" />
-                    : <span className="w-full h-full flex items-center justify-center text-[10px] font-black p-1 text-center break-all">{a.name}</span>}
+                    : <span className="w-full h-full flex items-center justify-center text-xs font-black p-1 text-center break-all">{a.name}</span>}
                 </a>
               ))}
             </div>
@@ -839,7 +839,7 @@ const CaseDetail: React.FC<{
           {showE2b ? t('ae.console.hideE2b') : t('ae.console.showE2b')}
         </button>
         {showE2b && (
-          <div className="text-[11px] font-mono space-y-0.5 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl max-h-72 overflow-y-auto">
+          <div className="text-xs font-mono space-y-0.5 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl max-h-72 overflow-y-auto">
             {Object.entries(aeToE2B(report, today)).map(([k, v]) => (
               <div key={k} className="flex gap-2">
                 <span className="text-indigo-600 dark:text-indigo-400 shrink-0">{k}</span>
@@ -857,8 +857,8 @@ const CaseDetail: React.FC<{
           ? <p className="text-xs text-slate-500 dark:text-slate-400">—</p>
           : <div className="space-y-1.5">
               {[...report.auditTrail].reverse().map((a, i) => (
-                <div key={i} className="text-[11px] font-mono flex gap-2 border-b border-slate-200/60 dark:border-slate-700/60 pb-1.5 last:border-0">
-                  <span className="text-slate-400 shrink-0">{a.at.slice(0, 16).replace('T', ' ')}</span>
+                <div key={i} className="text-xs font-mono flex gap-2 border-b border-slate-200/60 dark:border-slate-700/60 pb-1.5 last:border-0">
+                  <span className="text-slate-500 dark:text-slate-400 shrink-0">{a.at.slice(0, 16).replace('T', ' ')}</span>
                   <span className="font-black text-indigo-600 dark:text-indigo-400 shrink-0">{a.actor}</span>
                   <span className="break-words min-w-0">{a.action}{a.detail ? `：${a.detail}` : ''}</span>
                 </div>

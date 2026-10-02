@@ -3,3 +3,41 @@
 @tailwind utilities;
 
 body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+
+/* 鍵盤焦點：全站一致、可見的外框（WCAG 2.4.7）。
+   只在鍵盤操作（:focus-visible）時顯示，滑鼠/觸控點擊不會出現。
+   輸入框另有 focus:border 變色，外框與之並存。 */
+:focus-visible {
+  outline: 2px solid #4338ca; /* indigo-700 */
+  outline-offset: 2px;
+}
+.dark :focus-visible {
+  outline-color: #a5b4fc; /* indigo-300，深色底 ≥ 4.5:1 */
+}
+/* 輸入框不要被 overflow 容器裁掉外框 */
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline-offset: 1px;
+}
+
+/* 低動態偏好：關閉持續性動畫與過渡 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* iOS/WebKit 的原生日期/月份輸入框自帶 min-width（約 119px）與 inline-flex，
+   會讓它在窄卡片內超出容器（min-w-0 / w-full 無效）。關閉原生外觀後尺寸才受版面控制；
+   點擊仍會開啟系統日期選擇器。 */
+input[type="date"], input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+}
+input[type="date"]::-webkit-date-and-time-value, input[type="month"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.5em;
+}

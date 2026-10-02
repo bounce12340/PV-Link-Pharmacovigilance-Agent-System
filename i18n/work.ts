@@ -1,5 +1,5 @@
 export const workZh = {
- 'work.title': '個案工作狀態、日期工作台與站內提醒', 'work.note': '僅供 PV 內部作業；工作狀態與工作到期日均與法規個案狀態／法規到期日分開。不寄信、不建立追蹤通報。',
+ 'work.title': '工作台', 'work.subtitle': '個案工作狀態、日期工作台與站內提醒', 'work.note': '僅供 PV 內部作業；工作狀態與工作到期日均與法規個案狀態／法規到期日分開。不寄信、不建立追蹤通報。',
  'work.today': '今日', 'work.week': '本週', 'work.overdue': '逾期', 'work.timezone': '產品工作時區', 'work.timezoneValue': 'Asia/Taipei', 'work.refreshOnly': '僅於開啟／重新整理工作台時更新到期提醒；非背景推播或排程。',
  'work.notifications': '站內提醒', 'work.markRead': '標示為已讀', 'work.read': '已讀', 'work.dueNotice': '有一項內部工作已到期或逾期。', 'work.assignedNotice': '有一項內部工作已分派給您。',
  'work.status': '內部工作狀態', 'work.statusSeparate': '此狀態不會變更法規個案狀態、Day 0 或送件流程。', 'work.status.todo': '待辦', 'work.status.in-progress': '進行中', 'work.status.waiting': '等待中', 'work.status.completed': '已完成', 'work.status.cancelled': '已取消', 'work.cancelReason': '取消原因（必填，最多 500 字）',
@@ -7,7 +7,7 @@ export const workZh = {
  'work.error': '無法載入或儲存。請確認連線、PV 權限及 schema；您的編輯尚未儲存。', 'work.conflict': '其他人已修改。您的編輯仍保留，請先複製需要保留的內容，再重新載入最新版後重填。', 'work.invalid': '請檢查狀態轉移、取消原因、日期、長度及負責人。', 'work.audit': '伺服器稽核（本機試用為裝置時間）', 'work.dirty': '有未儲存編輯，請先儲存或放棄編輯。', 'work.empty': '沒有符合的未完成工作', 'work.demo': '本機試用：同一瀏覽器保存，無正式身分或安全隔離；不提供跨使用者提醒，請勿輸入真實個資。'
 };
 export const workEn: Record<keyof typeof workZh, string> = {
- 'work.title': 'Work status, date workbench & in-app reminders', 'work.note': 'PV internal only. Work status and internal due dates are separate from regulatory case status and deadlines. No emails or follow-up cases are created.',
+ 'work.title': 'Workbench', 'work.subtitle': 'Work status, date workbench & in-app reminders', 'work.note': 'PV internal only. Work status and internal due dates are separate from regulatory case status and deadlines. No emails or follow-up cases are created.',
  'work.today': 'Today', 'work.week': 'This week', 'work.overdue': 'Overdue', 'work.timezone': 'Product work timezone', 'work.timezoneValue': 'Asia/Taipei', 'work.refreshOnly': 'Due reminders refresh only when this workbench is opened/refreshed; this is not background push or scheduling.',
  'work.notifications': 'In-app reminders', 'work.markRead': 'Mark read', 'work.read': 'Read', 'work.dueNotice': 'An internal work item is due or overdue.', 'work.assignedNotice': 'An internal work item has been assigned to you.',
  'work.status': 'Internal work status', 'work.statusSeparate': 'This status does not change regulatory case status, Day 0, or submission workflow.', 'work.status.todo': 'To do', 'work.status.in-progress': 'In progress', 'work.status.waiting': 'Waiting', 'work.status.completed': 'Completed', 'work.status.cancelled': 'Cancelled', 'work.cancelReason': 'Cancellation reason (required, max 500 characters)',

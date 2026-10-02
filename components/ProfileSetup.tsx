@@ -67,7 +67,7 @@ const ProfileSetup: React.FC<{
         <div className="px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.profile.title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400 truncate">
               {email || t('ae.profile.localMode')}
             </p>
           </div>
@@ -77,7 +77,7 @@ const ProfileSetup: React.FC<{
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
             <button onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
-              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-[11px] font-black">
+              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-xs font-black">
               {lang === 'zh' ? 'EN' : '中'}
             </button>
           </div>
@@ -97,8 +97,8 @@ const ProfileSetup: React.FC<{
             <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.profile.required')}
             </p>
-            {missingName && <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300 pl-5">• {t('ae.f.reporterName')}</p>}
-            {missingPhone && <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300 pl-5">• {t('ae.f.reporterPhone')}</p>}
+            {missingName && <p className="text-xs font-bold text-rose-700 dark:text-rose-300 pl-5">• {t('ae.f.reporterName')}</p>}
+            {missingPhone && <p className="text-xs font-bold text-rose-700 dark:text-rose-300 pl-5">• {t('ae.f.reporterPhone')}</p>}
           </div>
         )}
 
@@ -136,7 +136,7 @@ const ProfileSetup: React.FC<{
           </Field>
         </Card>
 
-        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
           {t('ae.profile.identityNote')}
         </p>
       </div>
