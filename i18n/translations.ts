@@ -284,6 +284,7 @@ const zh = {
   'ae.submit.queued': '目前無法連線，已存入待補送佇列，恢復網路後會自動送出',
   'ae.submit.unconfirmed': '未確認已保存在此裝置；請勿關閉或重新整理，請再試一次送出。',
   'ae.submit.draftClearFailed': '已保存送出副本，但無法清除原草稿；請勿關閉或重新整理。',
+  'ae.submit.conflict': '版本衝突：草稿已保留並停止重送，請重新載入後處理；尚未送達。',
   'ae.submit.newReport': '再通報一件',
 
   // AE 檢核訊息
@@ -703,6 +704,7 @@ const en: Record<TransKey, string> = {
   'ae.submit.queued': 'No connection — queued locally and will be sent automatically once you are back online',
   'ae.submit.unconfirmed': 'Not confirmed saved on this device. Do not close or refresh; please try submitting again.',
   'ae.submit.draftClearFailed': 'A submission copy was saved, but the original draft could not be cleared. Do not close or refresh.',
+  'ae.submit.conflict': 'Version conflict: not delivered. Your draft has been kept and automatic resending has stopped. Reload the page to resolve it.',
   'ae.submit.newReport': 'Report another case',
 
   // AE validation messages

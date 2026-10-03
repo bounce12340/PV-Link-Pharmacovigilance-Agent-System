@@ -1079,7 +1079,7 @@ const DoneScreen: React.FC<{ done: { caseNumber: string; channel: string }; onNe
       <div role="status" className="text-center space-y-2">
         <h2 ref={headingRef} tabIndex={-1} className="text-2xl font-black tracking-tight">{t('ae.done.title')}</h2>
         <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
-          {conflicted ? '版本衝突：草稿已保留並停止重送，請重新載入後處理；尚未送達。' : queued ? t('ae.submit.queued') : hasRemoteEndpoint() ? t('ae.submit.okRemote') : t('ae.submit.okLocal')}
+          {conflicted ? t('ae.submit.conflict') : queued ? t('ae.submit.queued') : hasRemoteEndpoint() ? t('ae.submit.okRemote') : t('ae.submit.okLocal')}
         </p>
         <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 tracking-widest">
           {t('ae.done.caseNo')}: {done.caseNumber}
