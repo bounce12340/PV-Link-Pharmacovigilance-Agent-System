@@ -34,6 +34,9 @@ export default {
         // 頁面底色。值定義在 index.css 的 CSS 變數，亮暗色由 :root.dark 切換，
         // 元件只寫 bg-canvas，不必每處成對寫 dark: 變體。
         canvas: 'rgb(var(--canvas) / <alpha-value>)',
+        // 次要文字（說明、時間戳、欄位小標）。亮暗色各自已驗過對比，取代成對的
+        // text-slate-500 dark:text-slate-400 等寫法。
+        muted: 'rgb(var(--muted) / <alpha-value>)',
       },
     },
   },

@@ -281,7 +281,7 @@ const AEReportMobile: React.FC<{
         <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.mobile.title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted">
               {t('ae.mobile.subtitle')}
             </p>
           </div>
@@ -308,7 +308,7 @@ const AEReportMobile: React.FC<{
             <span className="text-[11px] font-black text-brand-700 dark:text-brand-300">
               {step + 1}/{STEP_KEYS.length}　{t(STEP_KEYS[step] as any)}
             </span>
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <span className="text-[10px] font-black text-muted flex items-center gap-1">
               {draftState === 'saving' ? t('ae.draft.saving') : draftState === 'saved' ? `✓ ${t('ae.draft.saved')}` : ''}
             </span>
           </div>
@@ -386,7 +386,7 @@ const AEReportMobile: React.FC<{
             </button>
           ) : (
             <button onClick={submit} disabled={submitting} aria-busy={submitting}
-              className="flex-1 min-h-[52px] rounded-2xl bg-success-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-success-700 disabled:opacity-60">
+              className="flex-1 min-h-[52px] rounded-2xl bg-success-700 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-success-800 disabled:opacity-60">
               {submitting
                 ? <><ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.nav.submitting')}</>
                 : <><PaperAirplaneIcon className="w-5 h-5" />{t('ae.nav.submit')}</>}
@@ -413,7 +413,7 @@ const SectionCard: React.FC<{ title: string; children: React.ReactNode; note?: s
   <Card className="p-5 space-y-4">
     <div>
       <h2 className="text-sm font-black tracking-tight">{title}</h2>
-      {note && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{note}</p>}
+      {note && <p className="text-[11px] text-muted mt-1 leading-relaxed">{note}</p>}
     </div>
     {children}
   </Card>
@@ -476,10 +476,10 @@ const ReporterSelfSection: React.FC<{
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-0.5">
           <p className="font-black text-sm truncate">{report.reporterName || '—'}</p>
-          {line2 && <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{line2}</p>}
+          {line2 && <p className="text-[11px] font-bold text-muted truncate">{line2}</p>}
           {line3 && <p className="text-[11px] font-bold text-slate-600 dark:text-slate-300 truncate">{line3}</p>}
           {report.reporterOrg && (
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 truncate">{report.reporterOrg}</p>
+            <p className="text-[11px] font-bold text-muted truncate">{report.reporterOrg}</p>
           )}
         </div>
         {onEditProfile && (
@@ -489,7 +489,7 @@ const ReporterSelfSection: React.FC<{
           </button>
         )}
       </div>
-      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+      <p className="text-[11px] font-bold text-muted leading-relaxed">
         {t('ae.profile.autofillNote')}
       </p>
     </SectionCard>
@@ -558,7 +558,7 @@ const StepReporter: React.FC<StepProps & { hasProfile: boolean; onEditProfile?: 
       <button type="button" onClick={() => patch({ primaryReporterConsentFollowUp: !report.primaryReporterConsentFollowUp })}
         className={`w-full min-h-[48px] px-4 rounded-2xl text-sm font-black border-2 flex items-center gap-3 text-left ${
           report.primaryReporterConsentFollowUp
-            ? 'bg-success-600 text-white border-success-600'
+            ? 'bg-success-700 text-white border-success-700'
             : 'bg-white/70 dark:bg-slate-800/70 border-slate-300 dark:border-slate-600'
         }`}>
         <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
@@ -811,7 +811,7 @@ const StepHistory: React.FC<StepProps & {
     <>
       <SectionCard title={t('ae.section.concomitant')} note={t('ae.section.concomitantNote')}>
         {concomitant.length === 0 && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{t('ae.section.concomitantEmpty')}</p>
+          <p className="text-xs text-muted">{t('ae.section.concomitantEmpty')}</p>
         )}
       </SectionCard>
 
@@ -870,7 +870,7 @@ const StepReview: React.FC<StepProps & {
           <input type="file" accept="image/*,application/pdf" multiple capture="environment"
             className="hidden" onChange={e => { onPickFiles(e.target.files); e.currentTarget.value = ''; }} />
         </label>
-        {attachError && <p className="text-xs font-bold text-danger-600 dark:text-danger-400">{attachError}</p>}
+        {attachError && <p className="text-xs font-bold text-danger-700 dark:text-danger-300">{attachError}</p>}
         {report.attachments.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {report.attachments.map(a => (
@@ -893,8 +893,8 @@ const StepReview: React.FC<StepProps & {
           {criteriaRows.map(c => (
             <div key={c.key} className="flex items-center gap-2 text-sm font-bold">
               {c.ok
-                ? <CheckCircleIcon className="w-5 h-5 text-success-600 dark:text-success-400 shrink-0" />
-                : <ShieldExclamationIcon className="w-5 h-5 text-danger-600 dark:text-danger-400 shrink-0" />}
+                ? <CheckCircleIcon className="w-5 h-5 text-success-700 dark:text-success-300 shrink-0" />
+                : <ShieldExclamationIcon className="w-5 h-5 text-danger-700 dark:text-danger-300 shrink-0" />}
               <span className={c.ok ? '' : 'text-danger-700 dark:text-danger-300'}>{t(c.key)}</span>
             </div>
           ))}
@@ -952,7 +952,7 @@ const StepReview: React.FC<StepProps & {
         </SectionCard>
       )}
 
-      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed px-2 pb-2">
+      <p className="text-[11px] text-muted leading-relaxed px-2 pb-2">
         {t('ae.review.privacy')}
       </p>
     </>
@@ -994,7 +994,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
         <div className="px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.mobile.myReports')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted">
               {t('ae.mobile.myReportsHint')}
             </p>
           </div>
@@ -1008,7 +1008,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         {state === 'loading' && (
-          <p role="status" className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 py-8 justify-center">
+          <p role="status" className="text-sm font-bold text-muted flex items-center gap-2 py-8 justify-center">
             <ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.mobile.myReportsLoading')}
           </p>
         )}
@@ -1022,7 +1022,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
         )}
 
         {state === 'ready' && cases.length === 0 && (
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400 text-center py-10">
+          <p className="text-sm font-bold text-muted text-center py-10">
             {t('ae.mobile.myReportsEmpty')}
           </p>
         )}
@@ -1042,7 +1042,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
               <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {c.events?.map(e => e.verbatim).filter(Boolean).join('、') || '—'}
               </p>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] font-bold text-muted">
                 {drug?.brandName || drug?.activeIngredient || '—'}
                 {c.awarenessDate ? `　·　${t('ae.f.awarenessDate')} ${c.awarenessDate}` : ''}
               </p>
@@ -1051,7 +1051,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
         })}
 
         {state === 'ready' && cases.length > 0 && (
-          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 pt-2 leading-relaxed">
+          <p className="text-[11px] font-bold text-muted pt-2 leading-relaxed">
             {t('ae.mobile.myReportsReadOnly')}
           </p>
         )}
@@ -1073,7 +1073,7 @@ const DoneScreen: React.FC<{ done: { caseNumber: string; channel: string }; onNe
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-6 px-6 bg-canvas text-slate-900 dark:text-slate-100">
-      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued || conflicted ? 'bg-caution-500' : 'bg-success-600'} text-white shadow-xl`}>
+      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued || conflicted ? 'bg-caution-700' : 'bg-success-700'} text-white shadow-xl`}>
         {queued || conflicted ? <CloudArrowUpIcon className="w-10 h-10" /> : <CheckCircleIcon className="w-10 h-10" />}
       </div>
       <div role="status" className="text-center space-y-2">

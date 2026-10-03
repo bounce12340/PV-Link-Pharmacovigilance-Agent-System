@@ -48,8 +48,8 @@ const llm = new PVLLMService();
 // 相關性分數的顏色分級：高(綠) / 中(琥珀) / 低(灰)
 const scoreBadgeClass = (score: number) =>
   score >= 70 ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40'
-  : score >= 40 ? 'bg-caution-100 text-caution-700 border-caution-300 dark:bg-caution-500/20 dark:text-caution-300 dark:border-caution-500/40'
-  : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40';
+  : score >= 40 ? 'bg-caution-100 text-caution-800 border-caution-300 dark:bg-caution-500/20 dark:text-caution-300 dark:border-caution-500/40'
+  : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40';
 
 // CSV 欄位轉義：以雙引號包覆並加倍內部引號；前導 = + - @ 加單引號，防 Excel 公式注入
 const csvCell = (v: any) => {
@@ -521,11 +521,12 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-900 dark:text-slate-100 relative overflow-hidden">
       {/* 水彩背景層 */}
+      {/* 背景光暈只用 brand 與 slate：danger、caution 是資訊色，鋪在內容後面當氛圍會讓人以為有事。 */}
       <div className="fixed inset-0 -z-10 bg-canvas">
          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-brand-200/40 dark:bg-brand-500/20 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_8s_infinite]" />
-         <div className="absolute top-[20%] right-[-10%] w-[60%] h-[60%] bg-danger-200/40 dark:bg-danger-500/15 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_10s_infinite_2s]" />
-         <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-teal-200/40 dark:bg-teal-500/15 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_12s_infinite_4s]" />
-         <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-caution-100/60 dark:bg-caution-500/10 rounded-full blur-[80px] mix-blend-multiply dark:mix-blend-screen" />
+         <div className="absolute top-[20%] right-[-10%] w-[60%] h-[60%] bg-brand-100/50 dark:bg-brand-400/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_10s_infinite_2s]" />
+         <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-slate-200/50 dark:bg-slate-500/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-[pulse_12s_infinite_4s]" />
+         <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-brand-50/60 dark:bg-brand-300/10 rounded-full blur-[80px] mix-blend-multiply dark:mix-blend-screen" />
       </div>
 
       <div className="bg-slate-900/80 backdrop-blur-md text-brand-200/80 text-[10px] px-4 md:px-6 py-1.5 flex justify-between font-mono tracking-widest border-b border-white/5">
@@ -538,7 +539,7 @@ const App: React.FC = () => {
           <div className="bg-brand-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" /></div>
           <div className="min-w-0">
             <h1 className="text-lg md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight truncate">PV-Link Auditor</h1>
-            <p className="hidden sm:flex text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest items-center gap-2">{t('header.subtitle')}</p>
+            <p className="hidden sm:flex text-[10px] text-muted font-black uppercase tracking-widest items-center gap-2">{t('header.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
@@ -570,23 +571,23 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* 側欄：桌面為直向導覽；手機收成可橫向捲動的頁籤列，避免佔掉半個螢幕 */}
         <aside className="md:w-72 shrink-0 bg-white/30 dark:bg-white/5 backdrop-blur-2xl border-b md:border-b-0 md:border-r border-white/40 dark:border-white/10 flex md:flex-col gap-2 md:gap-0 md:space-y-2 p-3 md:p-6 overflow-x-auto md:overflow-x-visible shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
-          <button onClick={() => setActiveTab('input')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'input' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('input')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'input' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-muted hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <AdjustmentsHorizontalIcon className="w-5 h-5" /> {t('nav.input')}
           </button>
-          <button onClick={() => setActiveTab('review')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'review' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('review')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'review' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-muted hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <ClipboardDocumentCheckIcon className="w-5 h-5" /> {t('nav.review')} ({records.length})
           </button>
-          <button onClick={() => setActiveTab('database')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'database' ? 'bg-success-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('database')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'database' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-muted hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <CircleStackIcon className="w-5 h-5" /> {t('nav.database')} ({masterDatabase.length})
           </button>
-          <button onClick={() => setActiveTab('signals')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'signals' ? 'bg-danger-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('signals')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'signals' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-muted hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <ChartBarIcon className="w-5 h-5" /> {t('nav.signals')} ({signalReport.groups.length})
           </button>
           {/* 通報收案：業務端手機送進來的自發性個案 */}
-          <button onClick={() => setActiveTab('intake')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'intake' ? 'bg-caution-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-slate-500 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
+          <button onClick={() => setActiveTab('intake')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'intake' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-muted hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <InboxIcon className="w-5 h-5" /> {t('nav.intake')} ({aeCases.length})
           </button>
-          <button onClick={() => setActiveTab('logs')} className="shrink-0 md:mt-auto md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 whitespace-nowrap">
+          <button onClick={() => setActiveTab('logs')} className="shrink-0 md:mt-auto md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] text-[10px] font-black uppercase text-muted whitespace-nowrap">
             <FingerPrintIcon className="w-4 h-4" /> {t('nav.logs')}
           </button>
         </aside>
@@ -635,20 +636,20 @@ const App: React.FC = () => {
                     <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 dark:bg-white/10 backdrop-blur-xl border-b border-white/50 dark:border-white/10 flex items-center gap-3">
                       <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest whitespace-nowrap">{t('review.thresholdLabel')} {minScore}</span>
                       <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="flex-1 accent-brand-600" />
-                      <span className="text-[10px] font-black text-slate-400 whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
+                      <span className="text-[10px] font-black text-muted whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
                     </div>
                   )}
                   {records.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">{t('review.empty')}</p></div>
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-muted"><InboxIcon className="w-16 h-16" /><p className="font-black mt-4">{t('review.empty')}</p></div>
                   ) : visibleReviewRecords.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">{t('review.noneAboveThreshold')}</p></div>
+                    <div className="h-full flex flex-col items-center justify-center opacity-40 text-muted"><FunnelIcon className="w-12 h-12" /><p className="font-black mt-4 text-sm">{t('review.noneAboveThreshold')}</p></div>
                   ) : visibleReviewRecords.map(r => (
                     <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-brand-600 dark:border-brand-400 bg-white/90 dark:bg-slate-800/90 shadow-xl' : 'border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-white/[0.07] hover:bg-white/60 dark:hover:bg-white/10 hover:border-brand-300 dark:hover:border-brand-500'}`}>
                        <div className="flex justify-between items-center mb-2">
                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason || t('review.reasonComplete')}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
-                         <span className="text-[10px] font-black text-slate-500 dark:text-slate-400">PMID:{r.pmid}</span>
+                         <span className="text-[10px] font-black text-muted">PMID:{r.pmid}</span>
                        </div>
-                       <div className="text-[10px] font-black text-brand-600 dark:text-brand-400 mb-1">{r.dp}</div>
+                       <div className="text-[10px] font-black text-brand-600 dark:text-brand-300 mb-1">{r.dp}</div>
                        <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight line-clamp-2">{r.title}</h3>
                     </div>
                   ))}
@@ -666,11 +667,11 @@ const App: React.FC = () => {
 
                       <div className="space-y-4">
                         {/* 強化版結論卡片 */}
-                        <div className="relative group bg-gradient-to-br from-caution-50/90 to-orange-50/80 dark:from-caution-500/10 dark:to-orange-500/10 backdrop-blur-md text-caution-900 dark:text-caution-100 p-8 rounded-[2rem] border-2 border-caution-200/60 dark:border-caution-500/20 shadow-lg transition-all hover:shadow-xl hover:border-caution-300/80 dark:hover:border-caution-500/40">
+                        <div className="relative group bg-gradient-to-br from-caution-50/90 to-caution-100/60 dark:from-caution-500/10 dark:to-caution-500/5 backdrop-blur-md text-caution-900 dark:text-caution-100 p-8 rounded-[2rem] border-2 border-caution-200/60 dark:border-caution-500/20 shadow-lg transition-all hover:shadow-xl hover:border-caution-300/80 dark:hover:border-caution-500/40">
                            <div className="flex justify-between items-start mb-4">
-                               <div className="flex items-center gap-2 text-xs font-black text-caution-700 dark:text-caution-300 uppercase tracking-widest">
+                               <div className="flex items-center gap-2 text-xs font-black text-caution-800 dark:text-caution-300 uppercase tracking-widest">
                                  <div className="p-1.5 bg-caution-200/50 dark:bg-caution-500/20 rounded-lg">
-                                    <LightBulbIcon className="w-5 h-5 text-caution-700 dark:text-caution-300" />
+                                    <LightBulbIcon className="w-5 h-5 text-caution-800 dark:text-caution-300" />
                                  </div>
                                  {t('review.conclusion')}
                                </div>
@@ -679,8 +680,8 @@ const App: React.FC = () => {
                                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-[10px] font-bold text-caution-800 dark:text-caution-200 transition-all border border-caution-100 dark:border-caution-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
                                  title={t('review.copyConclusionTitle')}
                                >
-                                 {copiedConclusion ? <CheckIcon className="w-4 h-4 text-success-600 dark:text-success-400" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
-                                 {copiedConclusion ? <span className="text-success-600 dark:text-success-400">{t('common.copied')}</span> : t('common.copy')}
+                                 {copiedConclusion ? <CheckIcon className="w-4 h-4 text-success-700 dark:text-success-300" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
+                                 {copiedConclusion ? <span className="text-success-700 dark:text-success-300">{t('common.copied')}</span> : t('common.copy')}
                                </button>
                            </div>
                            <p className="text-lg font-bold leading-relaxed text-slate-800 dark:text-slate-100 drop-shadow-sm selection:bg-caution-200/50">
@@ -689,7 +690,7 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md text-brand-950 dark:text-brand-100 p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
-                           <div className="text-[10px] font-black text-brand-500 dark:text-brand-300 mb-3 tracking-widest uppercase">{t('review.summary')}</div>
+                           <div className="text-[10px] font-black text-brand-600 dark:text-brand-300 mb-3 tracking-widest uppercase">{t('review.summary')}</div>
                            <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{selectedRecord.summary_zh || t('review.summaryPending')}</p>
                         </div>
                       </div>
@@ -697,10 +698,10 @@ const App: React.FC = () => {
                       {/* 結構化 PV 數據抽取結果 */}
                       <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="text-[10px] font-black text-brand-500 dark:text-brand-300 tracking-widest uppercase">{t('review.structured')}</div>
+                          <div className="text-[10px] font-black text-brand-600 dark:text-brand-300 tracking-widest uppercase">{t('review.structured')}</div>
                           <div className="flex items-center gap-2">
                             {selectedRecord.pv_data?.completeness && (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-caution-100 text-caution-700 border-caution-300 dark:bg-caution-500/20 dark:text-caution-300 dark:border-caution-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-caution-100 text-caution-800 border-caution-300 dark:bg-caution-500/20 dark:text-caution-300 dark:border-caution-500/40' : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
                             )}
                             <button
                               onClick={() => handleRegenerate(selectedRecord)}
@@ -713,7 +714,7 @@ const App: React.FC = () => {
                           </div>
                         </div>
                         {extractingSet.has(selectedRecord.id) && !selectedRecord.pv_data ? (
-                          <p className="text-sm text-slate-400 font-bold italic">{t('review.extracting')}</p>
+                          <p className="text-sm text-muted font-bold italic">{t('review.extracting')}</p>
                         ) : selectedRecord.pv_data ? (
                           <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                             {[
@@ -730,13 +731,13 @@ const App: React.FC = () => {
                               [t('review.fieldOutcome'), selectedRecord.pv_data.outcome],
                             ].map(([label, value]) => (
                               <div key={label} className="space-y-1">
-                                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">{label}</div>
-                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 break-words">{value || <span className="text-slate-300 dark:text-slate-600">—</span>}</div>
+                                <div className="text-[9px] font-black text-muted uppercase tracking-wider">{label}</div>
+                                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 break-words">{value || <span className="text-muted">—</span>}</div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-slate-400 font-bold italic">{t('review.selectToExtract')}</p>
+                          <p className="text-sm text-muted font-bold italic">{t('review.selectToExtract')}</p>
                         )}
                       </div>
 
@@ -750,7 +751,7 @@ const App: React.FC = () => {
                           <DocumentTextIcon className="w-5 h-5" /> {t('review.generateCioms')}
                         </button>
                         {!masterDatabase.some(m => m.pmid === selectedRecord.pmid) && (
-                          <button onClick={() => handleImport(selectedRecord)} className="flex-1 bg-success-600/90 backdrop-blur-sm text-white py-5 rounded-[2rem] font-black text-sm shadow-xl active:scale-95 transition-all hover:bg-success-700/90 border border-white/20">
+                          <button onClick={() => handleImport(selectedRecord)} className="flex-1 bg-success-700 backdrop-blur-sm text-white py-5 rounded-[2rem] font-black text-sm shadow-xl active:scale-95 transition-all hover:bg-success-800 border border-white/20">
                             {t('review.import')}
                           </button>
                         )}
@@ -768,7 +769,7 @@ const App: React.FC = () => {
                <div className="flex justify-between items-start mb-8">
                   <div>
                     <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('db.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">{t('db.totalLabel')}: {masterDatabase.length} | {t('db.filteredLabel')}: {filteredDatabase.length}</p>
+                    <p className="text-muted text-xs font-black uppercase mt-1">{t('db.totalLabel')}: {masterDatabase.length} | {t('db.filteredLabel')}: {filteredDatabase.length}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-brand-100/80 dark:bg-brand-500/20 backdrop-blur-sm text-brand-900 dark:text-brand-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-brand-200 dark:hover:bg-brand-500/30 disabled:opacity-50 transition-all border border-brand-300/50 dark:border-brand-500/30 shadow-sm">
@@ -786,51 +787,51 @@ const App: React.FC = () => {
 
                <div className="bg-white/60 dark:bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 dark:border-white/10 shadow-lg mb-6 flex flex-wrap gap-4 items-end">
                   <div className="flex-1 min-w-[300px] relative">
-                    <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                     <input type="text" placeholder={t('db.searchPlaceholder')} value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                   </div>
                   <div className="flex items-center gap-3">
-                    <FunnelIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
+                    <FunnelIcon className="w-5 h-5 text-muted" />
                     <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
-                    <span className="text-slate-400">~</span>
+                    <span className="text-muted">~</span>
                     <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
                   </div>
-                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-300 font-black text-[10px] uppercase p-2">{t('db.clear')}</button>
+                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-muted hover:text-brand-600 dark:hover:text-brand-300 font-black text-[10px] uppercase p-2">{t('db.clear')}</button>
                </div>
 
                <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  <table className="w-full">
                    <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                      <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colId')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colDetail')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('db.colPublication')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-right">{t('db.colActions')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-left">{t('db.colId')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-left">{t('db.colDetail')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-left">{t('db.colPublication')}</th>
+                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-right">{t('db.colActions')}</th>
                      </tr>
                    </thead>
                    <tbody>
                      {filteredDatabase.length === 0 ? (
-                       <tr><td colSpan={4} className="py-20 text-center text-slate-400 font-black italic">{t('db.empty')}</td></tr>
+                       <tr><td colSpan={4} className="py-20 text-center text-muted font-black italic">{t('db.empty')}</td></tr>
                      ) : filteredDatabase.map(r => (
                        <tr key={r.id} className="border-b border-slate-200/60 dark:border-slate-700/60 hover:bg-white/60 dark:hover:bg-white/10 cursor-pointer group transition-colors" onClick={() => { setSelectedRecordId(r.id); setActiveTab('review'); }}>
-                         <td className="px-8 py-8 font-mono text-xs font-bold text-slate-400">{r.pmid}</td>
+                         <td className="px-8 py-8 font-mono text-xs font-bold text-muted">{r.pmid}</td>
                          <td className="px-8 py-8 max-w-lg">
                            <div className="font-black text-slate-800 dark:text-slate-100 line-clamp-2">{r.title}</div>
                            <div className="flex gap-2 mt-2">
                              <span className="bg-brand-100/60 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.tagLabel')}: {r.original_search_term}</span>
                              {r.pv_data?.ingredient && r.pv_data.ingredient !== r.original_search_term && (
-                               <span className="bg-caution-100/60 dark:bg-caution-500/20 text-caution-700 dark:text-caution-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
+                               <span className="bg-caution-100/60 dark:bg-caution-500/20 text-caution-800 dark:text-caution-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
                              )}
                            </div>
                          </td>
                          <td className="px-8 py-8">
-                           <div className="font-bold text-slate-400 text-xs italic">{r.journal}</div>
-                           <div className="text-[10px] font-mono text-brand-400 font-black mt-1">{r.dp}</div>
+                           <div className="font-bold text-muted text-xs italic">{r.journal}</div>
+                           <div className="text-[10px] font-mono text-brand-600 dark:text-brand-300 font-black mt-1">{r.dp}</div>
                          </td>
                          <td className="px-8 py-8 text-right">
                            <button
                              onClick={(e) => handleDeleteFromDB(e, r.id)}
-                             className="text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-500/10 p-2 rounded-full transition-all"
+                             className="text-muted hover:text-danger-700 dark:hover:text-danger-400 hover:bg-danger-50 dark:hover:bg-danger-500/10 p-2 rounded-full transition-all"
                              title={t('db.removeTitle')}
                            >
                              <TrashIcon className="w-5 h-5" />
@@ -849,7 +850,7 @@ const App: React.FC = () => {
                <div className="flex justify-between items-start mb-8">
                   <div>
                     <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('signals.title')}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-black uppercase mt-1">
+                    <p className="text-muted text-xs font-black uppercase mt-1">
                       {t('signals.groupByLabel')} | {t('signals.analysedLabel')} {signalReport.analysedRecords} {t('common.unitRecords')} | {t('signals.skippedLabel')} {signalReport.skipped} {t('common.unitRecords')}
                     </p>
                   </div>
@@ -867,7 +868,7 @@ const App: React.FC = () => {
 
                <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  {signalReport.groups.length === 0 ? (
-                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-slate-500 dark:text-slate-400 py-20">
+                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-muted py-20">
                      <ChartBarIcon className="w-16 h-16" />
                      <p className="font-black mt-4">{t('signals.empty')}</p>
                      <p className="text-xs font-bold mt-1">{t('signals.emptyHint')}</p>
@@ -876,12 +877,12 @@ const App: React.FC = () => {
                    <table className="w-full">
                      <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                        <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colIngredient')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">MedDRA PT</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">{t('signals.colSoc')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colCount')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-center">{t('signals.colSerious')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase text-left">PMIDs</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">{t('signals.colIngredient')}</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">MedDRA PT</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">{t('signals.colSoc')}</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-center">{t('signals.colCount')}</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-center">{t('signals.colSerious')}</th>
+                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">PMIDs</th>
                        </tr>
                      </thead>
                      <tbody>
@@ -892,12 +893,12 @@ const App: React.FC = () => {
                              <td className="px-6 py-5 font-black text-slate-800 dark:text-slate-100 text-sm">{g.ingredient}</td>
                              <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                {g.pt}
-                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
+                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
                              </td>
-                             <td className="px-6 py-5 text-xs font-bold text-slate-500 dark:text-slate-400 italic">{g.soc}</td>
+                             <td className="px-6 py-5 text-xs font-bold text-muted italic">{g.soc}</td>
                              <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-danger-200 text-danger-800 dark:bg-danger-500/30 dark:text-danger-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>{g.count}</span></td>
-                             <td className="px-6 py-5 text-center font-black text-danger-600 dark:text-danger-400">{g.seriousCount || '—'}</td>
-                             <td className="px-6 py-5 text-[10px] font-mono text-brand-400 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
+                             <td className="px-6 py-5 text-center font-black text-danger-700 dark:text-danger-300">{g.seriousCount || '—'}</td>
+                             <td className="px-6 py-5 text-[10px] font-mono text-brand-600 dark:text-brand-300 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
                            </tr>
                          );
                        })}
@@ -935,10 +936,10 @@ const App: React.FC = () => {
                 <div className="p-2 bg-slate-800 rounded-xl text-white"><DocumentTextIcon className="w-5 h-5" /></div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t('review.ciomsModalTitle')}</h3>
-                  <p className="text-[10px] font-black text-caution-600 dark:text-caution-400 uppercase tracking-widest">{t('review.ciomsAiNotice')}</p>
+                  <p className="text-[10px] font-black text-caution-800 dark:text-caution-300 uppercase tracking-widest">{t('review.ciomsAiNotice')}</p>
                 </div>
               </div>
-              <button onClick={() => setCiomsText(null)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>
+              <button onClick={() => setCiomsText(null)} className="text-muted hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>
             </div>
             <pre className="flex-1 overflow-auto px-8 py-6 text-xs font-mono text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">{ciomsText}</pre>
             <div className="flex gap-3 px-8 py-5 border-t border-slate-200 dark:border-slate-700">

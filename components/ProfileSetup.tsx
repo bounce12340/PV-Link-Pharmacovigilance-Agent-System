@@ -67,7 +67,7 @@ const ProfileSetup: React.FC<{
         <div className="px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.profile.title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted truncate">
               {email || t('ae.profile.localMode')}
             </p>
           </div>
@@ -86,7 +86,7 @@ const ProfileSetup: React.FC<{
 
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-32 space-y-4">
         <Card className="p-4 flex gap-3 items-start">
-          <UserCircleIcon className="w-8 h-8 shrink-0 text-brand-600 dark:text-brand-400" />
+          <UserCircleIcon className="w-8 h-8 shrink-0 text-brand-600 dark:text-brand-300" />
           <p className="text-xs font-bold leading-relaxed text-slate-700 dark:text-slate-300">
             {t('ae.profile.intro')}
           </p>
@@ -136,7 +136,7 @@ const ProfileSetup: React.FC<{
           </Field>
         </Card>
 
-        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+        <p className="text-[11px] font-bold text-muted leading-relaxed">
           {t('ae.profile.identityNote')}
         </p>
       </div>

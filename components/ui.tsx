@@ -66,16 +66,16 @@ export const Field: React.FC<{
               而言它是唯一的必填提示（group 沒有 aria-required 可用）。 */}
           <label id={labelId} className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide">
             {label}
-            {required && <span className="text-danger-600 dark:text-danger-400 ml-1">*</span>}
+            {required && <span className="text-danger-700 dark:text-danger-300 ml-1">*</span>}
           </label>
           {tag && (
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-widest text-muted shrink-0">
               {tag}
             </span>
           )}
         </div>
         {children}
-        {hint && <p id={hintId} className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">{hint}</p>}
+        {hint && <p id={hintId} className="text-[11px] text-muted leading-relaxed">{hint}</p>}
       </div>
     </FieldContext.Provider>
   );

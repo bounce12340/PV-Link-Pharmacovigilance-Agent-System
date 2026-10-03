@@ -116,7 +116,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
       </summary>
 
       <div className="px-4 pb-4 space-y-4">
-        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{t('work.note')}</p>
+        <p className="text-xs text-muted leading-relaxed">{t('work.note')}</p>
         {!remote && (
           <p className="text-xs font-bold leading-relaxed px-3 py-2 rounded-xl border bg-caution-50 text-caution-900 border-caution-300 dark:bg-caution-500/10 dark:text-caution-200 dark:border-caution-500/40">
             {t('work.demo')}
@@ -144,7 +144,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
         </div>
 
         {board && (
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted">
             <div className="flex gap-1.5"><dt>{t('work.timezone')}</dt><dd className="font-bold text-slate-700 dark:text-slate-200">{board.timezone}</dd></div>
             <div className="flex gap-1.5"><dt>{t(SCOPE_KEY[scope])}</dt><dd className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{board.from} – {board.to}</dd></div>
             {scope !== 'week' && <div className="flex gap-1.5"><dt>{t('work.week')}</dt><dd className="tabular-nums">{board.weekStart} – {board.weekEnd}</dd></div>}
@@ -152,14 +152,14 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
         )}
 
         {!loaded
-          ? <p role="status" className="text-sm text-slate-500 dark:text-slate-400 py-4">{t('work.loading')}</p>
+          ? <p role="status" className="text-sm text-muted py-4">{t('work.loading')}</p>
           : displayed.length === 0
-            ? <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">{t('work.empty')}</p>
+            ? <p className="text-sm text-muted py-6 text-center">{t('work.empty')}</p>
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b-2 border-slate-200 dark:border-slate-700">
+                    <tr className="text-left text-xs text-muted border-b-2 border-slate-200 dark:border-slate-700">
                       <th scope="col" className="py-2 pr-4 font-bold">{t('ae.done.caseNo')}</th>
                       <th scope="col" className="py-2 pr-4 font-bold">{t('work.status')}</th>
                       <th scope="col" className="py-2 pr-4 font-bold">{t('work.owner')}</th>
@@ -182,13 +182,13 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
                           <td className="py-2.5 pr-4"><Badge tone={statusTone(w.status)}>{statusLabel(w.status)}</Badge></td>
                           {/* 未分派是待處理狀態，不是可忽略的灰字。slate-500 在白底 4.7:1，但在選取列的 brand-50 上只剩 4.3:1，
                               未過 WCAG 1.4.3，所以用 slate-600。 */}
-                          <td className={`py-2.5 pr-4 ${w.assignee ? 'text-slate-700 dark:text-slate-200' : 'text-slate-600 dark:text-slate-400'}`}>
+                          <td className={`py-2.5 pr-4 ${w.assignee ? 'text-slate-700 dark:text-slate-200' : 'text-muted'}`}>
                             {w.assignee || t('work.unassigned')}
                           </td>
                           <td className="py-2.5 tabular-nums whitespace-nowrap">
                             {w.workDueDate
                               ? <span className={w.overdue ? 'font-bold text-caution-800 dark:text-caution-300' : 'text-slate-700 dark:text-slate-200'}>{w.workDueDate}</span>
-                              : <span className="text-slate-600 dark:text-slate-400">—</span>}
+                              : <span className="text-muted">—</span>}
                             {w.overdue && <span className="ml-2"><Badge tone="caution">{t('work.overdue')}</Badge></span>}
                           </td>
                         </tr>
@@ -210,11 +210,11 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
                 <button type="button" className={btnGhost} disabled={busy || !unread} onClick={markRead}>{t('work.markRead')}</button>
               )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{t('work.refreshOnly')}</p>
+            <p className="text-xs text-muted">{t('work.refreshOnly')}</p>
             {notifications.length > 0 && (
               <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {notifications.slice(0, 10).map(n => (
-                  <li key={n.id} className={`flex items-center justify-between gap-3 py-2 text-sm ${n.readAt ? 'text-slate-500 dark:text-slate-400' : 'font-bold text-slate-900 dark:text-slate-100'}`}>
+                  <li key={n.id} className={`flex items-center justify-between gap-3 py-2 text-sm ${n.readAt ? 'text-muted' : 'font-bold text-slate-900 dark:text-slate-100'}`}>
                     <span>{n.kind === 'work_due' ? t('work.dueNotice') : t('work.assignedNotice')}</span>
                     <span className="shrink-0 flex items-center gap-2 text-xs tabular-nums">
                       {formatTaipeiDateTime(n.createdAt)}
@@ -233,10 +233,10 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
               {/* legend 給整個編輯區一個可讀的名稱；float + w-full 讓它脫離 fieldset 邊框、當一般標題排版。 */}
               <legend className="float-left w-full flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-1">
                 <span className="text-base font-black tabular-nums">{openCaseNumber}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">v{draft.version}</span>
+                <span className="text-xs text-muted tabular-nums">v{draft.version}</span>
                 {dirty && <Badge tone="caution">{t('work.unsaved')}</Badge>}
               </legend>
-              <p className="clear-left text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{t('work.statusSeparate')}</p>
+              <p className="clear-left text-xs text-muted leading-relaxed">{t('work.statusSeparate')}</p>
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <Field label={t('work.status')}>
@@ -330,7 +330,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="text-left text-slate-500 dark:text-slate-400 border-b-2 border-slate-200 dark:border-slate-700">
+                      <tr className="text-left text-muted border-b-2 border-slate-200 dark:border-slate-700">
                         <th scope="col" className="py-1.5 pr-4 font-bold">{t('work.auditVersion')}</th>
                         <th scope="col" className="py-1.5 pr-4 font-bold">{t('work.auditAt')} ({t('work.timezoneValue')})</th>
                         <th scope="col" className="py-1.5 pr-4 font-bold">{t('work.auditActor')}</th>
