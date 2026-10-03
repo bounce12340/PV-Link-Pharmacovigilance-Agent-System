@@ -92,6 +92,16 @@ export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement
   return <textarea {...props} {...aria} className={`${inputBase} font-medium leading-relaxed resize-y ${props.className || ''}`} />;
 };
 
+/**
+ * 原生下拉選單。手機表單刻意用 ChipGroup 取代 <select>（見檔頭），但後台是
+ * 桌機作業、選項多（負責人清單），原生 select 比一排 chip 緊湊也更好用。
+ * 共用 inputBase 與 Field 的 aria 關聯，外觀與其他欄位一致。
+ */
+export const SelectInput: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => {
+  const aria = useFieldAria(props);
+  return <select {...props} {...aria} className={`${inputBase} font-bold ${props.className || ''}`} />;
+};
+
 /** 單選 chip 群組。value 為空字串代表未選。 */
 export const ChipGroup: React.FC<{
   options: readonly Option[];
