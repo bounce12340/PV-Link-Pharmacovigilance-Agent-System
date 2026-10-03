@@ -3,6 +3,8 @@ export type Lang = 'zh' | 'en';
 
 const zh = {
   ...workZh,
+  // app
+  'app.loading': '載入中，請稍候',
   // nav
   'nav.input': '檢索設定',
   'nav.review': '待核閱',
@@ -420,6 +422,8 @@ export type TransKey = keyof typeof zh;
 
 const en: Record<TransKey, string> = {
   ...workEn,
+  // app
+  'app.loading': 'Loading, please wait',
   // nav
   'nav.input': 'Search',
   'nav.review': 'Review',

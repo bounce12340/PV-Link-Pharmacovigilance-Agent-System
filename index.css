@@ -3,3 +3,84 @@
 @tailwind utilities;
 
 body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+
+/* ── 鍵盤焦點 ─────────────────────────────────────────────────────────
+   放在全域而不是逐個元件加 focus-visible: utility，理由有兩個：
+     1. 這個 repo 有 68 個表單欄位、CaseWorkBoard 還用原生 ul/button，
+        逐處加等於開 68 個可以忘記的洞；全域規則對新元件自動生效。
+     2. 原本 inputBase 與 App.tsx 的輸入框都寫了 outline-none，焦點只靠
+        border 由 slate-300 變 indigo-600 表示。那是同明度的換色，低視力
+        與色弱使用者看不出差別（WCAG 2.4.11 焦點外觀要求足夠對比與面積）。
+
+   用「兩圈相反明度」而不是單色環：焦點環要出現在白底輸入框、indigo-600
+   實心按鈕、深色底卡片上都看得見，單一顏色做不到——在 indigo 按鈕上畫
+   indigo 環等於隱形。內圈貼著元件、外圈與背景分離，任何底色都有對比。 */
+:root {
+  --fv-inner: #ffffff;
+  --fv-outer: #1e1b4b; /* indigo-950 */
+}
+:root.dark {
+  --fv-inner: #020617; /* slate-950 */
+  --fv-outer: #c7d2fe; /* indigo-200 */
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible,
+[role='button']:focus-visible,
+[role='checkbox']:focus-visible {
+  /* 透明 outline 本身不顯示，但在 Windows 高對比模式下會被系統換成
+     強制色——沒有它，box-shadow 會被整個丟掉，焦點又變成看不見。 */
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  /* !important 是刻意的。Tailwind 的 `focus:shadow-md` 編譯成
+     `.focus\:shadow-md:focus`，特異度 (0,2,0) 高於這裡的 (0,1,1)，
+     不加就會被一個純裝飾的陰影把焦點環蓋掉——而且是只有鍵盤使用者會
+     踩到、滑鼠使用者永遠不會發現的那種壞法。無障礙底線不該讓任何
+     utility class 有機會覆蓋。 */
+  box-shadow: 0 0 0 2px var(--fv-inner), 0 0 0 5px var(--fv-outer) !important;
+}
+
+@media (forced-colors: active) {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible,
+  [role='button']:focus-visible,
+  [role='checkbox']:focus-visible {
+    outline-color: Highlight;
+    box-shadow: none;
+  }
+}
+
+/* ── 減少動態效果 ─────────────────────────────────────────────────────
+   本專案有 39 處 transition-all 與 1 處 animate-pulse，對前庭障礙
+   （vestibular disorder）使用者是會引起不適的非必要動態，一律關掉。
+
+   但 .animate-spin 例外，刻意不關：那 6 處全是「送出中／載入中」的指示器。
+   把它凍住會讓一個靜止的圓圈看起來像畫面當掉，反而誤報狀態——使用者在
+   送出一筆嚴重不良反應時最不需要的就是搞不清楚到底送出了沒有。
+   WCAG 2.3.3 針對的是非必要動態，載入指示器屬於功能性動態。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation-duration: 1.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
