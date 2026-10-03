@@ -16,6 +16,7 @@ import React, { useEffect, useState } from 'react';
 import App from '../App';
 import AEReportMobile from './AEReportMobile';
 import ProfileSetup from './ProfileSetup';
+import { useT } from '../i18n/LangContext';
 import { fetchIdentity, hasRemoteEndpoint } from '../services/aeApi';
 import type { AEIdentity, AEProfile } from '../services/aeApi';
 
@@ -71,11 +72,17 @@ function useIdentity(): [AEIdentity | 'loading', (p: AEProfile) => void] {
   return [identity, applyProfile];
 }
 
-const Splash: React.FC = () => (
-  <div className="min-h-[100dvh] flex items-center justify-center bg-[#f8fafc] dark:bg-[#0b1020]">
-    <div className="w-8 h-8 rounded-full border-[3px] border-indigo-600 border-t-transparent animate-spin" />
-  </div>
-);
+// 這個等待畫面原本只有一個旋轉的圓圈，沒有任何文字：螢幕閱讀器使用者
+// 在身分載入期間聽到的是一片空白，無法分辨「正在載入」與「壞掉了」。
+const Splash: React.FC = () => {
+  const t = useT();
+  return (
+    <div role="status" className="min-h-[100dvh] flex items-center justify-center bg-[#f8fafc] dark:bg-[#0b1020]">
+      <div aria-hidden="true" className="w-8 h-8 rounded-full border-[3px] border-indigo-600 border-t-transparent animate-spin" />
+      <span className="sr-only">{t('app.loading')}</span>
+    </div>
+  );
+};
 
 const Root: React.FC = () => {
   const hash = useHashRoute();

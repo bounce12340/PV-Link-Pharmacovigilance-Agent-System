@@ -338,8 +338,10 @@ const AEReportMobile: React.FC<{
             <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300">{submitError}</p>
           </div>
         )}
+        {/* role=alert：按下一步被攔下時，螢幕閱讀器使用者看不到紅色區塊出現，
+            沒有這個就只知道「頁面沒動」卻不知道為什麼。 */}
         {showErrors && stepErrors(step).length > 0 && (
-          <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
             <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.review.blockers')}
             </p>
@@ -383,7 +385,7 @@ const AEReportMobile: React.FC<{
               {t('ae.nav.next')}<ChevronRightIcon className="w-5 h-5" />
             </button>
           ) : (
-            <button onClick={submit} disabled={submitting}
+            <button onClick={submit} disabled={submitting} aria-busy={submitting}
               className="flex-1 min-h-[52px] rounded-2xl bg-emerald-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-emerald-700 disabled:opacity-60">
               {submitting
                 ? <><ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.nav.submitting')}</>
@@ -1006,13 +1008,13 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         {state === 'loading' && (
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 py-8 justify-center">
+          <p role="status" className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center gap-2 py-8 justify-center">
             <ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.mobile.myReportsLoading')}
           </p>
         )}
 
         {state === 'error' && (
-          <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40">
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40">
             <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.mobile.myReportsError')}
             </p>
@@ -1061,13 +1063,21 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
 const DoneScreen: React.FC<{ done: { caseNumber: string; channel: string }; onNew: () => void; t: (k: any) => string }> = ({ done, onNew, t }) => {
   const queued = done.channel === 'outbox';
   const conflicted = done.channel === 'outbox_conflict';
+
+  // 送出成功時整頁被置換掉，原本有焦點的送出鍵隨之消失，焦點掉回 document.body：
+  // 螢幕閱讀器不會唸任何東西，鍵盤使用者下一次 Tab 得從頁首重新走。把焦點移到
+  // 標題，狀態才會被唸出來，Tab 也從這裡繼續。這是一筆已經開始跑 15 日時鐘的
+  // 通報，使用者必須確定它到底送出了沒有。
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
+  React.useEffect(() => { headingRef.current?.focus(); }, []);
+
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-6 px-6 bg-[#f8fafc] dark:bg-[#0b1020] text-slate-900 dark:text-slate-100">
       <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued || conflicted ? 'bg-amber-500' : 'bg-emerald-600'} text-white shadow-xl`}>
         {queued || conflicted ? <CloudArrowUpIcon className="w-10 h-10" /> : <CheckCircleIcon className="w-10 h-10" />}
       </div>
-      <div className="text-center space-y-2">
-        <h2 className="text-2xl font-black tracking-tight">{t('ae.done.title')}</h2>
+      <div role="status" className="text-center space-y-2">
+        <h2 ref={headingRef} tabIndex={-1} className="text-2xl font-black tracking-tight">{t('ae.done.title')}</h2>
         <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
           {conflicted ? '版本衝突：草稿已保留並停止重送，請重新載入後處理；尚未送達。' : queued ? t('ae.submit.queued') : hasRemoteEndpoint() ? t('ae.submit.okRemote') : t('ae.submit.okLocal')}
         </p>

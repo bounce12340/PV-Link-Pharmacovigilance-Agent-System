@@ -181,7 +181,7 @@ const AEIntakeConsole: React.FC<{
             <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={keyword} onChange={e => setKeyword(e.target.value)}
               placeholder={t('ae.console.searchPlaceholder')}
-              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-bold rounded-2xl bg-white/70 dark:bg-slate-800/70 border-2 border-slate-300 dark:border-slate-600 outline-none focus:border-indigo-600" />
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 text-sm font-bold rounded-2xl bg-white/70 dark:bg-slate-800/70 border-2 border-slate-300 dark:border-slate-600 focus:border-indigo-600" />
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">

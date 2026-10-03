@@ -599,29 +599,29 @@ const App: React.FC = () => {
                   <div className="space-y-6">
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.ingredients')}</label>
-                       <input type="text" placeholder={t('input.ingredientsPlaceholder')} value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <input type="text" placeholder={t('input.ingredientsPlaceholder')} value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                        <div className="space-y-2">
                          <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateFrom')}</label>
-                         <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
+                         <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all shadow-sm" />
                        </div>
                        <div className="space-y-2">
                          <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateTo')}</label>
-                         <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all shadow-sm" />
+                         <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all shadow-sm" />
                        </div>
                     </div>
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.aeTerms')}</label>
-                       <input type="text" placeholder={t('input.aeTermsPlaceholder')} value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <input type="text" placeholder={t('input.aeTermsPlaceholder')} value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.exclusions')}</label>
-                       <input type="text" placeholder={t('input.exclusionsPlaceholder')} value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <input type="text" placeholder={t('input.exclusionsPlaceholder')} value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
                        <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.maxResults')}</label>
-                       <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                       <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                   </div>
                </div>
@@ -787,13 +787,13 @@ const App: React.FC = () => {
                <div className="bg-white/60 dark:bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/60 dark:border-white/10 shadow-lg mb-6 flex flex-wrap gap-4 items-end">
                   <div className="flex-1 min-w-[300px] relative">
                     <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 dark:text-slate-400" />
-                    <input type="text" placeholder={t('db.searchPlaceholder')} value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md transition-all placeholder-slate-400 shadow-sm" />
+                    <input type="text" placeholder={t('db.searchPlaceholder')} value={dbFilter.keyword} onChange={e => setDbFilter({...dbFilter, keyword: e.target.value})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl pl-12 pr-4 py-3 text-sm font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                   </div>
                   <div className="flex items-center gap-3">
                     <FunnelIcon className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
+                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
                     <span className="text-slate-400">~</span>
-                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black outline-none focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 focus:shadow-md shadow-sm" />
+                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
                   </div>
                   <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-black text-[10px] uppercase p-2">{t('db.clear')}</button>
                </div>
