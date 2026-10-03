@@ -122,4 +122,9 @@ describe('global accessibility floor in index.css', () => {
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
     expect(reduced).toMatch(/\.animate-spin\s*\{[^}]*animation-iteration-count:\s*infinite/);
   });
+
+  it('tells the browser about dark mode so native controls are drawn light-on-dark', () => {
+    // 日曆圖示、select 選單是瀏覽器原生繪製，Tailwind 的 dark: class 管不到
+    expect(css).toMatch(/:root\.dark\s*\{\s*color-scheme:\s*dark;?\s*\}/);
+  });
 });

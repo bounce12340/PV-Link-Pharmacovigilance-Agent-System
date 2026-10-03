@@ -4,9 +4,14 @@
 
 body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
 
+/* 暗色主題也要告訴瀏覽器。原生繪製的部分（date 輸入框的日曆圖示、select 展開的
+   選單、捲軸）不吃 Tailwind class，只看 color-scheme；少了這行，暗色下日曆圖示是
+   深色畫在深底上，幾乎看不見。 */
+:root.dark { color-scheme: dark; }
+
 /* ── 鍵盤焦點 ─────────────────────────────────────────────────────────
    放在全域而不是逐個元件加 focus-visible: utility，理由有兩個：
-     1. 這個 repo 有 68 個表單欄位、CaseWorkBoard 還用原生 ul/button，
+     1. 這個 repo 有 68 個表單欄位、CaseWorkBoard 用原生 table/button/select，
         逐處加等於開 68 個可以忘記的洞；全域規則對新元件自動生效。
      2. 原本 inputBase 與 App.tsx 的輸入框都寫了 outline-none，焦點只靠
         border 由 slate-300 變 indigo-600 表示。那是同明度的換色，低視力

@@ -23,6 +23,24 @@ export async function saveCaseWork(id: string, input: WorkInput): Promise<WorkRe
   if (!hasRemoteEndpoint() && work.assignee && work.assignee !== 'local-demo') throw new Error('INVALID_WORK');
   return hasRemoteEndpoint() ? api(`/${encodeURIComponent(id)}/work`, clean) : local(id, clean);
 }
+/**
+ * 把 ISO 時間戳顯示成產品工作時區（Asia/Taipei）的 YYYY-MM-DD HH:mm。
+ *
+ * 工作台的日期範圍、到期判定都以 Asia/Taipei 計算，稽核與提醒的時間若照
+ * ISO 原樣顯示（UTC，帶 Z 與毫秒）就會跟畫面上其他日期差 8 小時，跨午夜時
+ * 連日期都對不上。無法解析時原樣回傳——稽核資料寧可顯示原文，也不能顯示錯的時間。
+ */
+export function formatTaipeiDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return iso;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d);
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+}
+
 export const getWorkbench = (scope: 'today'|'week'|'overdue'): Promise<Workbench> => api(`/workbench?scope=${scope}`);
 export const getNotifications = (): Promise<{notifications: InAppNotification[]}> => api('/notifications');
 export const readNotifications = (ids: string[]) => api('/notifications/read', { ids }, 'POST');
