@@ -64,18 +64,18 @@ export const Field: React.FC<{
           {/* 保留 <label> 元素（視覺樣式不變），關聯方向由控制項的
               aria-labelledby 指回來。星號刻意不加 aria-hidden：對 chip 群組
               而言它是唯一的必填提示（group 沒有 aria-required 可用）。 */}
-          <label id={labelId} className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide">
+          <label id={labelId} className="text-xs font-bold text-slate-700 dark:text-slate-200 tracking-wide">
             {label}
             {required && <span className="text-danger-700 dark:text-danger-300 ml-1">*</span>}
           </label>
           {tag && (
-            <span className="text-[9px] font-black uppercase tracking-widest text-muted shrink-0">
+            <span className="text-xs font-bold text-muted shrink-0">
               {tag}
             </span>
           )}
         </div>
         {children}
-        {hint && <p id={hintId} className="text-[11px] text-muted leading-relaxed">{hint}</p>}
+        {hint && <p id={hintId} className="text-xs text-muted leading-relaxed">{hint}</p>}
       </div>
     </FieldContext.Provider>
   );
@@ -197,5 +197,6 @@ export const Badge: React.FC<{ children: React.ReactNode; tone?: Tone }> = ({ ch
     danger: 'bg-danger-100 text-danger-700 border-danger-300 dark:bg-danger-500/20 dark:text-danger-300 dark:border-danger-500/40',
     brand: 'bg-brand-100 text-brand-700 border-brand-300 dark:bg-brand-500/20 dark:text-brand-300 dark:border-brand-500/40',
   };
-  return <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black border whitespace-nowrap ${map[tone]}`}>{children}</span>;
+  // 12px 是全站字級下限；py-0.5 讓徽章在 12px 下仍與原本 10px 時差不多高，不撐開表格列與卡片標頭
+  return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border whitespace-nowrap ${map[tone]}`}>{children}</span>;
 };

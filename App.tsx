@@ -529,7 +529,7 @@ const App: React.FC = () => {
          <div className="absolute bottom-[20%] right-[30%] w-[40%] h-[40%] bg-brand-50/60 dark:bg-brand-300/10 rounded-full blur-[80px] mix-blend-multiply dark:mix-blend-screen" />
       </div>
 
-      <div className="bg-slate-900/80 backdrop-blur-md text-brand-200/80 text-[10px] px-4 md:px-6 py-1.5 flex justify-between font-mono tracking-widest border-b border-white/5">
+      <div className="bg-slate-900/80 backdrop-blur-md text-brand-200/80 text-xs px-4 md:px-6 py-1.5 flex justify-between font-mono border-b border-white/5">
         <span>PV-AUDITOR // DATA-INTEGRITY-ENABLED</span>
         <span className="hidden sm:inline">SYSTEM_TIME: {now().iso_datetime}</span>
       </div>
@@ -539,14 +539,14 @@ const App: React.FC = () => {
           <div className="bg-brand-600/90 backdrop-blur-sm p-2.5 rounded-2xl text-white shadow-lg"><BeakerIcon className="w-7 h-7" /></div>
           <div className="min-w-0">
             <h1 className="text-lg md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight truncate">PV-Link Auditor</h1>
-            <p className="hidden sm:flex text-[10px] text-muted font-black uppercase tracking-widest items-center gap-2">{t('header.subtitle')}</p>
+            <p className="hidden sm:flex text-xs text-muted font-bold items-center gap-2">{t('header.subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 md:gap-3 shrink-0">
         <button onClick={toggle} title={t('header.themeToggle')} className="p-2.5 rounded-2xl bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-200 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/20 transition-all">
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
-        <div className="flex rounded-2xl overflow-hidden border border-white/40 dark:border-white/10 text-[11px] font-black">
+        <div className="flex rounded-2xl overflow-hidden border border-white/40 dark:border-white/10 text-xs font-bold">
           <button onClick={() => setLang('zh')} className={`px-3 py-2 transition-all ${lang === 'zh' ? 'bg-brand-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>中</button>
           <button onClick={() => setLang('en')} className={`px-3 py-2 transition-all ${lang === 'en' ? 'bg-brand-600/90 text-white' : 'bg-white/40 dark:bg-white/10 text-slate-600 dark:text-slate-300'}`}>EN</button>
         </div>
@@ -560,11 +560,11 @@ const App: React.FC = () => {
       {/* 進度條：AI 分批處理時顯示已完成 / 總數（#2） */}
       {progress && progress.total > 0 && (
         <div className="bg-brand-50/80 dark:bg-brand-950/40 backdrop-blur-md border-b border-brand-100 dark:border-brand-900/40 px-4 md:px-8 py-2.5 flex items-center gap-4 z-20">
-          <span className="text-[11px] font-black text-brand-700 dark:text-brand-300 whitespace-nowrap uppercase tracking-widest">{progress.label}</span>
+          <span className="text-xs font-bold text-brand-700 dark:text-brand-300 whitespace-nowrap">{progress.label}</span>
           <div className="flex-1 h-2.5 bg-brand-100 dark:bg-brand-900/40 rounded-full overflow-hidden">
             <div className="h-full bg-brand-600 transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
           </div>
-          <span className="text-[11px] font-black text-brand-700 dark:text-brand-300 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
+          <span className="text-xs font-bold text-brand-700 dark:text-brand-300 whitespace-nowrap tabular-nums">{progress.done}/{progress.total}</span>
         </div>
       )}
 
@@ -587,7 +587,7 @@ const App: React.FC = () => {
           <button onClick={() => setActiveTab('intake')} className={`shrink-0 md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] rounded-2xl text-xs md:text-sm font-black transition-all border whitespace-nowrap ${activeTab === 'intake' ? 'bg-brand-600/90 backdrop-blur-sm text-white shadow-lg border-transparent' : 'text-muted hover:bg-white/40 dark:hover:bg-white/10 border-transparent'}`}>
             <InboxIcon className="w-5 h-5" /> {t('nav.intake')} ({aeCases.length})
           </button>
-          <button onClick={() => setActiveTab('logs')} className="shrink-0 md:mt-auto md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] text-[10px] font-black uppercase text-muted whitespace-nowrap">
+          <button onClick={() => setActiveTab('logs')} className="shrink-0 md:mt-auto md:w-full flex items-center gap-2 md:gap-4 px-4 md:px-5 py-3 md:py-4 min-h-[44px] text-xs font-bold text-muted whitespace-nowrap">
             <FingerPrintIcon className="w-4 h-4" /> {t('nav.logs')}
           </button>
         </aside>
@@ -599,29 +599,29 @@ const App: React.FC = () => {
                   <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{t('input.title')}</h2>
                   <div className="space-y-6">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.ingredients')}</label>
+                       <label className="text-xs font-bold text-slate-600 dark:text-slate-200 pl-1">{t('input.ingredients')}</label>
                        <input type="text" placeholder={t('input.ingredientsPlaceholder')} value={input.active_ingredients.join(',')} onChange={e => setInput({...input, active_ingredients: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-4 text-lg font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                        <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateFrom')}</label>
+                         <label className="text-xs font-bold text-slate-600 dark:text-slate-200 pl-1">{t('input.dateFrom')}</label>
                          <input type="date" value={input.date_window.from} onChange={e => setInput({...input, date_window: {...input.date_window, from: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all shadow-sm" />
                        </div>
                        <div className="space-y-2">
-                         <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.dateTo')}</label>
+                         <label className="text-xs font-bold text-slate-600 dark:text-slate-200 pl-1">{t('input.dateTo')}</label>
                          <input type="date" value={input.date_window.to} onChange={e => setInput({...input, date_window: {...input.date_window, to: e.target.value}})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-4 py-3 font-black text-sm focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all shadow-sm" />
                        </div>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.aeTerms')}</label>
+                       <label className="text-xs font-bold text-slate-600 dark:text-slate-200 pl-1">{t('input.aeTerms')}</label>
                        <input type="text" placeholder={t('input.aeTermsPlaceholder')} value={input.ae_strings.join(',')} onChange={e => setInput({...input, ae_strings: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.exclusions')}</label>
+                       <label className="text-xs font-bold text-slate-600 dark:text-slate-200 pl-1">{t('input.exclusions')}</label>
                        <input type="text" placeholder={t('input.exclusionsPlaceholder')} value={input.exclusions.join(',')} onChange={e => setInput({...input, exclusions: e.target.value.split(',')})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-bold focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest pl-1">{t('input.maxResults')}</label>
+                       <label className="text-xs font-bold text-slate-600 dark:text-slate-200 pl-1">{t('input.maxResults')}</label>
                        <input type="number" min={10} max={500} step={10} value={input.max_results ?? 100} onChange={e => setInput({...input, max_results: Math.max(10, Math.min(500, Number(e.target.value) || 100))})} className="w-full bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-2xl px-6 py-3 text-sm font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 transition-all placeholder-slate-400 shadow-sm" />
                     </div>
                   </div>
@@ -634,9 +634,9 @@ const App: React.FC = () => {
                <div className="w-[45%] border-r border-white/30 dark:border-white/10 overflow-y-auto p-8 space-y-4 bg-white/10 dark:bg-white/[0.03] backdrop-blur-sm">
                   {records.length > 0 && (
                     <div className="sticky top-0 z-10 -mt-8 -mx-8 px-8 py-4 mb-2 bg-white/60 dark:bg-white/10 backdrop-blur-xl border-b border-white/50 dark:border-white/10 flex items-center gap-3">
-                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-200 uppercase tracking-widest whitespace-nowrap">{t('review.thresholdLabel')} {minScore}</span>
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-200 whitespace-nowrap">{t('review.thresholdLabel')} {minScore}</span>
                       <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => setMinScore(Number(e.target.value))} className="flex-1 accent-brand-600" />
-                      <span className="text-[10px] font-black text-muted whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
+                      <span className="text-xs font-bold text-muted whitespace-nowrap">{visibleReviewRecords.length}/{records.length} {t('common.unitRecords')}</span>
                     </div>
                   )}
                   {records.length === 0 ? (
@@ -646,10 +646,10 @@ const App: React.FC = () => {
                   ) : visibleReviewRecords.map(r => (
                     <div key={r.id} onClick={() => setSelectedRecordId(r.id)} className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all backdrop-blur-md ${selectedRecordId === r.id ? 'border-brand-600 dark:border-brand-400 bg-white/90 dark:bg-slate-800/90 shadow-xl' : 'border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-white/[0.07] hover:bg-white/60 dark:hover:bg-white/10 hover:border-brand-300 dark:hover:border-brand-500'}`}>
                        <div className="flex justify-between items-center mb-2">
-                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason || t('review.reasonComplete')}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
-                         <span className="text-[10px] font-black text-muted">PMID:{r.pmid}</span>
+                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${scoreBadgeClass(r.relevance_score || 0)}`} title={r.relevance_reason || t('review.reasonComplete')}>{t('review.threshold')} {r.relevance_score ?? '—'}</span>
+                         <span className="text-xs font-bold text-muted">PMID:{r.pmid}</span>
                        </div>
-                       <div className="text-[10px] font-black text-brand-600 dark:text-brand-300 mb-1">{r.dp}</div>
+                       <div className="text-xs font-bold text-brand-600 dark:text-brand-300 mb-1">{r.dp}</div>
                        <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight line-clamp-2">{r.title}</h3>
                     </div>
                   ))}
@@ -658,9 +658,9 @@ const App: React.FC = () => {
                  {selectedRecord ? (
                    <div className="max-w-xl mx-auto space-y-8">
                       <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300 text-[10px] font-black tracking-widest uppercase"><SparklesIcon className="w-4 h-4" /> {t('review.auditDetail')}</div>
+                        <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300 text-xs font-bold"><SparklesIcon className="w-4 h-4" /> {t('review.auditDetail')}</div>
                         <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 leading-snug">{selectedRecord.title}</h2>
-                        <button onClick={() => window.open(selectedRecord.primary_link, '_blank')} className="flex items-center gap-2 bg-slate-900/90 text-white px-6 py-3 rounded-2xl font-black text-[11px] shadow-lg hover:bg-slate-800 transition-all">
+                        <button onClick={() => window.open(selectedRecord.primary_link, '_blank')} className="flex items-center gap-2 bg-slate-900/90 text-white px-6 py-3 rounded-2xl font-bold text-xs shadow-lg hover:bg-slate-800 transition-all">
                           <ArrowTopRightOnSquareIcon className="w-4 h-4" /> {t('review.officialLink')}
                         </button>
                       </div>
@@ -669,7 +669,7 @@ const App: React.FC = () => {
                         {/* 強化版結論卡片 */}
                         <div className="relative group bg-gradient-to-br from-caution-50/90 to-caution-100/60 dark:from-caution-500/10 dark:to-caution-500/5 backdrop-blur-md text-caution-900 dark:text-caution-100 p-8 rounded-[2rem] border-2 border-caution-200/60 dark:border-caution-500/20 shadow-lg transition-all hover:shadow-xl hover:border-caution-300/80 dark:hover:border-caution-500/40">
                            <div className="flex justify-between items-start mb-4">
-                               <div className="flex items-center gap-2 text-xs font-black text-caution-800 dark:text-caution-300 uppercase tracking-widest">
+                               <div className="flex items-center gap-2 text-xs font-bold text-caution-800 dark:text-caution-300">
                                  <div className="p-1.5 bg-caution-200/50 dark:bg-caution-500/20 rounded-lg">
                                     <LightBulbIcon className="w-5 h-5 text-caution-800 dark:text-caution-300" />
                                  </div>
@@ -677,7 +677,7 @@ const App: React.FC = () => {
                                </div>
                                <button
                                  onClick={() => handleCopyConclusion(selectedRecord.conclusion_zh)}
-                                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-[10px] font-bold text-caution-800 dark:text-caution-200 transition-all border border-caution-100 dark:border-caution-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
+                                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 text-xs font-bold text-caution-800 dark:text-caution-200 transition-all border border-caution-100 dark:border-caution-500/20 shadow-sm active:scale-95 group-hover:bg-white dark:group-hover:bg-white/20"
                                  title={t('review.copyConclusionTitle')}
                                >
                                  {copiedConclusion ? <CheckIcon className="w-4 h-4 text-success-700 dark:text-success-300" /> : <ClipboardDocumentIcon className="w-4 h-4" />}
@@ -690,7 +690,7 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md text-brand-950 dark:text-brand-100 p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
-                           <div className="text-[10px] font-black text-brand-600 dark:text-brand-300 mb-3 tracking-widest uppercase">{t('review.summary')}</div>
+                           <div className="text-xs font-bold text-brand-600 dark:text-brand-300 mb-3">{t('review.summary')}</div>
                            <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-slate-200">{selectedRecord.summary_zh || t('review.summaryPending')}</p>
                         </div>
                       </div>
@@ -698,15 +698,15 @@ const App: React.FC = () => {
                       {/* 結構化 PV 數據抽取結果 */}
                       <div className="bg-white/60 dark:bg-white/10 backdrop-blur-md p-8 rounded-[2rem] border border-white/80 dark:border-white/15 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="text-[10px] font-black text-brand-600 dark:text-brand-300 tracking-widest uppercase">{t('review.structured')}</div>
+                          <div className="text-xs font-bold text-brand-600 dark:text-brand-300">{t('review.structured')}</div>
                           <div className="flex items-center gap-2">
                             {selectedRecord.pv_data?.completeness && (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-caution-100 text-caution-800 border-caution-300 dark:bg-caution-500/20 dark:text-caution-300 dark:border-caution-500/40' : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${selectedRecord.pv_data.completeness === 'Complete' ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : selectedRecord.pv_data.completeness === 'Partial' ? 'bg-caution-100 text-caution-800 border-caution-300 dark:bg-caution-500/20 dark:text-caution-300 dark:border-caution-500/40' : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40'}`}>{selectedRecord.pv_data.completeness}</span>
                             )}
                             <button
                               onClick={() => handleRegenerate(selectedRecord)}
                               disabled={regeneratingSet.has(selectedRecord.id)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-100/80 dark:bg-brand-500/20 hover:bg-brand-200 dark:hover:bg-brand-500/30 disabled:opacity-50 text-[10px] font-black text-brand-800 dark:text-brand-200 transition-all border border-brand-300/50 dark:border-brand-500/30 shadow-sm active:scale-95"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-100/80 dark:bg-brand-500/20 hover:bg-brand-200 dark:hover:bg-brand-500/30 disabled:opacity-50 text-xs font-bold text-brand-800 dark:text-brand-200 transition-all border border-brand-300/50 dark:border-brand-500/30 shadow-sm active:scale-95"
                             >
                               <ArrowPathIcon className={`w-3.5 h-3.5 ${regeneratingSet.has(selectedRecord.id) ? 'animate-spin' : ''}`} />
                               {t('review.regenerate')}
@@ -731,7 +731,7 @@ const App: React.FC = () => {
                               [t('review.fieldOutcome'), selectedRecord.pv_data.outcome],
                             ].map(([label, value]) => (
                               <div key={label} className="space-y-1">
-                                <div className="text-[9px] font-black text-muted uppercase tracking-wider">{label}</div>
+                                <div className="text-xs font-bold text-muted">{label}</div>
                                 <div className="text-sm font-bold text-slate-700 dark:text-slate-200 break-words">{value || <span className="text-muted">—</span>}</div>
                               </div>
                             ))}
@@ -769,7 +769,7 @@ const App: React.FC = () => {
                <div className="flex justify-between items-start mb-8">
                   <div>
                     <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('db.title')}</h2>
-                    <p className="text-muted text-xs font-black uppercase mt-1">{t('db.totalLabel')}: {masterDatabase.length} | {t('db.filteredLabel')}: {filteredDatabase.length}</p>
+                    <p className="text-muted text-xs font-bold mt-1">{t('db.totalLabel')}: {masterDatabase.length} | {t('db.filteredLabel')}: {filteredDatabase.length}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={runBatchExtract} disabled={!!batchExtractInfo} className="bg-brand-100/80 dark:bg-brand-500/20 backdrop-blur-sm text-brand-900 dark:text-brand-200 px-5 py-3 rounded-2xl text-sm font-black flex items-center gap-2 hover:bg-brand-200 dark:hover:bg-brand-500/30 disabled:opacity-50 transition-all border border-brand-300/50 dark:border-brand-500/30 shadow-sm">
@@ -792,21 +792,21 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3">
                     <FunnelIcon className="w-5 h-5 text-muted" />
-                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
+                    <input type="date" value={dbFilter.from} onChange={e => setDbFilter({...dbFilter, from: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-bold focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
                     <span className="text-muted">~</span>
-                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-black focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
+                    <input type="date" value={dbFilter.to} onChange={e => setDbFilter({...dbFilter, to: e.target.value})} className="bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-xs font-bold focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 shadow-sm" />
                   </div>
-                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-muted hover:text-brand-600 dark:hover:text-brand-300 font-black text-[10px] uppercase p-2">{t('db.clear')}</button>
+                  <button onClick={() => setDbFilter({ keyword: '', from: '', to: '' })} className="text-muted hover:text-brand-600 dark:hover:text-brand-300 font-bold text-xs p-2">{t('db.clear')}</button>
                </div>
 
                <div className="bg-white/40 dark:bg-white/5 backdrop-blur-2xl rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-xl flex-1 overflow-auto">
                  <table className="w-full">
                    <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                      <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-left">{t('db.colId')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-left">{t('db.colDetail')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-left">{t('db.colPublication')}</th>
-                       <th className="px-8 py-6 text-[10px] font-black text-muted uppercase text-right">{t('db.colActions')}</th>
+                       <th className="px-8 py-6 text-xs font-bold text-muted whitespace-nowrap text-left">{t('db.colId')}</th>
+                       <th className="px-8 py-6 text-xs font-bold text-muted whitespace-nowrap text-left">{t('db.colDetail')}</th>
+                       <th className="px-8 py-6 text-xs font-bold text-muted whitespace-nowrap text-left">{t('db.colPublication')}</th>
+                       <th className="px-8 py-6 text-xs font-bold text-muted whitespace-nowrap text-right">{t('db.colActions')}</th>
                      </tr>
                    </thead>
                    <tbody>
@@ -818,15 +818,15 @@ const App: React.FC = () => {
                          <td className="px-8 py-8 max-w-lg">
                            <div className="font-black text-slate-800 dark:text-slate-100 line-clamp-2">{r.title}</div>
                            <div className="flex gap-2 mt-2">
-                             <span className="bg-brand-100/60 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.tagLabel')}: {r.original_search_term}</span>
+                             <span className="bg-brand-100/60 dark:bg-brand-500/20 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded text-xs font-bold">{t('db.tagLabel')}: {r.original_search_term}</span>
                              {r.pv_data?.ingredient && r.pv_data.ingredient !== r.original_search_term && (
-                               <span className="bg-caution-100/60 dark:bg-caution-500/20 text-caution-800 dark:text-caution-300 px-2 py-0.5 rounded text-[8px] font-black uppercase">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
+                               <span className="bg-caution-100/60 dark:bg-caution-500/20 text-caution-800 dark:text-caution-300 px-2 py-0.5 rounded text-xs font-bold">{t('db.aiIdentifiedLabel')}: {r.pv_data.ingredient}</span>
                              )}
                            </div>
                          </td>
                          <td className="px-8 py-8">
                            <div className="font-bold text-muted text-xs italic">{r.journal}</div>
-                           <div className="text-[10px] font-mono text-brand-600 dark:text-brand-300 font-black mt-1">{r.dp}</div>
+                           <div className="text-xs font-mono text-brand-600 dark:text-brand-300 font-bold mt-1">{r.dp}</div>
                          </td>
                          <td className="px-8 py-8 text-right">
                            <button
@@ -850,18 +850,18 @@ const App: React.FC = () => {
                <div className="flex justify-between items-start mb-8">
                   <div>
                     <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 drop-shadow-sm">{t('signals.title')}</h2>
-                    <p className="text-muted text-xs font-black uppercase mt-1">
+                    <p className="text-muted text-xs font-bold mt-1">
                       {t('signals.groupByLabel')} | {t('signals.analysedLabel')} {signalReport.analysedRecords} {t('common.unitRecords')} | {t('signals.skippedLabel')} {signalReport.skipped} {t('common.unitRecords')}
                     </p>
                   </div>
                   {signalReport.skipped > 0 && (
-                    <button onClick={() => { setActiveTab('database'); }} className="bg-caution-100/80 dark:bg-caution-500/20 text-caution-900 dark:text-caution-200 px-5 py-3 rounded-2xl text-xs font-black flex items-center gap-2 hover:bg-caution-200 dark:hover:bg-caution-500/30 transition-all border border-caution-300/50 dark:border-caution-500/30 shadow-sm">
+                    <button onClick={() => { setActiveTab('database'); }} className="bg-caution-100/80 dark:bg-caution-500/20 text-caution-900 dark:text-caution-200 px-5 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 hover:bg-caution-200 dark:hover:bg-caution-500/30 transition-all border border-caution-300/50 dark:border-caution-500/30 shadow-sm">
                       <ExclamationTriangleIcon className="w-5 h-5" /> {signalReport.skipped} {t('signals.skippedSuffix')}
                     </button>
                   )}
                </div>
 
-               <div className="bg-danger-50/60 dark:bg-danger-500/10 border border-danger-200/60 dark:border-danger-500/20 rounded-2xl px-6 py-3 mb-6 text-[11px] font-bold text-danger-800/80 dark:text-danger-300 flex items-center gap-2">
+               <div className="bg-danger-50/60 dark:bg-danger-500/10 border border-danger-200/60 dark:border-danger-500/20 rounded-2xl px-6 py-3 mb-6 text-xs font-bold text-danger-800/80 dark:text-danger-300 flex items-center gap-2">
                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
                  {t('signals.disclaimer')}
                </div>
@@ -877,12 +877,12 @@ const App: React.FC = () => {
                    <table className="w-full">
                      <thead className="bg-white/30 dark:bg-white/5 backdrop-blur-md sticky top-0 z-10">
                        <tr className="border-b border-slate-200/50 dark:border-slate-700/50">
-                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">{t('signals.colIngredient')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">MedDRA PT</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">{t('signals.colSoc')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-center">{t('signals.colCount')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-center">{t('signals.colSerious')}</th>
-                         <th className="px-6 py-5 text-[10px] font-black text-muted uppercase text-left">PMIDs</th>
+                         <th className="px-6 py-5 text-xs font-bold text-muted whitespace-nowrap text-left">{t('signals.colIngredient')}</th>
+                         <th className="px-6 py-5 text-xs font-bold text-muted whitespace-nowrap text-left">MedDRA PT</th>
+                         <th className="px-6 py-5 text-xs font-bold text-muted whitespace-nowrap text-left">{t('signals.colSoc')}</th>
+                         <th className="px-6 py-5 text-xs font-bold text-muted whitespace-nowrap text-center">{t('signals.colCount')}</th>
+                         <th className="px-6 py-5 text-xs font-bold text-muted whitespace-nowrap text-center">{t('signals.colSerious')}</th>
+                         <th className="px-6 py-5 text-xs font-bold text-muted whitespace-nowrap text-left">PMIDs</th>
                        </tr>
                      </thead>
                      <tbody>
@@ -893,12 +893,12 @@ const App: React.FC = () => {
                              <td className="px-6 py-5 font-black text-slate-800 dark:text-slate-100 text-sm">{g.ingredient}</td>
                              <td className="px-6 py-5 text-sm font-bold text-slate-700 dark:text-slate-200">
                                {g.pt}
-                               <span className={`ml-2 text-[8px] font-black px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
+                               <span className={`ml-2 text-xs font-bold px-1.5 py-0.5 rounded-full border ${g.matched ? 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40' : 'bg-slate-100 text-muted border-slate-300 dark:bg-slate-500/20 dark:border-slate-500/40'}`}>{g.matched ? t('common.dictVerified') : t('common.aiInferred')}</span>
                              </td>
                              <td className="px-6 py-5 text-xs font-bold text-muted italic">{g.soc}</td>
                              <td className="px-6 py-5 text-center"><span className={`text-sm font-black px-3 py-1 rounded-full ${flagged ? 'bg-danger-200 text-danger-800 dark:bg-danger-500/30 dark:text-danger-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>{g.count}</span></td>
                              <td className="px-6 py-5 text-center font-black text-danger-700 dark:text-danger-300">{g.seriousCount || '—'}</td>
-                             <td className="px-6 py-5 text-[10px] font-mono text-brand-600 dark:text-brand-300 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
+                             <td className="px-6 py-5 text-xs font-mono text-brand-600 dark:text-brand-300 max-w-xs truncate" title={g.pmids.join(', ')}>{g.pmids.join(', ') || '—'}</td>
                            </tr>
                          );
                        })}
@@ -920,7 +920,7 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'logs' && (
-            <div className="flex-1 p-12 bg-slate-950/85 backdrop-blur-xl font-mono text-[11px] text-brand-200/70 overflow-y-auto">
+            <div className="flex-1 p-12 bg-slate-950/85 backdrop-blur-xl font-mono text-xs text-brand-200/70 overflow-y-auto">
                {logs.map((l, i) => <div key={i} className="mb-1 border-b border-white/5 pb-1 last:border-0">{l}</div>)}
             </div>
           )}
@@ -936,7 +936,7 @@ const App: React.FC = () => {
                 <div className="p-2 bg-slate-800 rounded-xl text-white"><DocumentTextIcon className="w-5 h-5" /></div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t('review.ciomsModalTitle')}</h3>
-                  <p className="text-[10px] font-black text-caution-800 dark:text-caution-300 uppercase tracking-widest">{t('review.ciomsAiNotice')}</p>
+                  <p className="text-xs font-bold text-caution-800 dark:text-caution-300">{t('review.ciomsAiNotice')}</p>
                 </div>
               </div>
               <button onClick={() => setCiomsText(null)} className="text-muted hover:text-slate-700 dark:hover:text-slate-200 p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><XMarkIcon className="w-6 h-6" /></button>

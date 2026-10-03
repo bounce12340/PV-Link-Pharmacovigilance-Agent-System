@@ -89,3 +89,37 @@ describe('colour tokens', () => {
     expect(read('index.html')).toMatch(/<body class="[^"]*\bbg-canvas\b/);
   });
 });
+
+describe('type tokens', () => {
+  it('never sets text below 12px', () => {
+    // 修正前有 98 處 8–11px：藥安人員整天看的畫面，CIOMS 欄號標籤只有 9px
+    const tiny = offenders(/text-\[(?:\d|1[01])(?:\.\d+)?px\]|text-\[0?\.(?:[0-6]\d*|7[0-4]\d*)rem\]/);
+    expect(tiny).toEqual([]);
+  });
+
+  it('does not decorate labels with all-caps or wide tracking', () => {
+    // uppercase 對中文完全沒作用，實際得到的只是「極小字 + 超寬字距」；英文介面則把
+    // 翻譯檔裡的 "Day 0" 硬轉成 "DAY 0"。字距加寬對中文只會更難讀。
+    expect(offenders(/(?<![\w:-])(?:uppercase|tracking-widest|tracking-wider)(?![\w-])/)).toEqual([]);
+  });
+
+  it('caps 12px text at bold', () => {
+    // 載入的系統中文字型沒有 900 字重，瀏覽器只能合成；12px 下合成粗體會糊成一團
+    const bad: string[] = [];
+    for (const { f, s } of sources) {
+      for (const m of s.matchAll(/(['"`])((?:(?!\1)[^\n])*)\1/g)) {
+        const t = m[2].split(/\s+/);
+        if (t.includes('text-xs') && t.includes('font-black') && !t.some(x => /^(?:sm|md|lg|xl):text-/.test(x))) bad.push(`${f}: ${m[2].slice(0, 80)}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it('uses system fonts with Traditional Chinese faces listed explicitly, and loads no web fonts', () => {
+    const config = read('tailwind.config.js');
+    expect(config).toMatch(/sans:\s*\[[^\]]*"PingFang TC"[^\]]*"Microsoft JhengHei"[^\]]*\]/);
+    // 網路字型從未被使用（三個根元素都套 font-sans），卻是阻塞渲染的外部請求
+    expect(read('index.html')).not.toMatch(/fonts\.googleapis|fonts\.gstatic/);
+    expect(css).not.toMatch(/font-family:\s*['"]?Inter/);
+  });
+});

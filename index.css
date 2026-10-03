@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+/* 字型由 Tailwind preflight 依 tailwind.config.js 的 fontFamily.sans 套在 html 上，這裡不另設。 */
 
 /* 暗色主題也要告訴瀏覽器。原生繪製的部分（date 輸入框的日曆圖示、select 展開的
    選單、捲軸）不吃 Tailwind class，只看 color-scheme；少了這行，暗色下日曆圖示是
