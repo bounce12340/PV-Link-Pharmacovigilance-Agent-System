@@ -7,10 +7,10 @@
 //   • 一個畫面只有一個主要動作（儲存工作）。原本所有按鈕共用同一個實心
 //     indigo 樣式——範圍切換、重新整理、每一列個案、新增補件、儲存全長得
 //     一樣，看不出哪個會改資料。
-//   • 內部工作逾期用 amber，不用 rose。後台左側的法規時鐘用 rose 表示
+//   • 內部工作逾期用 caution，不用 danger。後台左側的法規時鐘用 danger 表示
 //     「法定期限已過」，那是會被裁罰的事；內部工作逾期是提醒，不是法規
 //     違規。兩者用同一個紅色，等於在同一個畫面上把「該注意」和「已違規」
-//     畫成一樣——藥安人員會分不清是哪一個時鐘過期了。rose 只留給法規與錯誤。
+//     畫成一樣——藥安人員會分不清是哪一個時鐘過期了。danger 只留給法規與錯誤。
 //   • 所有時間都以產品工作時區 Asia/Taipei 顯示，與到期判定一致。
 import React, { useEffect, useId, useState } from 'react';
 import { ArrowPathIcon, PlusIcon } from '@heroicons/react/24/outline';
@@ -23,7 +23,7 @@ import { matchesWork } from '../services/caseWorkModel.js';
 import { hasRemoteEndpoint } from '../services/aeApi';
 import { useT } from '../i18n/LangContext';
 import type { TransKey } from '../i18n/translations';
-import { Field, TextInput, TextArea, SelectInput, Badge } from './ui';
+import { Field, TextInput, TextArea, SelectInput, Badge, Tone } from './ui';
 
 // 選項與翻譯鍵的對照表用 `satisfies Record<…, TransKey>` 寫死，讓 TypeScript
 // 檢查每個鍵都存在。原本是 t(`work.${s}`) 動態組字串，型別系統看不到——
@@ -39,8 +39,8 @@ const STATUS_KEY = {
   todo: 'work.status.todo', 'in-progress': 'work.status.in-progress', waiting: 'work.status.waiting',
   completed: 'work.status.completed', cancelled: 'work.status.cancelled',
 } as const satisfies Record<Status, TransKey>;
-// waiting 用 amber：卡在外部回覆、需要有人去追，是「該注意」而不是「出事了」。
-const STATUS_TONE = { todo: 'slate', 'in-progress': 'indigo', waiting: 'amber', completed: 'emerald', cancelled: 'slate' } as const satisfies Record<Status, string>;
+// waiting 用 caution：卡在外部回覆、需要有人去追，是「該注意」而不是「出事了」。
+const STATUS_TONE = { todo: 'neutral', 'in-progress': 'brand', waiting: 'caution', completed: 'success', cancelled: 'neutral' } as const satisfies Record<Status, Tone>;
 
 const ITEM_STATUSES = ['pending', 'received', 'cancelled'] as const;
 const ITEM_STATUS_KEY = { pending: 'work.pending', received: 'work.received', cancelled: 'work.cancelled' } as const satisfies Record<typeof ITEM_STATUSES[number], TransKey>;
@@ -60,19 +60,19 @@ const auditActionLabel = (code: string, t: (k: TransKey) => string) =>
 const isStatus = (s: string): s is Status => (WORK_STATUSES as readonly string[]).includes(s);
 
 const btnBase = 'inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:cursor-not-allowed';
-const btnPrimary = `${btnBase} bg-indigo-600 text-white hover:bg-indigo-700 aria-disabled:hover:bg-indigo-600`;
+const btnPrimary = `${btnBase} bg-brand-600 text-white hover:bg-brand-700 aria-disabled:hover:bg-brand-600`;
 const btnGhost = `${btnBase} border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800`;
 const segBase = 'min-h-[44px] px-4 rounded-lg text-sm font-bold';
 // 選取狀態必須一眼看得出來：原本選取與未選取共用同一個 class，aria-pressed
 // 正確但畫面上完全分不出目前在看哪個範圍。
-const segOn = `${segBase} bg-indigo-600 text-white`;
+const segOn = `${segBase} bg-brand-600 text-white`;
 const segOff = `${segBase} text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700`;
 
-type Tone = 'info' | 'success' | 'error';
-const MESSAGE_TONE: Record<Tone, string> = {
-  info: 'bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/40',
-  success: 'bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-200 dark:border-emerald-500/40',
-  error: 'bg-rose-50 text-rose-900 border-rose-300 dark:bg-rose-500/10 dark:text-rose-200 dark:border-rose-500/40',
+type MessageTone = 'info' | 'success' | 'error';
+const MESSAGE_TONE: Record<MessageTone, string> = {
+  info: 'bg-caution-50 text-caution-900 border-caution-300 dark:bg-caution-500/10 dark:text-caution-200 dark:border-caution-500/40',
+  success: 'bg-success-50 text-success-900 border-success-300 dark:bg-success-500/10 dark:text-success-200 dark:border-success-500/40',
+  error: 'bg-danger-50 text-danger-900 border-danger-300 dark:bg-danger-500/10 dark:text-danger-200 dark:border-danger-500/40',
 };
 
 const taipeiToday = () => { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const get = (type: string) => parts.find(part => part.type === type)?.value; return `${get('year')}-${get('month')}-${get('day')}`; };
@@ -82,9 +82,9 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
   const uid = useId();
   const [records, setRecords] = useState<Record<string, WorkResult>>({}), [users, setUsers] = useState<string[]>([]), [board, setBoard] = useState<Workbench | null>(null), [scope, setScope] = useState<Scope>('today');
   const [notifications, setNotifications] = useState<InAppNotification[]>([]), [id, setId] = useState(''), [draft, setDraft] = useState<CaseWork | null>(null), [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false), [dirty, setDirty] = useState(false);
-  const [message, setMessage] = useState(''), [tone, setTone] = useState<Tone>('info');
+  const [message, setMessage] = useState(''), [tone, setTone] = useState<MessageTone>('info');
 
-  const say = (text: string, nextTone: Tone = 'info') => { setMessage(text); setTone(nextTone); };
+  const say = (text: string, nextTone: MessageTone = 'info') => { setMessage(text); setTone(nextTone); };
   const error = (e: any) => say(t(e.message === 'WORK_CONFLICT' ? 'work.conflict' : e.message === 'INVALID_WORK' || e.message === 'INVALID_CANCEL_REASON' || e.message === 'INVALID_TRANSITION' ? 'work.invalid' : 'work.error'), 'error');
 
   // keepMessage：儲存成功後會接著重新整理工作台。原本 refresh 成功時一律清空訊息，
@@ -100,7 +100,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
   const unread = notifications.filter(n => !n.readAt).length;
 
   const statusLabel = (s: string) => { const v = s || 'todo'; return isStatus(v) ? t(STATUS_KEY[v]) : v; };
-  const statusTone = (s: string) => { const v = s || 'todo'; return isStatus(v) ? STATUS_TONE[v] : 'slate'; };
+  const statusTone = (s: string) => { const v = s || 'todo'; return isStatus(v) ? STATUS_TONE[v] : 'neutral'; };
   // 編輯區標題顯示人看得懂的個案編號，而不是內部 id。
   const openCaseNumber = displayed.find((w: any) => w.caseId === id)?.caseNumber ?? cases.find(c => c.id === id)?.caseNumber ?? id;
   const audit = records[id]?.audit ?? [];
@@ -112,13 +112,13 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
     <details className="m-3 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 text-slate-900 dark:text-slate-100">
       <summary className="flex items-center gap-3 cursor-pointer px-4 py-3 text-sm font-bold text-slate-900 dark:text-slate-100">
         <span>{t('work.title')}</span>
-        {remote && unread > 0 && <Badge tone="indigo">{unread} {t('work.unread')}</Badge>}
+        {remote && unread > 0 && <Badge tone="brand">{unread} {t('work.unread')}</Badge>}
       </summary>
 
       <div className="px-4 pb-4 space-y-4">
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{t('work.note')}</p>
         {!remote && (
-          <p className="text-xs font-bold leading-relaxed px-3 py-2 rounded-xl border bg-amber-50 text-amber-900 border-amber-300 dark:bg-amber-500/10 dark:text-amber-200 dark:border-amber-500/40">
+          <p className="text-xs font-bold leading-relaxed px-3 py-2 rounded-xl border bg-caution-50 text-caution-900 border-caution-300 dark:bg-caution-500/10 dark:text-caution-200 dark:border-caution-500/40">
             {t('work.demo')}
           </p>
         )}
@@ -172,24 +172,24 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
                       return (
                         // 整列可點：個案編號的按鈕用 after: 偽元素撐滿整列。只有一顆真的按鈕，
                         // 讀屏與鍵盤看到的仍是「個案編號」這一個可操作元素，不會整列重複唸。
-                        <tr key={w.caseId} className={`relative border-b border-slate-100 dark:border-slate-800 ${current ? 'bg-indigo-50 dark:bg-indigo-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
+                        <tr key={w.caseId} className={`relative border-b border-slate-100 dark:border-slate-800 ${current ? 'bg-brand-50 dark:bg-brand-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}>
                           <td className="py-2.5 pr-4">
                             <button type="button" disabled={busy} aria-current={current ? 'true' : undefined} onClick={() => open(w.caseId)}
-                              className="font-black tabular-nums whitespace-nowrap text-left text-indigo-700 dark:text-indigo-300 after:absolute after:inset-0">
+                              className="font-black tabular-nums whitespace-nowrap text-left text-brand-700 dark:text-brand-300 after:absolute after:inset-0">
                               {w.caseNumber}
                             </button>
                           </td>
                           <td className="py-2.5 pr-4"><Badge tone={statusTone(w.status)}>{statusLabel(w.status)}</Badge></td>
-                          {/* 未分派是待處理狀態，不是可忽略的灰字。slate-500 在白底 4.7:1，但在選取列的 indigo-50 上只剩 4.3:1，
+                          {/* 未分派是待處理狀態，不是可忽略的灰字。slate-500 在白底 4.7:1，但在選取列的 brand-50 上只剩 4.3:1，
                               未過 WCAG 1.4.3，所以用 slate-600。 */}
                           <td className={`py-2.5 pr-4 ${w.assignee ? 'text-slate-700 dark:text-slate-200' : 'text-slate-600 dark:text-slate-400'}`}>
                             {w.assignee || t('work.unassigned')}
                           </td>
                           <td className="py-2.5 tabular-nums whitespace-nowrap">
                             {w.workDueDate
-                              ? <span className={w.overdue ? 'font-bold text-amber-800 dark:text-amber-300' : 'text-slate-700 dark:text-slate-200'}>{w.workDueDate}</span>
+                              ? <span className={w.overdue ? 'font-bold text-caution-800 dark:text-caution-300' : 'text-slate-700 dark:text-slate-200'}>{w.workDueDate}</span>
                               : <span className="text-slate-600 dark:text-slate-400">—</span>}
-                            {w.overdue && <span className="ml-2"><Badge tone="amber">{t('work.overdue')}</Badge></span>}
+                            {w.overdue && <span className="ml-2"><Badge tone="caution">{t('work.overdue')}</Badge></span>}
                           </td>
                         </tr>
                       );
@@ -204,7 +204,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 id={`${uid}-notif`} className="text-sm font-bold flex items-center gap-2">
                 {t('work.notifications')}
-                {unread > 0 && <Badge tone="indigo">{unread} {t('work.unread')}</Badge>}
+                {unread > 0 && <Badge tone="brand">{unread} {t('work.unread')}</Badge>}
               </h3>
               {notifications.length > 0 && (
                 <button type="button" className={btnGhost} disabled={busy || !unread} onClick={markRead}>{t('work.markRead')}</button>
@@ -218,7 +218,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
                     <span>{n.kind === 'work_due' ? t('work.dueNotice') : t('work.assignedNotice')}</span>
                     <span className="shrink-0 flex items-center gap-2 text-xs tabular-nums">
                       {formatTaipeiDateTime(n.createdAt)}
-                      {n.readAt && <Badge tone="slate">{t('work.read')}</Badge>}
+                      {n.readAt && <Badge tone="neutral">{t('work.read')}</Badge>}
                     </span>
                   </li>
                 ))}
@@ -234,7 +234,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
               <legend className="float-left w-full flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-1">
                 <span className="text-base font-black tabular-nums">{openCaseNumber}</span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">v{draft.version}</span>
-                {dirty && <Badge tone="amber">{t('work.unsaved')}</Badge>}
+                {dirty && <Badge tone="caution">{t('work.unsaved')}</Badge>}
               </legend>
               <p className="clear-left text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{t('work.statusSeparate')}</p>
 
@@ -321,7 +321,7 @@ export default function CaseWorkBoard({ cases, actor }: { cases: AEReport[]; act
                 onClick={() => { if (canSave) save(); }}>
                 {t('work.save')}
               </button>
-              {dirty && <span className="text-xs font-bold text-amber-800 dark:text-amber-300">{t('work.unsaved')}</span>}
+              {dirty && <span className="text-xs font-bold text-caution-800 dark:text-caution-300">{t('work.unsaved')}</span>}
             </div>
 
             {audit.length > 0 && (

@@ -269,11 +269,11 @@ const AEReportMobile: React.FC<{
   if (done) return <DoneScreen done={done} onNew={startNew} t={t} />;
 
   return (
-    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-[#f8fafc] dark:bg-[#0b1020]">
+    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-canvas">
       {/* 背景：與後台同一套水彩語言，但強度降低，避免手機上干擾閱讀 */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[15%] -left-[20%] w-[70%] h-[40%] bg-indigo-200/30 dark:bg-indigo-500/15 rounded-full blur-[100px]" />
-        <div className="absolute top-[45%] -right-[25%] w-[70%] h-[40%] bg-rose-200/30 dark:bg-rose-500/10 rounded-full blur-[100px]" />
+        <div className="absolute -top-[15%] -left-[20%] w-[70%] h-[40%] bg-brand-200/30 dark:bg-brand-500/15 rounded-full blur-[100px]" />
+        <div className="absolute top-[45%] -right-[25%] w-[70%] h-[40%] bg-danger-200/30 dark:bg-danger-500/10 rounded-full blur-[100px]" />
       </div>
 
       {/* 頂部：標題 + 進度。sticky 讓使用者隨時知道自己在第幾步 */}
@@ -286,8 +286,8 @@ const AEReportMobile: React.FC<{
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            {!online && <Badge tone="amber">{t('ae.offline.badge')}</Badge>}
-            {pending > 0 && <Badge tone="rose">{pending} {t('ae.outbox.pending')}</Badge>}
+            {!online && <Badge tone="caution">{t('ae.offline.badge')}</Badge>}
+            {pending > 0 && <Badge tone="danger">{pending} {t('ae.outbox.pending')}</Badge>}
             <button onClick={() => setShowHistory(true)} aria-label={t('ae.mobile.myReports')}
               className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 flex items-center justify-center">
               <ClipboardDocumentListIcon className="w-5 h-5" />
@@ -305,7 +305,7 @@ const AEReportMobile: React.FC<{
 
         <div className="px-4 pb-3">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300">
+            <span className="text-[11px] font-black text-brand-700 dark:text-brand-300">
               {step + 1}/{STEP_KEYS.length}　{t(STEP_KEYS[step] as any)}
             </span>
             <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
@@ -313,16 +313,16 @@ const AEReportMobile: React.FC<{
             </span>
           </div>
           <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div className="h-full bg-indigo-600 transition-all duration-300"
+            <div className="h-full bg-brand-600 transition-all duration-300"
               style={{ width: `${((step + 1) / STEP_KEYS.length) * 100}%` }} />
           </div>
         </div>
       </header>
 
       {restoredDraft && step === 0 && (
-        <div className="mx-4 mt-3 px-4 py-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 flex items-center justify-between gap-3">
-          <span className="text-xs font-bold text-amber-900 dark:text-amber-200">{t('ae.draft.restored')}</span>
-          <button onClick={discardDraft} className="text-xs font-black text-amber-900 dark:text-amber-200 underline shrink-0 min-h-[44px] px-2">
+        <div className="mx-4 mt-3 px-4 py-3 rounded-2xl bg-caution-50 dark:bg-caution-500/10 border border-caution-300 dark:border-caution-500/30 flex items-center justify-between gap-3">
+          <span className="text-xs font-bold text-caution-900 dark:text-caution-200">{t('ae.draft.restored')}</span>
+          <button onClick={discardDraft} className="text-xs font-black text-caution-900 dark:text-caution-200 underline shrink-0 min-h-[44px] px-2">
             {t('ae.draft.discard')}
           </button>
         </div>
@@ -330,23 +330,23 @@ const AEReportMobile: React.FC<{
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 pb-40 space-y-4">
         {submitError && (
-          <div role="alert" className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
-            <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-danger-50 dark:bg-danger-500/10 border-2 border-danger-300 dark:border-danger-500/40 space-y-1">
+            <p className="text-xs font-black text-danger-800 dark:text-danger-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />
               {submitErrorKind === 'draftClearFailed' ? t('ae.submit.draftClearFailed') : t('ae.submit.unconfirmed')}
             </p>
-            <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300">{submitError}</p>
+            <p className="text-[11px] font-bold text-danger-700 dark:text-danger-300">{submitError}</p>
           </div>
         )}
         {/* role=alert：按下一步被攔下時，螢幕閱讀器使用者看不到紅色區塊出現，
             沒有這個就只知道「頁面沒動」卻不知道為什麼。 */}
         {showErrors && stepErrors(step).length > 0 && (
-          <div role="alert" className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
-            <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-danger-50 dark:bg-danger-500/10 border-2 border-danger-300 dark:border-danger-500/40 space-y-1">
+            <p className="text-xs font-black text-danger-800 dark:text-danger-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.review.blockers')}
             </p>
             {stepErrors(step).map((i, k) => (
-              <p key={k} className="text-[11px] font-bold text-rose-700 dark:text-rose-300 pl-5">
+              <p key={k} className="text-[11px] font-bold text-danger-700 dark:text-danger-300 pl-5">
                 • {t(`ae.issue.${i.code}` as any)}{i.detail ? `（${i.detail}）` : ''}
               </p>
             ))}
@@ -381,12 +381,12 @@ const AEReportMobile: React.FC<{
           </button>
           {step < STEP_KEYS.length - 1 ? (
             <button onClick={next}
-              className="flex-1 min-h-[52px] rounded-2xl bg-indigo-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-1 active:bg-indigo-700">
+              className="flex-1 min-h-[52px] rounded-2xl bg-brand-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-1 active:bg-brand-700">
               {t('ae.nav.next')}<ChevronRightIcon className="w-5 h-5" />
             </button>
           ) : (
             <button onClick={submit} disabled={submitting} aria-busy={submitting}
-              className="flex-1 min-h-[52px] rounded-2xl bg-emerald-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-emerald-700 disabled:opacity-60">
+              className="flex-1 min-h-[52px] rounded-2xl bg-success-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-success-700 disabled:opacity-60">
               {submitting
                 ? <><ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.nav.submitting')}</>
                 : <><PaperAirplaneIcon className="w-5 h-5" />{t('ae.nav.submit')}</>}
@@ -558,7 +558,7 @@ const StepReporter: React.FC<StepProps & { hasProfile: boolean; onEditProfile?: 
       <button type="button" onClick={() => patch({ primaryReporterConsentFollowUp: !report.primaryReporterConsentFollowUp })}
         className={`w-full min-h-[48px] px-4 rounded-2xl text-sm font-black border-2 flex items-center gap-3 text-left ${
           report.primaryReporterConsentFollowUp
-            ? 'bg-emerald-600 text-white border-emerald-600'
+            ? 'bg-success-600 text-white border-success-600'
             : 'bg-white/70 dark:bg-slate-800/70 border-slate-300 dark:border-slate-600'
         }`}>
         <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
@@ -655,14 +655,14 @@ const StepEvents: React.FC<StepProps & {
               onChange={v => patchEvent(ev.id, { outcome: v })} />
           </Field>
           <Field label={t('ae.f.seriousness')} tag="CIOMS I" hint={t('ae.f.seriousnessHint')}>
-            <CheckGroup options={SERIOUSNESS_CRITERIA as unknown as readonly Option[]} tone="rose" lang={lang}
+            <CheckGroup options={SERIOUSNESS_CRITERIA as unknown as readonly Option[]} tone="danger" lang={lang}
               values={ev.seriousnessCriteria}
               onChange={v => patchEvent(ev.id, { seriousnessCriteria: v as SeriousnessCriterion[] })} />
           </Field>
           {report.events.length > 1 && (
             <button type="button"
               onClick={() => setReport(r => ({ ...r, events: r.events.filter(e => e.id !== ev.id) }))}
-              className="min-h-[44px] w-full rounded-2xl border-2 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs font-black flex items-center justify-center gap-1.5">
+              className="min-h-[44px] w-full rounded-2xl border-2 border-danger-300 dark:border-danger-500/40 text-danger-700 dark:text-danger-300 text-xs font-black flex items-center justify-center gap-1.5">
               <TrashIcon className="w-4 h-4" />{t('ae.event.remove')}
             </button>
           )}
@@ -670,7 +670,7 @@ const StepEvents: React.FC<StepProps & {
       ))}
 
       <button type="button" onClick={() => setReport(r => ({ ...r, events: [...r.events, emptyEvent()] }))}
-        className="w-full min-h-[52px] rounded-2xl border-2 border-dashed border-indigo-400 dark:border-indigo-500/50 text-indigo-700 dark:text-indigo-300 font-black text-sm flex items-center justify-center gap-2">
+        className="w-full min-h-[52px] rounded-2xl border-2 border-dashed border-brand-400 dark:border-brand-500/50 text-brand-700 dark:text-brand-300 font-black text-sm flex items-center justify-center gap-2">
         <PlusIcon className="w-5 h-5" />{t('ae.event.add')}
       </button>
 
@@ -774,7 +774,7 @@ const DrugCard: React.FC<{
     )}
     {removable && (
       <button type="button" onClick={onRemove}
-        className="min-h-[44px] w-full rounded-2xl border-2 border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs font-black flex items-center justify-center gap-1.5">
+        className="min-h-[44px] w-full rounded-2xl border-2 border-danger-300 dark:border-danger-500/40 text-danger-700 dark:text-danger-300 text-xs font-black flex items-center justify-center gap-1.5">
         <TrashIcon className="w-4 h-4" />{t('ae.drug.remove')}
       </button>
     )}
@@ -795,7 +795,7 @@ const StepDrugs: React.FC<Omit<StepProps, 'patch'> & {
           onRemove={() => setReport(r => ({ ...r, drugs: r.drugs.filter(x => x.id !== d.id) }))} />
       ))}
       <button type="button" onClick={() => setReport(r => ({ ...r, drugs: [...r.drugs, emptyDrug(true)] }))}
-        className="w-full min-h-[52px] rounded-2xl border-2 border-dashed border-indigo-400 dark:border-indigo-500/50 text-indigo-700 dark:text-indigo-300 font-black text-sm flex items-center justify-center gap-2">
+        className="w-full min-h-[52px] rounded-2xl border-2 border-dashed border-brand-400 dark:border-brand-500/50 text-brand-700 dark:text-brand-300 font-black text-sm flex items-center justify-center gap-2">
         <PlusIcon className="w-5 h-5" />{t('ae.drug.addSuspect')}
       </button>
     </>
@@ -865,12 +865,12 @@ const StepReview: React.FC<StepProps & {
   return (
     <>
       <SectionCard title={t('ae.f.attachments')} note={t('ae.attach.limit')}>
-        <label className="w-full min-h-[56px] rounded-2xl border-2 border-dashed border-indigo-400 dark:border-indigo-500/50 text-indigo-700 dark:text-indigo-300 font-black text-sm flex items-center justify-center gap-2 cursor-pointer">
+        <label className="w-full min-h-[56px] rounded-2xl border-2 border-dashed border-brand-400 dark:border-brand-500/50 text-brand-700 dark:text-brand-300 font-black text-sm flex items-center justify-center gap-2 cursor-pointer">
           <CameraIcon className="w-5 h-5" />{t('ae.attach.add')}
           <input type="file" accept="image/*,application/pdf" multiple capture="environment"
             className="hidden" onChange={e => { onPickFiles(e.target.files); e.currentTarget.value = ''; }} />
         </label>
-        {attachError && <p className="text-xs font-bold text-rose-600 dark:text-rose-400">{attachError}</p>}
+        {attachError && <p className="text-xs font-bold text-danger-600 dark:text-danger-400">{attachError}</p>}
         {report.attachments.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {report.attachments.map(a => (
@@ -879,7 +879,7 @@ const StepReview: React.FC<StepProps & {
                   ? <img src={attachmentSrc(a)} alt={a.name} className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center text-[10px] font-black p-1 text-center break-all">{a.name}</div>}
                 <button type="button" onClick={() => onRemoveAttachment(a.id)}
-                  className="absolute top-1 right-1 w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shadow">
+                  className="absolute top-1 right-1 w-8 h-8 rounded-full bg-danger-600 text-white flex items-center justify-center shadow">
                   <TrashIcon className="w-4 h-4" />
                 </button>
               </div>
@@ -893,9 +893,9 @@ const StepReview: React.FC<StepProps & {
           {criteriaRows.map(c => (
             <div key={c.key} className="flex items-center gap-2 text-sm font-bold">
               {c.ok
-                ? <CheckCircleIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                : <ShieldExclamationIcon className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />}
-              <span className={c.ok ? '' : 'text-rose-700 dark:text-rose-300'}>{t(c.key)}</span>
+                ? <CheckCircleIcon className="w-5 h-5 text-success-600 dark:text-success-400 shrink-0" />
+                : <ShieldExclamationIcon className="w-5 h-5 text-danger-600 dark:text-danger-400 shrink-0" />}
+              <span className={c.ok ? '' : 'text-danger-700 dark:text-danger-300'}>{t(c.key)}</span>
             </div>
           ))}
         </div>
@@ -904,7 +904,7 @@ const StepReview: React.FC<StepProps & {
             <span>{t('ae.review.completeness')}</span><span className="tabular-nums">{completeness}%</span>
           </div>
           <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div className={`h-full transition-all ${completeness >= 70 ? 'bg-emerald-500' : completeness >= 40 ? 'bg-amber-500' : 'bg-rose-500'}`}
+            <div className={`h-full transition-all ${completeness >= 70 ? 'bg-success-500' : completeness >= 40 ? 'bg-caution-500' : 'bg-danger-500'}`}
               style={{ width: `${completeness}%` }} />
           </div>
         </div>
@@ -912,15 +912,15 @@ const StepReview: React.FC<StepProps & {
 
       <div className={`px-5 py-4 rounded-3xl border-2 ${
         seriousness.serious
-          ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-300 dark:border-rose-500/40'
+          ? 'bg-danger-50 dark:bg-danger-500/10 border-danger-300 dark:border-danger-500/40'
           : 'bg-slate-50 dark:bg-slate-800/50 border-slate-300 dark:border-slate-600'
       }`}>
-        <p className={`text-sm font-black flex items-center gap-2 ${seriousness.serious ? 'text-rose-800 dark:text-rose-300' : ''}`}>
+        <p className={`text-sm font-black flex items-center gap-2 ${seriousness.serious ? 'text-danger-800 dark:text-danger-300' : ''}`}>
           {seriousness.serious ? <ExclamationTriangleIcon className="w-5 h-5" /> : <CheckCircleIcon className="w-5 h-5" />}
           {seriousness.serious ? t('ae.review.serious') : t('ae.review.nonSerious')}
         </p>
         {seriousness.serious && (
-          <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300 mt-1.5 leading-relaxed">
+          <p className="text-[11px] font-bold text-danger-700 dark:text-danger-300 mt-1.5 leading-relaxed">
             {t('ae.review.seriousHint').replace('{days}', String(MAH_SERIOUS_REPORT_DAYS))}
           </p>
         )}
@@ -931,7 +931,7 @@ const StepReview: React.FC<StepProps & {
           <div className="space-y-2">
             {errors.map((i, k) => (
               <button key={k} type="button" onClick={() => onGoStep(i.step ?? 0)}
-                className="w-full text-left min-h-[44px] px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-300 dark:border-rose-500/40 text-xs font-bold text-rose-800 dark:text-rose-300">
+                className="w-full text-left min-h-[44px] px-3 py-2 rounded-xl bg-danger-50 dark:bg-danger-500/10 border border-danger-300 dark:border-danger-500/40 text-xs font-bold text-danger-800 dark:text-danger-300">
                 • {t(`ae.issue.${i.code}`)}{i.detail ? `（${i.detail}）` : ''}
               </button>
             ))}
@@ -944,7 +944,7 @@ const StepReview: React.FC<StepProps & {
           <div className="space-y-1.5">
             {warnings.map((i, k) => (
               <button key={k} type="button" onClick={() => onGoStep(i.step ?? 0)}
-                className="w-full text-left min-h-[40px] px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                className="w-full text-left min-h-[40px] px-3 py-2 rounded-xl bg-caution-50 dark:bg-caution-500/10 border border-caution-300 dark:border-caution-500/30 text-[11px] font-bold text-caution-900 dark:text-caution-200">
                 • {t(`ae.issue.${i.code}`)}{i.detail ? `（${i.detail}）` : ''}
               </button>
             ))}
@@ -989,7 +989,7 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
   }, []);
 
   return (
-    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-[#f8fafc] dark:bg-[#0b1020]">
+    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-canvas">
       <header className="sticky top-0 z-30 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl border-b border-white/60 dark:border-white/10">
         <div className="px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0">
@@ -1014,8 +1014,8 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
         )}
 
         {state === 'error' && (
-          <div role="alert" className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40">
-            <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+          <div role="alert" className="px-4 py-3 rounded-2xl bg-danger-50 dark:bg-danger-500/10 border-2 border-danger-300 dark:border-danger-500/40">
+            <p className="text-xs font-black text-danger-800 dark:text-danger-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.mobile.myReportsError')}
             </p>
           </div>
@@ -1035,8 +1035,8 @@ const MyReportsScreen: React.FC<{ onClose: () => void; t: (k: any) => string }> 
               <div className="flex items-start justify-between gap-2">
                 <span className="font-black text-sm truncate">{c.caseNumber || '—'}</span>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {serious && <Badge tone="rose">{t('ae.console.serious')}</Badge>}
-                  <Badge tone="indigo">{t(`ae.status.${c.status}`)}</Badge>
+                  {serious && <Badge tone="danger">{t('ae.console.serious')}</Badge>}
+                  <Badge tone="brand">{t(`ae.status.${c.status}`)}</Badge>
                 </div>
               </div>
               <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1072,8 +1072,8 @@ const DoneScreen: React.FC<{ done: { caseNumber: string; channel: string }; onNe
   React.useEffect(() => { headingRef.current?.focus(); }, []);
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-6 px-6 bg-[#f8fafc] dark:bg-[#0b1020] text-slate-900 dark:text-slate-100">
-      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued || conflicted ? 'bg-amber-500' : 'bg-emerald-600'} text-white shadow-xl`}>
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center gap-6 px-6 bg-canvas text-slate-900 dark:text-slate-100">
+      <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${queued || conflicted ? 'bg-caution-500' : 'bg-success-600'} text-white shadow-xl`}>
         {queued || conflicted ? <CloudArrowUpIcon className="w-10 h-10" /> : <CheckCircleIcon className="w-10 h-10" />}
       </div>
       <div role="status" className="text-center space-y-2">
@@ -1081,12 +1081,12 @@ const DoneScreen: React.FC<{ done: { caseNumber: string; channel: string }; onNe
         <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
           {conflicted ? t('ae.submit.conflict') : queued ? t('ae.submit.queued') : hasRemoteEndpoint() ? t('ae.submit.okRemote') : t('ae.submit.okLocal')}
         </p>
-        <p className="text-xs font-black text-indigo-700 dark:text-indigo-300 tracking-widest">
+        <p className="text-xs font-black text-brand-700 dark:text-brand-300 tracking-widest">
           {t('ae.done.caseNo')}: {done.caseNumber}
         </p>
       </div>
       <button onClick={onNew}
-        className="min-h-[52px] px-8 rounded-2xl bg-indigo-600 text-white font-black text-sm shadow-lg">
+        className="min-h-[52px] px-8 rounded-2xl bg-brand-600 text-white font-black text-sm shadow-lg">
         {t('ae.submit.newReport')}
       </button>
     </div>

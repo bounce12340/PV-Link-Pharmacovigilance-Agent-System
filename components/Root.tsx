@@ -77,8 +77,8 @@ function useIdentity(): [AEIdentity | 'loading', (p: AEProfile) => void] {
 const Splash: React.FC = () => {
   const t = useT();
   return (
-    <div role="status" className="min-h-[100dvh] flex items-center justify-center bg-[#f8fafc] dark:bg-[#0b1020]">
-      <div aria-hidden="true" className="w-8 h-8 rounded-full border-[3px] border-indigo-600 border-t-transparent animate-spin" />
+    <div role="status" className="min-h-[100dvh] flex items-center justify-center bg-canvas">
+      <div aria-hidden="true" className="w-8 h-8 rounded-full border-[3px] border-brand-600 border-t-transparent animate-spin" />
       <span className="sr-only">{t('app.loading')}</span>
     </div>
   );

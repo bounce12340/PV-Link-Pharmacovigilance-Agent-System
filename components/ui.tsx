@@ -18,7 +18,7 @@ export const pickLabel = (o: Option, lang: 'zh' | 'en') => (lang === 'en' ? o.en
 const inputBase =
   'w-full min-h-[48px] bg-white/80 dark:bg-slate-800/80 border-2 border-slate-300 dark:border-slate-600 ' +
   'rounded-2xl px-4 py-3 text-base transition-all shadow-sm ' +
-  'focus:border-indigo-600 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500';
+  'focus:border-brand-600 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-400 dark:placeholder-slate-500';
 
 /**
  * Field 把標籤的 id 傳給底下的控制項。
@@ -66,7 +66,7 @@ export const Field: React.FC<{
               而言它是唯一的必填提示（group 沒有 aria-required 可用）。 */}
           <label id={labelId} className="text-xs font-black text-slate-700 dark:text-slate-200 tracking-wide">
             {label}
-            {required && <span className="text-rose-600 dark:text-rose-400 ml-1">*</span>}
+            {required && <span className="text-danger-600 dark:text-danger-400 ml-1">*</span>}
           </label>
           {tag && (
             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 shrink-0">
@@ -128,8 +128,8 @@ export const ChipGroup: React.FC<{
           onClick={() => onChange(active && clearable ? '' : o.value)}
           className={`min-h-[48px] px-3 py-3 rounded-2xl text-sm font-black border-2 text-left transition-all ${
             active
-              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
-              : 'bg-white/70 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 active:bg-indigo-50 dark:active:bg-slate-700'
+              ? 'bg-brand-600 text-white border-brand-600 shadow-md'
+              : 'bg-white/70 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 active:bg-brand-50 dark:active:bg-slate-700'
           }`}
         >
           {pickLabel(o, lang)}
@@ -146,12 +146,12 @@ export const CheckGroup: React.FC<{
   values: string[];
   onChange: (v: string[]) => void;
   lang: 'zh' | 'en';
-  tone?: 'indigo' | 'rose';
-}> = ({ options, values, onChange, lang, tone = 'indigo' }) => {
+  tone?: 'brand' | 'danger';
+}> = ({ options, values, onChange, lang, tone = 'brand' }) => {
   const labelId = React.useContext(FieldContext)?.labelId;
-  const on = tone === 'rose'
-    ? 'bg-rose-600 text-white border-rose-600 shadow-md'
-    : 'bg-indigo-600 text-white border-indigo-600 shadow-md';
+  const on = tone === 'danger'
+    ? 'bg-danger-600 text-white border-danger-600 shadow-md'
+    : 'bg-brand-600 text-white border-brand-600 shadow-md';
   return (
     <div role="group" aria-labelledby={labelId} className="space-y-2">
       {options.map(o => {
@@ -185,14 +185,17 @@ export const Card: React.FC<{ children: React.ReactNode; className?: string }> =
   </div>
 );
 
-/** 狀態徽章。tone 直接對應語意色，不另外抽象。 */
-export const Badge: React.FC<{ children: React.ReactNode; tone?: 'slate' | 'emerald' | 'amber' | 'rose' | 'indigo' }> = ({ children, tone = 'slate' }) => {
-  const map = {
-    slate: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/40',
-    emerald: 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40',
-    amber: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-200 dark:border-amber-500/40',
-    rose: 'bg-rose-100 text-rose-700 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40',
-    indigo: 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/40',
+/** 徽章語意。與 tailwind.config.js 的色彩 token 一一對應（neutral＝slate）。 */
+export type Tone = 'neutral' | 'success' | 'caution' | 'danger' | 'brand';
+
+/** 狀態徽章。tone 是受控列舉而非任意 class：顏色在這套介面裡是資訊，不是裝飾。 */
+export const Badge: React.FC<{ children: React.ReactNode; tone?: Tone }> = ({ children, tone = 'neutral' }) => {
+  const map: Record<Tone, string> = {
+    neutral: 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-500/20 dark:text-slate-300 dark:border-slate-500/40',
+    success: 'bg-success-100 text-success-700 border-success-300 dark:bg-success-500/20 dark:text-success-300 dark:border-success-500/40',
+    caution: 'bg-caution-100 text-caution-800 border-caution-300 dark:bg-caution-500/20 dark:text-caution-200 dark:border-caution-500/40',
+    danger: 'bg-danger-100 text-danger-700 border-danger-300 dark:bg-danger-500/20 dark:text-danger-300 dark:border-danger-500/40',
+    brand: 'bg-brand-100 text-brand-700 border-brand-300 dark:bg-brand-500/20 dark:text-brand-300 dark:border-brand-500/40',
   };
   return <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black border whitespace-nowrap ${map[tone]}`}>{children}</span>;
 };
