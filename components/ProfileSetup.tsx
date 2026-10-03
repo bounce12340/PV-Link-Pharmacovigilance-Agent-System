@@ -58,16 +58,16 @@ const ProfileSetup: React.FC<{
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-[#f8fafc] dark:bg-[#0b1020]">
+    <div className="min-h-[100dvh] flex flex-col font-sans text-slate-900 dark:text-slate-100 bg-canvas">
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[15%] -left-[20%] w-[70%] h-[40%] bg-indigo-200/30 dark:bg-indigo-500/15 rounded-full blur-[100px]" />
+        <div className="absolute -top-[15%] -left-[20%] w-[70%] h-[40%] bg-brand-200/30 dark:bg-brand-500/15 rounded-full blur-[100px]" />
       </div>
 
       <header className="sticky top-0 z-30 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl border-b border-white/60 dark:border-white/10">
         <div className="px-4 py-3 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-black tracking-tight truncate">{t('ae.profile.title')}</h1>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate">
+            <p className="text-xs font-bold text-muted truncate">
               {email || t('ae.profile.localMode')}
             </p>
           </div>
@@ -77,7 +77,7 @@ const ProfileSetup: React.FC<{
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
             <button onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
-              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-[11px] font-black">
+              className="w-10 h-10 rounded-xl bg-white/60 dark:bg-white/10 border border-white/60 dark:border-white/10 text-xs font-bold">
               {lang === 'zh' ? 'EN' : '中'}
             </button>
           </div>
@@ -86,25 +86,25 @@ const ProfileSetup: React.FC<{
 
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-32 space-y-4">
         <Card className="p-4 flex gap-3 items-start">
-          <UserCircleIcon className="w-8 h-8 shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <UserCircleIcon className="w-8 h-8 shrink-0 text-brand-600 dark:text-brand-300" />
           <p className="text-xs font-bold leading-relaxed text-slate-700 dark:text-slate-300">
             {t('ae.profile.intro')}
           </p>
         </Card>
 
         {showErrors && invalid && (
-          <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40 space-y-1">
-            <p className="text-xs font-black text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+          <div className="px-4 py-3 rounded-2xl bg-danger-50 dark:bg-danger-500/10 border-2 border-danger-300 dark:border-danger-500/40 space-y-1">
+            <p className="text-xs font-bold text-danger-800 dark:text-danger-300 flex items-center gap-1.5">
               <ExclamationTriangleIcon className="w-4 h-4" />{t('ae.profile.required')}
             </p>
-            {missingName && <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300 pl-5">• {t('ae.f.reporterName')}</p>}
-            {missingPhone && <p className="text-[11px] font-bold text-rose-700 dark:text-rose-300 pl-5">• {t('ae.f.reporterPhone')}</p>}
+            {missingName && <p className="text-xs font-bold text-danger-700 dark:text-danger-300 pl-5">• {t('ae.f.reporterName')}</p>}
+            {missingPhone && <p className="text-xs font-bold text-danger-700 dark:text-danger-300 pl-5">• {t('ae.f.reporterPhone')}</p>}
           </div>
         )}
 
         {error && (
-          <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border-2 border-rose-300 dark:border-rose-500/40">
-            <p className="text-xs font-black text-rose-800 dark:text-rose-300">{t('ae.profile.saveFailed')}{error}</p>
+          <div className="px-4 py-3 rounded-2xl bg-danger-50 dark:bg-danger-500/10 border-2 border-danger-300 dark:border-danger-500/40">
+            <p className="text-xs font-bold text-danger-800 dark:text-danger-300">{t('ae.profile.saveFailed')}{error}</p>
           </div>
         )}
 
@@ -136,7 +136,7 @@ const ProfileSetup: React.FC<{
           </Field>
         </Card>
 
-        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+        <p className="text-xs font-bold text-muted leading-relaxed">
           {t('ae.profile.identityNote')}
         </p>
       </div>
@@ -151,7 +151,7 @@ const ProfileSetup: React.FC<{
             </button>
           )}
           <button onClick={submit} disabled={saving}
-            className="flex-1 min-h-[52px] rounded-2xl bg-indigo-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-indigo-700 disabled:opacity-60">
+            className="flex-1 min-h-[52px] rounded-2xl bg-brand-600 text-white font-black text-sm shadow-lg flex items-center justify-center gap-2 active:bg-brand-700 disabled:opacity-60">
             {saving
               ? <><ArrowPathIcon className="w-5 h-5 animate-spin" />{t('ae.profile.saving')}</>
               : <><CheckIcon className="w-5 h-5" />{t('ae.profile.save')}</>}

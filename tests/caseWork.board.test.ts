@@ -96,12 +96,12 @@ describe('work board list', () => {
     expect(host.querySelector('tbody')!.textContent).not.toContain(' · ');
   });
 
-  it('marks internal overdue work with a word, not colour alone, and keeps rose for regulatory alarms', () => {
+  it('marks internal overdue work with a word, not colour alone, and keeps danger for regulatory alarms', () => {
     const due = row('AE-2026-0012').querySelectorAll('td')[3];
     expect(due.textContent).toContain('逾期');
-    // 內部工作逾期是 amber；rose 保留給後台左側的法規時鐘
-    expect(due.innerHTML).toContain('amber');
-    expect(due.innerHTML).not.toContain('rose');
+    // 內部工作逾期是 caution；danger 保留給後台左側的法規時鐘
+    expect(due.innerHTML).toContain('caution');
+    expect(due.innerHTML).not.toContain('danger');
     expect(row('AE-2026-0013').querySelectorAll('td')[3].textContent).not.toContain('逾期');
   });
 

@@ -18,6 +18,9 @@ const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (
 export const LangProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [lang, setLang] = useState<Lang>(readInitialLang);
   useEffect(() => { try { localStorage.setItem(KEY, lang); } catch { /* ignore */ } }, [lang]);
+  // <html lang> 原本寫死 zh-TW：英文介面會被螢幕閱讀器用中文語音念（WCAG 3.1.1），
+  // 瀏覽器挑後備字型、斷字也都依這個值。
+  useEffect(() => { document.documentElement.lang = lang === 'en' ? 'en' : 'zh-TW'; }, [lang]);
   const t = (k: TransKey) => translations[lang][k] ?? translations.zh[k] ?? k;
   return <LangContext.Provider value={{ lang, setLang, t }}>{children}</LangContext.Provider>;
 };

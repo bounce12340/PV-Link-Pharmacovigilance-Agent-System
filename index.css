@@ -2,12 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+/* 字型由 Tailwind preflight 依 tailwind.config.js 的 fontFamily.sans 套在 html 上，這裡不另設。 */
 
 /* 暗色主題也要告訴瀏覽器。原生繪製的部分（date 輸入框的日曆圖示、select 展開的
    選單、捲軸）不吃 Tailwind class，只看 color-scheme；少了這行，暗色下日曆圖示是
    深色畫在深底上，幾乎看不見。 */
 :root.dark { color-scheme: dark; }
+
+/* ── 色彩 token（CSS 變數）──────────────────────────────────────────────
+   以 RGB 三通道存放，tailwind.config.js 用 rgb(var(--x) / <alpha-value>) 引用，
+   bg-canvas/50 這類透明度寫法才能運作。亮暗色在這裡切換一次，元件不必成對寫 dark:。 */
+:root {
+  --canvas: 248 250 252;   /* #f8fafc，即 slate-50 */
+  /* 次要文字。slate-600：白底 7.6:1、帶色背景（漸層光暈、brand-50 選取列）仍 ≥ 6.4:1。
+     原本散用 slate-400（白底 2.6:1）與 slate-500（白底 4.8:1，但在帶色背景上只剩
+     4.1–4.4:1），都過不了 WCAG 1.4.3 的 4.5:1。 */
+  --muted: 71 85 105;      /* slate-600 */
+}
+:root.dark {
+  --canvas: 11 16 32;      /* #0b1020 */
+  /* slate-300 而非 slate-400：slate-400 在頁面底色上有 7.4:1，但在表頭、選取列這類
+     提亮的深色面板上只剩 3.9–4.4:1。slate-300 在這些面上 ≥ 6.7:1，仍明顯淡於主文字
+     slate-100（≥ 9.1:1），層次不會消失。 */
+  --muted: 203 213 225;    /* slate-300 */
+}
 
 /* ── 鍵盤焦點 ─────────────────────────────────────────────────────────
    放在全域而不是逐個元件加 focus-visible: utility，理由有兩個：
