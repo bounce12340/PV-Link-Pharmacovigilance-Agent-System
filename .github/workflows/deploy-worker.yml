@@ -1,0 +1,112 @@
+# 部署 Worker 到生產環境（pvlink.uic-ai.com/api*）。
+#
+# 為什麼是手動觸發，而不是 push 到 main 就自動部署：
+#   這套系統存《個資法》第 6 條的特種個資，部署進生產是需要變更管制的動作，
+#   必須留下「誰、在什麼時候、把哪一個 commit 放上線」的紀錄，而且要有人為決策點。
+#   workflow_dispatch 同時給三樣東西：按鈕是人按的、GitHub 記錄按的人與 commit、
+#   完整部署 log 可事後調閱。合併即自動上線會把這三樣都弄沒。
+#
+# 這個工作流程刻意不做 D1 migration：
+#   worker/migrations/ 下的 002 與 004 是 SQLite `ALTER TABLE ADD COLUMN`，
+#   重跑會失敗（非冪等）。repo 內已有 worker/migrations/run-local.mjs，
+#   會先核對 schema_migrations 帳本與實際欄位才執行——那是刻意的人工關卡，
+#   不該搬進自動流程。要套用新 migration 請本機跑 runner，部署與遷移分開做。
+#
+# 需要的 repository secret：
+#   CLOUDFLARE_API_TOKEN   權限最小組合：Account › Workers Scripts › Edit
+#                          ＋ Zone › Workers Routes › Edit（uic-ai.com）
+#   Account ID 不需要設成 secret：worker/wrangler.toml 已寫死 account_id，
+#   由該檔案作為單一來源，避免兩處不一致。
+
+name: Deploy Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '輸入 deploy 以確認部署到生產環境'
+        required: true
+        type: string
+
+# 只需讀原始碼：不寫回 repo、不碰 packages。
+permissions:
+  contents: read
+
+# 兩個部署不可並行，也不可中途取消——取消一半的部署比跑完更糟。
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy worker
+    runs-on: ubuntu-latest
+    # 指向 GitHub Environment「production」。目前沒有保護規則，
+    # 日後要加「部署需指定人核准」就在 repo Settings › Environments 設定，
+    # 不用改這個檔案。
+    environment: production
+
+    steps:
+      # 擋住打錯字誤觸。輸入框是空的或填別的字都不會部署。
+      - name: Confirm intent
+        if: github.event.inputs.confirm != 'deploy'
+        run: |
+          echo "::error::未確認部署。請在觸發時於 confirm 欄位輸入 deploy。實際收到：'${{ github.event.inputs.confirm }}'"
+          exit 1
+
+      # 只允許從 main 部署。要上線的修補請先合併進 main，
+      # 讓「生產上跑的程式」永遠等於「main 上某個 commit」，稽核時查得到。
+      - name: Enforce deploy from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::只能從 main 部署，目前 ref 為 ${{ github.ref }}。請先將變更合併進 main。"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 先驗證再部署。CI 在合併時已經跑過一次，這裡重跑是為了保證
+      # 「送上生產的這一份」本身是綠的——而不是相信某次歷史紀錄。
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # 讓缺 secret 的錯誤講人話，而不是等 wrangler 丟一串 API 錯誤。
+      - name: Check credentials present
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::找不到 repository secret CLOUDFLARE_API_TOKEN。請於 Settings › Secrets and variables › Actions 新增。"
+            exit 1
+          fi
+
+      # wrangler 版本固定：package.json 沒有列 wrangler，若寫成 `npx wrangler`
+      # 每次部署都會抓當下最新版，等於部署工具版本不可重現。要升版就改這一行，
+      # 走一次 PR，升版本身因此也有紀錄。
+      - name: Deploy
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx --yes wrangler@4.147.0 deploy
+
+      # 部署紀錄：這一行印出的 SHA 就是生產上現在跑的版本。
+      - name: Record deployed revision
+        run: |
+          echo "### 部署完成" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- commit：\`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 觸發者：@${{ github.actor }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 時間（UTC）：$(date -u '+%Y-%m-%d %H:%M:%S')" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 未執行 D1 migration（依設計，需本機 runner 人工套用）" >> "$GITHUB_STEP_SUMMARY"

@@ -56,10 +56,64 @@ npx wrangler d1 execute pv-link-ae --remote \
 
 ## 3. 部署 Worker
 
+兩條路都可以，產出相同；差別在留不留紀錄。
+
+### 3-1. 從 GitHub Actions 部署（建議）
+
+Actions → **Deploy Worker** → Run workflow，分支選 `main`，`confirm` 欄位輸入 `deploy`。
+
+為什麼建議走這條：部署進生產是變更管制動作，稽核時要答得出「誰、何時、把哪個
+commit 放上線」。Actions 的執行紀錄就是那份答案（觸發者、commit SHA、完整 log
+都在 run summary 裡），而本機 `wrangler deploy` 只在你的終端機留下捲軸。
+
+這個 workflow 的設計約束，都寫在 `.github/workflows/deploy-worker.yml` 的註解裡：
+
+- **只能從 `main` 觸發** — 生產上跑的程式永遠等於 main 上某個 commit。要上線的
+  修補請先合併。
+- **部署前重跑 typecheck 與測試** — 不信任歷史綠燈，只信任這一份當下是綠的。
+- **wrangler 版本寫死** — `package.json` 沒有列 wrangler，若用 `npx wrangler`
+  每次都抓最新版，部署工具版本就不可重現。要升版改那一行、走一次 PR。
+- **不碰 D1 migration** — 理由見下方 3-3。
+
+需要一個 repository secret：`CLOUDFLARE_API_TOKEN`，最小權限為
+Account › Workers Scripts › Edit ＋ Zone › Workers Routes › Edit（uic-ai.com）。
+Account ID 不必設成 secret，`worker/wrangler.toml` 的 `account_id` 就是單一來源。
+
+### 3-2. 從本機部署
+
 ```bash
 cd worker
 npx wrangler deploy
 ```
+
+設定 secret 一定得走這條（值不該經過 CI log 或對話視窗）：
+
+```bash
+npx wrangler secret put AE_PV_EMAILS   # 藥安人員信箱，見 §5A
+npx wrangler secret put LLM_API_KEY
+npx wrangler secret list               # 確認有哪些 secret（不會顯示值）
+```
+
+### 3-3. D1 migration 要分開做，不要併進部署流程
+
+`worker/migrations/` 下的 `002_case_version.sql` 與 `004_case_mutation_token.sql`
+是 SQLite `ALTER TABLE ADD COLUMN`，**重跑會失敗**。repo 內的
+`worker/migrations/run-local.mjs` 會先核對 `schema_migrations` 帳本與實際欄位
+才執行，那道人工關卡是刻意的，不該搬進自動流程。
+
+查目前已套用到哪一版：
+
+```bash
+npx wrangler d1 execute pv-link-ae --remote \
+  --command "SELECT id, applied_at FROM schema_migrations ORDER BY id;"
+```
+
+> 現況（2026-10-03 查核）：`001`–`004` 均已於 2026-10-01T06:42Z 套用至遠端
+> `pv-link-ae`，`ae_cases` 已有 `version` 與 `last_mutation_id` 欄位。
+> `docs/security-hardening.md` 內「本輪未執行遠端 migration」是當輪交付時的狀態，
+> 已不代表現況——那份是歷史紀錄，不要照它判斷現在該不該跑 migration。
+
+### 路由
 
 Worker 同時承載兩件事，共用同一套 Access 驗證與速率限制：
 
@@ -267,6 +321,9 @@ AE_ORG_NAME = "天義企業股份有限公司"
 ## 7. 上線前檢查表
 
 - [ ] `ae_audit` 的 append-only trigger 已實測（步驟 2）
+- [ ] 線上 Worker 是 `main` 上預期的那個 commit（§3-1 的 run summary，或 Cloudflare
+      後台的 Last modified 對照 main 的合併時間）
+- [ ] `schema_migrations` 帳本與 `worker/migrations/` 的檔案一致（§3-3）
 - [ ] `pv-link-auditor.pages.dev` 已鎖上或關閉
 - [ ] Access policy 用**公司信箱、個別列舉**，沒有 `Emails ending in` 網域規則
 - [ ] `AE_PV_EMAILS` 或 `ae_users` 已設好藥安人員，且**只有**該設的人是 `pv`
